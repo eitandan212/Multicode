@@ -148,6 +148,7 @@ export function createApp(opts: AppOptions) {
       res.json({ path: req.query.path, content: await ws.read(String(req.query.path ?? "")) });
     }),
   );
+  api.get("/runs", (_req, res) => res.json(runs.list()));
   api.get("/projects/:name/runs", (req, res) => res.json(runs.list(validateProjectName(param(req, "name")))));
   api.post(
     "/projects/:name/runs",

@@ -31,6 +31,8 @@ export interface RunView {
   status: "running" | "done" | "error";
   summary?: string;
   error?: string;
+  startedAt?: number;
+  endedAt?: number;
 }
 
 const MAX_STREAM_CHARS = 200_000;
@@ -42,7 +44,7 @@ export function emptyRun(id: string, prompt = ""): RunView {
 export function reduceRun(s: RunView, e: RunEvent): RunView {
   switch (e.type) {
     case "run.started":
-      return { ...s, prompt: e.prompt };
+      return { ...s, prompt: e.prompt, startedAt: e.at };
     case "phase":
       return { ...s, phase: e.phase };
     case "plan":
@@ -88,8 +90,8 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
     case "review":
       return { ...s, reviews: [...s.reviews, { round: e.round, review: e.review }] };
     case "run.done":
-      return { ...s, status: "done", phase: "done", summary: e.summary };
+      return { ...s, status: "done", phase: "done", summary: e.summary, endedAt: e.at };
     case "run.error":
-      return { ...s, status: "error", phase: "stopped", error: e.error };
+      return { ...s, status: "error", phase: "stopped", error: e.error, endedAt: e.at };
   }
 }

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { RunEvent, RunSummary } from "../../server/shared";
 import { api, type AppState } from "./api";
+import { Composer } from "./components/Composer";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
-import { CrewPanel } from "./components/CrewPanel";
-import { Mission } from "./components/Mission";
-import { Workspace } from "./components/Workspace";
+import { CrewDialog } from "./components/CrewDialog";
+import { Icon } from "./components/Icon";
+import { SidePanel } from "./components/SidePanel";
+import { Sidebar } from "./components/Sidebar";
+import { Thread } from "./components/Thread";
 import { emptyRun, reduceRun, type RunView } from "./runState";
-
-type Pane = "crew" | "mission" | "workspace";
 
 type RunAction = { kind: "reset"; run: RunView | null } | { kind: "event"; event: RunEvent };
 
@@ -16,15 +17,24 @@ function runReducer(state: RunView | null, a: RunAction): RunView | null {
   return state ? reduceRun(state, a.event) : state;
 }
 
-const LAST_PROJECT = "multicode:lastProject";
+const store = {
+  get(key: string): string | null {
+    try {
+      return localStorage.getItem(`multicode:${key}`);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string) {
+    try {
+      localStorage.setItem(`multicode:${key}`, value);
+    } catch {
+      /* storage unavailable: fine */
+    }
+  },
+};
 
-function readLastProject(): string | null {
-  try {
-    return localStorage.getItem(LAST_PROJECT);
-  } catch {
-    return null;
-  }
-}
+const narrow = () => window.matchMedia("(max-width: 900px)").matches;
 
 export function App() {
   const [state, setState] = useState<AppState | null>(null);
@@ -32,14 +42,17 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [showConnections, setShowConnections] = useState(false);
-  const [pane, setPane] = useState<Pane>("mission");
+  const [dialog, setDialog] = useState<"connections" | "crew" | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(() => !narrow() && store.get("sidebar") !== "0");
+  const [panelOpen, setPanelOpen] = useState(() => !narrow() && store.get("panel") !== "0");
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshTimer = useRef<number | undefined>(undefined);
 
   const reload = useCallback(async () => {
     try {
-      setState(await api.state());
+      const [s, r] = await Promise.all([api.state(), api.allRuns()]);
+      setState(s);
+      setRuns(r);
       setLoadError("");
     } catch (e) {
       setLoadError((e as Error).message);
@@ -53,7 +66,7 @@ export function App() {
   // Pick (or create) a project once state has loaded.
   useEffect(() => {
     if (!state || project) return;
-    const last = readLastProject();
+    const last = store.get("project");
     const existing = state.projects.find((p) => p.name === last) ?? state.projects[0];
     if (existing) setProject(existing.name);
     else
@@ -63,50 +76,55 @@ export function App() {
       });
   }, [state, project, reload]);
 
-  useEffect(() => {
-    if (!project) return;
-    try {
-      localStorage.setItem(LAST_PROJECT, project);
-    } catch {
-      /* storage unavailable: fine */
-    }
+  const selectProject = (name: string) => {
+    if (name === project) return;
+    setProject(name);
+    store.set("project", name);
     dispatch({ kind: "reset", run: null });
-    api.runs(project).then((list) => {
-      setRuns(list);
-      if (list[0]) dispatch({ kind: "reset", run: emptyRun(list[0].id, list[0].prompt) });
-    });
-  }, [project]);
+    if (narrow()) setSidebarOpen(false);
+  };
+
+  const selectRun = (r: RunSummary) => {
+    if (r.project !== project) {
+      setProject(r.project);
+      store.set("project", r.project);
+    }
+    dispatch({ kind: "reset", run: emptyRun(r.id, r.prompt) });
+    if (narrow()) setSidebarOpen(false);
+  };
 
   const bumpPreview = useCallback(() => {
     window.clearTimeout(refreshTimer.current);
     refreshTimer.current = window.setTimeout(() => setRefreshKey((k) => k + 1), 600);
   }, []);
 
-  // Stream the selected run's events (replays history first).
+  // Stream the selected thread's events (replays history first).
   const runId = run?.id;
   useEffect(() => {
     if (!runId) return;
     return api.events(runId, (event) => {
       dispatch({ kind: "event", event });
       if (event.type === "file.changed" || event.type === "run.done") bumpPreview();
-      if (event.type === "run.done" || event.type === "run.error") {
-        setRuns((rs) => rs.map((r) => (r.id === runId ? { ...r, status: event.type === "run.done" ? "done" : "error" } : r)));
-        void reload();
-      }
+      if (event.type === "run.done" || event.type === "run.error") void reload();
     });
   }, [runId, bumpPreview, reload]);
 
-  const busyMembers = useMemo(
-    () => new Set(run?.streams.filter((s) => s.status === "live").map((s) => s.memberId) ?? []),
-    [run?.streams],
-  );
+  const busy = useMemo(() => new Set(run?.streams.filter((s) => s.status === "live").map((s) => s.memberId) ?? []), [run?.streams]);
+
+  const togglePanel = (open: boolean) => {
+    setPanelOpen(open);
+    if (!narrow()) store.set("panel", open ? "1" : "0");
+  };
+  const toggleSidebar = (open: boolean) => {
+    setSidebarOpen(open);
+    if (!narrow()) store.set("sidebar", open ? "1" : "0");
+  };
 
   const startRun = async (prompt: string) => {
     if (!project) return;
     const summary = await api.startRun(project, prompt);
     setRuns((rs) => [summary, ...rs]);
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
-    setPane("mission");
   };
 
   const newProject = async () => {
@@ -115,7 +133,7 @@ export function App() {
     try {
       const p = await api.createProject(name.trim());
       await reload();
-      setProject(p.name);
+      selectProject(p.name);
     } catch (e) {
       window.alert((e as Error).message);
     }
@@ -125,7 +143,9 @@ export function App() {
     return (
       <div className="boot">
         {loadError ? (
-          <p className="err-text">MultiCode's server isn't reachable: {loadError}. Start it with <code>npm start</code>.</p>
+          <p className="err-text">
+            MultiCode's server isn't reachable: {loadError}. Start it with <code>npm start</code>.
+          </p>
         ) : (
           <p className="muted">Loading MultiCode…</p>
         )}
@@ -133,73 +153,122 @@ export function App() {
     );
   }
 
+  const crew = state.effectiveCrew;
   const canRun = state.connections.length > 0 && Boolean(project);
+  const running = run?.status === "running";
+  const composer = project && (
+    <Composer
+      crew={crew}
+      settings={state.settings}
+      project={project}
+      canRun={canRun}
+      running={running}
+      placeholder={canRun ? (run ? "Ask the crew for a change" : "Describe what to build") : "Connect an AI to start"}
+      onSubmit={startRun}
+      onStop={() => run && void api.cancelRun(run.id)}
+      onOpenCrew={() => setDialog("crew")}
+      onReviewRounds={async (n) => {
+        await api.saveSettings({ maxReviewRounds: n });
+        await reload();
+      }}
+    />
+  );
 
   return (
-    <div className="app" data-pane={pane}>
-      <header className="topbar">
-        <div className="brand">
-          <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden>
-            <path d="M5 23V9l6 8 6-8v14" stroke="var(--c1)" strokeWidth="2.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M27.5 12a5 5 0 1 0 0 8" stroke="var(--accent)" strokeWidth="2.8" fill="none" strokeLinecap="round" />
-          </svg>
-          <span>MultiCode</span>
-        </div>
-        <div className="project-picker">
-          <label className="sr-only" htmlFor="project">
-            Project
-          </label>
-          <select id="project" value={project ?? ""} onChange={(e) => setProject(e.target.value)}>
-            {state.projects.map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <button className="btn small ghost" onClick={newProject}>
-            New project
-          </button>
-        </div>
-        <button className="btn small" onClick={() => setShowConnections(true)}>
-          Connections
-        </button>
-      </header>
+    <div className={`shell ${sidebarOpen ? "with-sidebar" : ""} ${panelOpen ? "with-panel" : ""}`}>
+      {sidebarOpen && (
+        <>
+          <Sidebar
+            projects={state.projects}
+            runs={runs}
+            project={project}
+            runId={run?.id ?? null}
+            onSelectProject={selectProject}
+            onSelectRun={selectRun}
+            onNewThread={() => {
+              dispatch({ kind: "reset", run: null });
+              if (narrow()) setSidebarOpen(false);
+            }}
+            onNewProject={newProject}
+            onOpenConnections={() => setDialog("connections")}
+            onOpenCrew={() => setDialog("crew")}
+            onCollapse={() => toggleSidebar(false)}
+          />
+          <div className="scrim" onClick={() => toggleSidebar(false)} aria-hidden />
+        </>
+      )}
 
-      <main className="layout">
-        <aside className="pane pane-crew">
-          <CrewPanel state={state} busyMembers={busyMembers} onChanged={reload} onOpenConnections={() => setShowConnections(true)} />
-        </aside>
-        <div className="pane pane-mission">
-          {project && (
-            <Mission
-              run={run}
-              crew={state.effectiveCrew}
-              canRun={canRun}
-              project={project}
-              pastRuns={runs.map((r) => ({ id: r.id, prompt: r.prompt }))}
-              onPickRun={(id) => {
-                const r = runs.find((x) => x.id === id);
-                if (r) dispatch({ kind: "reset", run: emptyRun(r.id, r.prompt) });
-              }}
-              onSubmit={startRun}
-              onCancel={() => run && void api.cancelRun(run.id)}
-            />
+      <main className="main">
+        <header className="topbar">
+          {!sidebarOpen && (
+            <button className="icon-btn" onClick={() => toggleSidebar(true)} aria-label="Show sidebar" title="Show sidebar">
+              <Icon name="sidebar" />
+            </button>
           )}
-        </div>
-        <div className="pane pane-workspace">
-          {project && <Workspace project={project} refreshKey={refreshKey} changed={run?.changed ?? []} />}
-        </div>
+          <div className="crumbs truncate">
+            <span className="muted">{project}</span>
+            <span className="muted sep">/</span>
+            <span className="truncate">{run ? run.prompt : "New thread"}</span>
+          </div>
+          <button
+            className={`icon-btn ${panelOpen ? "is-on" : ""}`}
+            onClick={() => togglePanel(!panelOpen)}
+            aria-label={panelOpen ? "Hide crew and preview" : "Show crew and preview"}
+            aria-pressed={panelOpen}
+            title="Crew and preview"
+          >
+            <Icon name="panelRight" />
+          </button>
+        </header>
+
+        {run && project ? (
+          <>
+            <div className="scroll">
+              <Thread run={run} crew={crew} />
+            </div>
+            <div className="dock">{composer}</div>
+          </>
+        ) : (
+          <div className="hero">
+            <h1>
+              What should the crew build in <b>{project}</b>?
+            </h1>
+            <p className="muted">
+              {state.connections.length === 0 ? (
+                <button className="link" onClick={() => setDialog("connections")}>
+                  Connect an AI to get started
+                </button>
+              ) : (
+                `${crew.length} agent${crew.length === 1 ? "" : "s"} ready: they plan, build in parallel and review each other.`
+              )}
+            </p>
+            {composer}
+          </div>
+        )}
       </main>
 
-      <nav className="mobile-tabs" aria-label="Sections">
-        {(["crew", "mission", "workspace"] as Pane[]).map((p) => (
-          <button key={p} className={pane === p ? "is-active" : ""} onClick={() => setPane(p)}>
-            {p === "crew" ? "Crew" : p === "mission" ? "Mission" : "Preview"}
+      {panelOpen && project && (
+        <>
+          <SidePanel
+            project={project}
+            crew={crew}
+            connections={state.connections}
+            busy={busy}
+            refreshKey={refreshKey}
+            changed={run?.changed ?? []}
+            onOpenCrew={() => setDialog("crew")}
+            onOpenConnections={() => setDialog("connections")}
+          />
+          <button className="panel-close icon-btn" onClick={() => togglePanel(false)} aria-label="Close panel">
+            <Icon name="x" />
           </button>
-        ))}
-      </nav>
+        </>
+      )}
 
-      {showConnections && <ConnectionsDialog state={state} onClose={() => setShowConnections(false)} onChanged={reload} />}
+      {dialog === "connections" && <ConnectionsDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
+      {dialog === "crew" && (
+        <CrewDialog state={state} onClose={() => setDialog(null)} onChanged={reload} onOpenConnections={() => setDialog("connections")} />
+      )}
     </div>
   );
 }

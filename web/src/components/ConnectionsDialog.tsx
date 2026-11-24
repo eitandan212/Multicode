@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { API_KINDS, CLI_KINDS, KIND_LABELS, OPEN_SOURCE_KINDS, SUBSCRIPTION_KINDS, type ConnectionView, type ProviderKind } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { VENDOR } from "../crewColors";
+import { Icon } from "./Icon";
 
 interface Props {
   state: AppState;
@@ -37,7 +38,7 @@ export function ConnectionsDialog({ state, onClose, onChanged }: Props) {
           <p className="muted">Bring the AI accounts you already pay for. Keys stay on this computer.</p>
         </div>
         <button className="icon-btn" onClick={() => ref.current?.close()} aria-label="Close">
-          ✕
+          <Icon name="x" />
         </button>
       </header>
 

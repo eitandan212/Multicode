@@ -67,8 +67,18 @@ run at the same time (per-file locks).
 * CLI builders run with edit-only permissions (no blanket "bypass all" flags).
 
 ## UI
-Three panes: Crew (left) · Mission timeline (center: plan, live agent streams, review) ·
-Workspace (right: live preview iframe + file browser). Collapses to tabs on mobile.
+A quiet, neutral workspace in the spirit of T3 Code (MIT): colour is reserved for the crew.
+MultiCode uses its own name, logo and code; no T3 Code assets or trademarks are used.
+
+* **Sidebar:** projects with their threads, search, a "Working" group with elapsed time,
+  and Connections / Crew at the bottom.
+* **Thread:** breadcrumb `project / thread`; your request as a bubble; "Working for Ns";
+  the plan as a checklist coloured by assignee; each agent call folded into one line
+  (`›_ Agent  Task`) that expands to its live output; review verdicts; a short summary.
+* **Composer:** rounded card with the crew chip and a round send/stop button; a meta row
+  underneath holds the project and the review-rounds setting. Enter sends.
+* **Side panel:** a crew card (members, Edit crew, Connections) and a Preview / Files card.
+* Light and dark follow the system. On narrow screens the sidebar and panel become overlays.
 
 ## Non-goals (v1)
 Hosted/cloud version, billing, git integration, Electron packaging (planned next).

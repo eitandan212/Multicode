@@ -40,7 +40,7 @@ export class RunManager {
   list(project?: string): RunSummary[] {
     return [...this.runs.values()]
       .filter((r) => !project || r.project === project)
-      .map(({ id, project, prompt, status, startedAt }) => ({ id, project, prompt, status, startedAt }))
+      .map(({ id, project, prompt, status, startedAt, endedAt }) => ({ id, project, prompt, status, startedAt, endedAt }))
       .sort((a, b) => b.startedAt - a.startedAt);
   }
 
@@ -116,10 +116,12 @@ export class RunManager {
     })
       .then(({ summary, changedFiles }) => {
         run.status = "done";
+        run.endedAt = Date.now();
         emit({ type: "run.done", summary, changedFiles, at: Date.now() });
       })
       .catch((err: Error) => {
         run.status = run.controller.signal.aborted ? "cancelled" : "error";
+        run.endedAt = Date.now();
         emit({ type: "run.error", error: run.controller.signal.aborted ? "Cancelled" : err.message, at: Date.now() });
       });
 

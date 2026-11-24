@@ -52,6 +52,7 @@ export const api = {
   files: (project: string) => request<string[]>("GET", `/api/projects/${project}/files`),
   file: (project: string, path: string) =>
     request<{ content: string }>("GET", `/api/projects/${project}/file?path=${encodeURIComponent(path)}`),
+  allRuns: () => request<RunSummary[]>("GET", "/api/runs"),
   runs: (project: string) => request<RunSummary[]>("GET", `/api/projects/${project}/runs`),
   startRun: (project: string, prompt: string) => request<RunSummary>("POST", `/api/projects/${project}/runs`, { prompt }),
   cancelRun: (id: string) => request<void>("POST", `/api/runs/${id}/cancel`),

@@ -105,4 +105,5 @@ export interface RunSummary {
   prompt: string;
   status: "running" | "done" | "error" | "cancelled";
   startedAt: number;
+  endedAt?: number;
 }
