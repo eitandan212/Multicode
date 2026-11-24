@@ -1,87 +1,103 @@
 /* MultiCode: quiet, neutral workspace. Color is reserved for the crew. */
+/* MultiCode brand: Accent Green #A8E5B6 · Canvas #F5F5EF · Stone #9CA3AF · Charcoal #0B0D0C */
 :root {
-  --bg: #f4f4f1;
-  --sidebar: #ededea;
+  --bg: #f5f5ef;
+  --sidebar: #eeeee7;
   --card: #ffffff;
-  --hover: #e6e6e2;
-  --bubble: #e9e9e5;
-  --line: #e2e2dd;
-  --line-strong: #d3d3cd;
-  --text: #0f0d0c;
-  --muted: #84827c;
-  --brand: #255a41;
-  --brand-hover: #317052;
-  --brand-ink: #ffffff;
-  --accent: #3d8c66;
-  --accent-soft: #eaf7e7;
-  --ribbon-1: #80c776;
-  --ribbon-2: #4ea35a;
-  --link: #2f7a55;
-  --ok: #3d8c66;
+  --hover: #e7e7df;
+  --bubble: #e9e9e2;
+  --line: #e2e2da;
+  --line-strong: #d2d2c9;
+  --text: #0b0d0c;
+  --muted: #6b7078;
+  --brand: #a8e5b6;
+  --brand-hover: #95dba6;
+  --brand-ink: #0b0d0c;
+  --accent: #2f8f56;
+  --accent-soft: #e3f4e6;
+  --ribbon-1: #a8e5b6;
+  --ribbon-2: #7fcb92;
+  --link: #2f8f56;
+  --ok: #2f8f56;
   --warn: #b7791f;
   --bad: #d9413a;
   --send: var(--brand);
   --send-ink: var(--brand-ink);
-  --focus: #3d8c66;
-  --shadow: 0 1px 2px rgb(15 13 12 / 0.04), 0 6px 20px rgb(15 13 12 / 0.05);
+  --focus: #2f8f56;
+  --shadow: 0 1px 2px rgb(11 13 12 / 0.04), 0 6px 20px rgb(11 13 12 / 0.05);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --logo-bracket: #4fa86a;
+  --logo-stem-top: #8fd4a0;
+  --logo-stem-bottom: #3e8a57;
+  --logo-fold-top: #4c9d65;
+  --logo-fold-bottom: #2b6b40;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #171716;
-    --sidebar: #1c1c1a;
-    --card: #21211f;
-    --hover: #2c2c29;
-    --bubble: #2c2c29;
-    --line: #2c2b28;
-    --line-strong: #3a3935;
-    --text: #eeeeeb;
-    --muted: #8e8c86;
-    --brand: #3d8c66;
-    --brand-hover: #4a9c74;
-    --brand-ink: #ffffff;
-    --accent: #75bb6b;
-    --accent-soft: #1f381f;
-    --ribbon-1: #30582f;
-    --ribbon-2: #3d8c66;
-    --link: #80c776;
-    --ok: #75bb6b;
+    --bg: #0b0d0c;
+    --sidebar: #0f1211;
+    --card: #141816;
+    --hover: #1b201d;
+    --bubble: #1b201d;
+    --line: #202623;
+    --line-strong: #2d3430;
+    --text: #f5f5ef;
+    --muted: #9ca3af;
+    --brand: #a8e5b6;
+    --brand-hover: #bdeec8;
+    --brand-ink: #0b0d0c;
+    --accent: #a8e5b6;
+    --accent-soft: #16241b;
+    --ribbon-1: #1d3a27;
+    --ribbon-2: #2c5a3c;
+    --link: #a8e5b6;
+    --ok: #a8e5b6;
     --warn: #e0b04f;
     --bad: #ff6b62;
-    --focus: #75bb6b;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.25);
+    --focus: #a8e5b6;
+    --logo-bracket: #a8e5b6;
+    --logo-stem-top: #cff4d7;
+    --logo-stem-bottom: #7fcb92;
+    --logo-fold-top: #6fbf86;
+    --logo-fold-bottom: #3e8a57;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px rgb(0 0 0 / 0.3);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #171716;
-  --sidebar: #1c1c1a;
-  --card: #21211f;
-  --hover: #2c2c29;
-  --bubble: #2c2c29;
-  --line: #2c2b28;
-  --line-strong: #3a3935;
-  --text: #eeeeeb;
-  --muted: #8e8c86;
-  --brand: #3d8c66;
-  --brand-hover: #4a9c74;
-  --brand-ink: #ffffff;
-  --accent: #75bb6b;
-  --accent-soft: #1f381f;
-  --ribbon-1: #30582f;
-  --ribbon-2: #3d8c66;
-  --link: #80c776;
-  --ok: #75bb6b;
+  --bg: #0b0d0c;
+  --sidebar: #0f1211;
+  --card: #141816;
+  --hover: #1b201d;
+  --bubble: #1b201d;
+  --line: #202623;
+  --line-strong: #2d3430;
+  --text: #f5f5ef;
+  --muted: #9ca3af;
+  --brand: #a8e5b6;
+  --brand-hover: #bdeec8;
+  --brand-ink: #0b0d0c;
+  --accent: #a8e5b6;
+  --accent-soft: #16241b;
+  --ribbon-1: #1d3a27;
+  --ribbon-2: #2c5a3c;
+  --link: #a8e5b6;
+  --ok: #a8e5b6;
   --warn: #e0b04f;
   --bad: #ff6b62;
-  --focus: #75bb6b;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.25);
+  --focus: #a8e5b6;
+  --logo-bracket: #a8e5b6;
+  --logo-stem-top: #cff4d7;
+  --logo-stem-bottom: #7fcb92;
+  --logo-fold-top: #6fbf86;
+  --logo-fold-bottom: #3e8a57;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px rgb(0 0 0 / 0.3);
   color-scheme: dark;
 }
 
@@ -89,6 +105,7 @@
 :root[data-accent] {
   --brand: color-mix(in oklab, var(--user-accent) 80%, black);
   --brand-hover: color-mix(in oklab, var(--user-accent) 92%, black);
+  --brand-ink: #ffffff;
   --accent: var(--user-accent);
   --accent-soft: color-mix(in oklab, var(--user-accent) 12%, var(--bg));
   --ribbon-1: color-mix(in oklab, var(--user-accent) 65%, white);
@@ -363,10 +380,6 @@ code {
   gap: 8px;
   height: 52px;
   padding: 0 12px;
-}
-.sb-brand {
-  font-size: 15px;
-  letter-spacing: -0.01em;
 }
 .sb-search {
   display: flex;
@@ -645,10 +658,10 @@ code {
 .send {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 9px;
   background: var(--send);
   color: var(--send-ink);
   cursor: pointer;
@@ -742,9 +755,9 @@ code {
   animation: spin 0.8s linear infinite;
 }
 .s-done .check-mark {
-  border-color: var(--agent);
-  background: var(--agent);
-  color: #fff;
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-ink);
 }
 .s-failed .check-mark {
   border-color: var(--bad);
@@ -1775,6 +1788,88 @@ kbd {
   border-color: transparent;
 }
 
+/* Brand */
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.wordmark {
+  font-weight: 650;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+.sb-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+.sb-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-soft);
+}
+.sb-nav-item > svg {
+  color: var(--muted);
+}
+.sb-nav-item:hover {
+  background: var(--hover);
+}
+.sb-nav-item.is-active {
+  background: var(--accent-soft);
+}
+.sb-nav-item.is-active > svg {
+  color: var(--accent);
+}
+.sb-section {
+  padding: 2px 18px 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.splash-logo .lm-left {
+  animation: bracket-l 640ms var(--ease) both;
+}
+.splash-logo .lm-right {
+  animation: bracket-r 640ms var(--ease) both;
+}
+.splash-logo .lm-m {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: m-rise 720ms var(--ease) 160ms both;
+}
+@keyframes bracket-l {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+@keyframes bracket-r {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+@keyframes m-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scaleY(0.6);
+    filter: blur(2px);
+  }
+}
+
 /* Savings, safety, MultiDesign */
 .usage {
   margin-left: auto;
@@ -2046,55 +2141,17 @@ kbd {
   align-items: center;
   gap: 14px;
 }
-.splash-mark path {
-  fill: none;
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw 620ms var(--ease) forwards;
-}
-.sm-m {
-  stroke: var(--text);
-}
-.sm-c {
-  stroke: var(--accent);
-  animation-delay: 260ms !important;
-}
-.splash-crew {
-  display: flex;
-  gap: 8px;
-  height: 10px;
-}
-.splash-crew span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  opacity: 0;
-  transform: scale(0.4);
-  animation: crew-in 420ms var(--ease) forwards;
-}
-@keyframes crew-in {
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
 .splash-word {
   display: flex;
   margin: 0;
-  font-size: clamp(30px, 5vw, 44px);
-  font-weight: 500;
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 700;
   letter-spacing: -0.03em;
 }
 .splash-word span {
   display: inline-block;
   opacity: 0;
   animation: enter 520ms var(--ease) forwards;
-}
-.splash-word .b {
-  font-weight: 650;
 }
 .splash-tag {
   color: var(--muted);

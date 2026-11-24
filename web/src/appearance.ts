@@ -8,7 +8,7 @@ export type SizeChoice = "compact" | "default" | "large";
 
 export interface Appearance {
   theme: ThemeMode;
-  /** null = MultiCode's own forest green. */
+  /** null = MultiCode's own accent green (#A8E5B6). */
   accent: string | null;
   font: FontChoice;
   size: SizeChoice;
@@ -18,9 +18,9 @@ export interface Appearance {
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
-  theme: "system",
+  theme: "dark",
   accent: null,
-  font: "instrument",
+  font: "inter",
   size: "default",
   reducedMotion: false,
   ribbons: true,
@@ -28,7 +28,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
 };
 
 export const ACCENTS: { name: string; value: string | null; swatch: string }[] = [
-  { name: "Forest", value: null, swatch: "#3d8c66" },
+  { name: "MultiCode green", value: null, swatch: "#a8e5b6" },
   { name: "Ocean", value: "#2f7fd1", swatch: "#2f7fd1" },
   { name: "Violet", value: "#7c5cff", swatch: "#7c5cff" },
   { name: "Sunset", value: "#e2702f", swatch: "#e2702f" },
@@ -37,8 +37,8 @@ export const ACCENTS: { name: string; value: string | null; swatch: string }[] =
 ];
 
 export const FONTS: Record<FontChoice, { label: string; stack: string }> = {
-  instrument: { label: "Instrument Sans", stack: '"Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif' },
   inter: { label: "Inter", stack: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif' },
+  instrument: { label: "Instrument Sans", stack: '"Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif' },
   system: { label: "System", stack: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif' },
 };
 
@@ -51,7 +51,7 @@ export function loadAppearance(): Appearance {
     if (!raw || typeof raw !== "object") return DEFAULT_APPEARANCE;
     const a = { ...DEFAULT_APPEARANCE, ...raw };
     if (a.accent !== null && !HEX.test(String(a.accent))) a.accent = null;
-    if (!(a.font in FONTS)) a.font = "instrument";
+    if (!(a.font in FONTS)) a.font = "inter";
     return a;
   } catch {
     return DEFAULT_APPEARANCE;

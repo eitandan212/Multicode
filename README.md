@@ -1,4 +1,8 @@
+<p align="center"><img src="assets/brand/logo.svg" width="140" alt="MultiCode logo"></p>
+
 # MultiCode
+
+**One workspace. Many minds.**
 
 Connect the AI accounts you already have — **subscriptions or API keys** — and let them
 build your project together as a crew.
@@ -137,6 +141,18 @@ npm run typecheck
 ```
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the architecture.
+
+## Brand
+
+| | |
+|---|---|
+| Accent Green | `#A8E5B6` |
+| Canvas | `#F5F5EF` |
+| Stone | `#9CA3AF` |
+| Charcoal | `#0B0D0C` |
+| Type | Inter (UI and headings), JetBrains Mono (code) |
+
+Logo, app icon and the brand sheet live in [`assets/brand/`](assets/brand/).
 
 ## Trademarks
 

@@ -244,7 +244,7 @@ export function App() {
       canRun={canRun}
       running={running}
       progress={run ? { done: run.tasks.filter((t) => t.status === "done" || t.status === "failed").length, total: run.tasks.length } : undefined}
-      placeholder={canRun ? (run ? "Ask the crew for a change" : "Describe what to build") : "Connect an AI to start"}
+      placeholder={canRun ? (run ? "Ask MultiCode for a change…" : "Ask MultiCode anything…") : "Connect an AI to start"}
       onSubmit={startRun}
       onStop={() => run && void api.cancelRun(run.id)}
       onOpenCrew={() => setDialog("crew")}
@@ -277,6 +277,7 @@ export function App() {
             onOpenSync={() => setDialog("sync")}
             onOpenExtensions={() => setDialog("extensions")}
             onOpenAppearance={() => setDialog("appearance")}
+            onOpenSafety={() => setDialog("safety")}
             onCollapse={() => toggleSidebar(false)}
           />
           <div className="scrim" onClick={() => toggleSidebar(false)} aria-hidden />

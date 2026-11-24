@@ -88,8 +88,10 @@ Shared instructions + the last 15 project-memory entries are written as a marked
 Layout in the spirit of T3 Code (MIT); palette and motion in the spirit of Qoder. MultiCode uses
 its own name, logo, illustrations and code; no assets or trademarks of either product are used.
 
-* **Palette:** warm off-white / warm charcoal neutrals, forest-green primary (`#255a41`), leaf-green
-  accent; crew colours are the only other hues. Type: Instrument Sans + JetBrains Mono.
+* **Brand** (assets/brand): Accent Green `#A8E5B6`, Canvas `#F5F5EF`, Stone `#9CA3AF`, Charcoal
+  `#0B0D0C`; Inter for UI and headings, JetBrains Mono for code; dark is the default theme. The
+  logo is an M folded like a ribbon between code brackets, with a deeper-green variant for light
+  backgrounds. Crew colours are the only other hues.
 * **Motion** (one easing, `cubic-bezier(.22,1,.36,1)`): new thread items settle in from a slight blur;
   running titles carry a light sweep; a breathing dot marks thinking agents; queued tasks pulse;
   dialogs rise from 95%; the start screen's ribbons draw in once. All of it is off under

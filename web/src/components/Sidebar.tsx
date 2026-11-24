@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectInfo, RunSummary } from "../../../server/shared";
-import { Icon, Spinner } from "./Icon";
+import { Icon, Spinner, type IconName } from "./Icon";
+import { Lockup } from "./Logo";
 
 interface Props {
   projects: ProjectInfo[];
@@ -16,6 +17,7 @@ interface Props {
   onOpenSync: () => void;
   onOpenExtensions: () => void;
   onOpenAppearance: () => void;
+  onOpenSafety: () => void;
   onCollapse: () => void;
 }
 
@@ -59,10 +61,25 @@ export function Sidebar(p: Props) {
         <button className="icon-btn" onClick={p.onCollapse} aria-label="Hide sidebar" title="Hide sidebar">
           <Icon name="sidebar" />
         </button>
-        <span className="sb-brand">
-          <b>Multi</b>Code
-        </span>
+        <Lockup size={20} />
       </div>
+
+      <nav className="sb-nav" aria-label="Main">
+        {(
+          [
+            ["Chat", "compose", p.onNewThread, true],
+            ["Agents", "users", p.onOpenCrew, false],
+            ["Models", "plug", p.onOpenConnections, false],
+            ["Plugins & skills", "puzzle", p.onOpenExtensions, false],
+            ["Settings", "settings", p.onOpenSafety, false],
+          ] as [string, IconName, () => void, boolean][]
+        ).map(([label, icon, onClick, active]) => (
+          <button key={label} className={`sb-nav-item ${active ? "is-active" : ""}`} onClick={onClick}>
+            <Icon name={icon} size={17} />
+            {label}
+          </button>
+        ))}
+      </nav>
 
       <div className="sb-search">
         <label className="search-field">
@@ -77,6 +94,7 @@ export function Sidebar(p: Props) {
         </button>
       </div>
 
+      <div className="sb-section">Projects &amp; recent</div>
       <div className="sb-list">
         {projects.length === 0 && <p className="sb-empty">{q ? "No matches" : "No projects yet"}</p>}
         {projects.map((pr) => {
