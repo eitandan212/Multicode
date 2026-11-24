@@ -13,7 +13,7 @@ const PHASE_TEXT: Record<string, string> = {
   fixing: "Fixing review notes",
 };
 
-export function Thread({ run, crew }: { run: RunView; crew: CrewMember[] }) {
+export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewMember[]; onShowChanges: () => void }) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
   const end = useRef<HTMLDivElement>(null);
@@ -103,14 +103,17 @@ export function Thread({ run, crew }: { run: RunView; crew: CrewMember[] }) {
 
       {run.status === "done" && (
         <div className="msg-agent">
-          <p>
-            Done. {run.changed.length} file{run.changed.length === 1 ? "" : "s"} changed: {run.changed.map((f, i) => (
-              <span key={f}>
-                {i > 0 && ", "}
-                <code>{f}</code>
-              </span>
-            ))}
-          </p>
+          <p>Done. {run.changed.length} file{run.changed.length === 1 ? "" : "s"} changed.</p>
+          {run.diff && run.diff.length > 0 && (
+            <button className="changes-card" onClick={onShowChanges}>
+              <Icon name="file" size={14} />
+              <span>Changes</span>
+              <span className="muted truncate">{run.diff.map((d) => d.path).join(", ")}</span>
+              <span className="plus">+{run.diff.reduce((n, d) => n + d.additions, 0)}</span>
+              <span className="minus">−{run.diff.reduce((n, d) => n + d.deletions, 0)}</span>
+              <Icon name="chevron" size={13} />
+            </button>
+          )}
         </div>
       )}
       {run.status === "error" && (

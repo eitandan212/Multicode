@@ -1,4 +1,4 @@
-import type { Plan, Review, RunEvent, TaskStatus } from "../../server/shared";
+import type { FileDiff, Plan, Review, RunEvent, TaskStatus } from "../../server/shared";
 
 export interface StreamState {
   id: string;
@@ -33,6 +33,7 @@ export interface RunView {
   error?: string;
   startedAt?: number;
   endedAt?: number;
+  diff?: FileDiff[];
 }
 
 const MAX_STREAM_CHARS = 200_000;
@@ -89,6 +90,8 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
       return s.changed.includes(e.path) ? s : { ...s, changed: [...s.changed, e.path] };
     case "review":
       return { ...s, reviews: [...s.reviews, { round: e.round, review: e.review }] };
+    case "run.diff":
+      return { ...s, diff: e.files };
     case "run.done":
       return { ...s, status: "done", phase: "done", summary: e.summary, endedAt: e.at };
     case "run.error":

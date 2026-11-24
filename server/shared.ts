@@ -83,6 +83,21 @@ export interface Review {
   issues: ReviewIssue[];
 }
 
+export interface DiffHunk {
+  header: string;
+  lines: string[];
+}
+
+export interface FileDiff {
+  path: string;
+  change: "added" | "modified" | "deleted";
+  additions: number;
+  deletions: number;
+  hunks: DiffHunk[];
+  /** True when the file was too large or binary to diff. */
+  skipped?: boolean;
+}
+
 export type TaskStatus = "queued" | "running" | "done" | "failed";
 
 export type RunEvent =
@@ -96,6 +111,7 @@ export type RunEvent =
   | { type: "agent.end"; streamId: string; ok: boolean; error?: string }
   | { type: "file.changed"; path: string; change: "write" | "delete"; memberId: string }
   | { type: "review"; review: Review; round: number }
+  | { type: "run.diff"; files: FileDiff[] }
   | { type: "run.done"; summary: string; changedFiles: string[]; at: number }
   | { type: "run.error"; error: string; at: number };
 

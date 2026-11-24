@@ -14,6 +14,8 @@ const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 export interface AppOptions {
   config: ConfigStore;
   projectsDir: string;
+  /** Where run history is stored. Omit to keep runs in memory only. */
+  runsDir?: string;
   providerFactory: ProviderFactory;
   webDir?: string;
 }
@@ -26,7 +28,7 @@ const param = (req: Request, key: string): string => String(req.params[key] ?? "
 
 export function createApp(opts: AppOptions) {
   const { config, projectsDir } = opts;
-  const runs = new RunManager(config, projectsDir, opts.providerFactory);
+  const runs = new RunManager(config, projectsDir, opts.providerFactory, opts.runsDir);
   const app = express();
   app.disable("x-powered-by");
 
@@ -155,23 +157,28 @@ export function createApp(opts: AppOptions) {
     wrap(async (req, res) => res.status(201).json(await runs.start(validateProjectName(param(req, "name")), req.body?.prompt))),
   );
 
-  api.get("/runs/:id/events", (req, res) => {
-    const run = runs.get(param(req, "id"));
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-    });
-    const send = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
-    for (const e of run.events) send(e);
-    const unsubscribe = runs.subscribe(run.id, send);
-    const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
-    req.on("close", () => {
-      clearInterval(ping);
-      unsubscribe();
-    });
-  });
+  api.get(
+    "/runs/:id/events",
+    wrap(async (req, res) => {
+      const run = runs.get(param(req, "id"));
+      // Read history first; no await may sit between replaying it and subscribing.
+      const history = await runs.events(run.id);
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+      const send = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
+      for (const e of history) send(e);
+      const unsubscribe = runs.subscribe(run.id, send);
+      const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
+      req.on("close", () => {
+        clearInterval(ping);
+        unsubscribe();
+      });
+    }),
+  );
   api.post("/runs/:id/cancel", (req, res) => {
     runs.cancel(param(req, "id"));
     res.status(202).json({ ok: true });

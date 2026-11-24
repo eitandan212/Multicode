@@ -1,14 +1,16 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../server/app.js";
 import { ConfigStore, type Connection } from "../server/config.js";
+import { captureBaseline, diffChanges } from "../server/crew/diff.js";
 import { assignRoles, runCrew, scheduleTasks, type ResolvedMember } from "../server/crew/orchestrator.js";
 import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/crew/parse.js";
 import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
 import type { GenerateRequest, Provider } from "../server/providers/types.js";
+import { RunManager } from "../server/runs.js";
 import type { PlanTask, RunEvent } from "../server/shared.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
 
@@ -227,5 +229,74 @@ describe("http guards", () => {
     const preview = await fetch(`${base}/preview/site/`);
     expect(preview.headers.get("content-security-policy")).toContain("sandbox");
     expect(await preview.text()).toContain("app.js");
+  });
+});
+
+describe("diffs", () => {
+  it("reports added, modified and deleted files with line counts", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-diff-"));
+    try {
+      const ws = await Workspace.open(dir, "d");
+      await ws.write("keep.js", "a\nb\nc\n");
+      await ws.write("gone.js", "x\n");
+      const base = await captureBaseline(ws);
+      await ws.write("keep.js", "a\nB\nc\nd\n");
+      await ws.remove("gone.js");
+      await ws.write("new.js", "n1\nn2\n");
+      const diffs = await diffChanges(ws, base, ["keep.js", "gone.js", "new.js"]);
+      expect(diffs.map((d) => [d.path, d.change, d.additions, d.deletions])).toEqual([
+        ["gone.js", "deleted", 0, 1],
+        ["keep.js", "modified", 2, 1],
+        ["new.js", "added", 2, 0],
+      ]);
+      expect(diffs[1]!.hunks[0]!.lines).toContain("+B");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("run history", () => {
+  it("survives a restart and closes runs that were interrupted", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-runs-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const runsDir = path.join(dir, "runs");
+      const factory = () => fakeProvider({ review: [] });
+      const first = new RunManager(config, path.join(dir, "projects"), factory, runsDir);
+      await first.load();
+      const run = await first.start("p1", "make a page");
+      await new Promise<void>((resolve) => {
+        const off = first.subscribe(run.id, (e) => {
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      await new Promise((r) => setTimeout(r, 50)); // let the log stream flush
+
+      // A run that was still "running" when the process died.
+      const ghost = "00000000-0000-4000-8000-000000000000";
+      await writeFile(
+        path.join(runsDir, `${ghost}.json`),
+        JSON.stringify({ id: ghost, project: "p1", prompt: "old", status: "running", startedAt: 1 }),
+      );
+
+      const second = new RunManager(config, path.join(dir, "projects"), factory, runsDir);
+      await second.load();
+      const list = second.list("p1");
+      expect(list.find((r) => r.id === run.id)?.status).toBe("done");
+      expect(list.find((r) => r.id === ghost)?.status).toBe("error");
+      const types = (await second.events(run.id)).map((e) => e.type);
+      expect(types[0]).toBe("run.started");
+      expect(types).toContain("run.diff");
+      expect(types.at(-1)).toBe("run.done");
+      expect((await second.events(ghost)).at(-1)?.type).toBe("run.error");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

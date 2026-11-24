@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ConnectionView, CrewMember } from "../../../server/shared";
+import type { ConnectionView, CrewMember, FileDiff } from "../../../server/shared";
 import { api } from "../api";
 import { colorFor, ROLE_LABEL, VENDOR } from "../crewColors";
+import { DiffView } from "./DiffView";
 import { Icon, Spinner } from "./Icon";
+
+export type PanelTab = "preview" | "files" | "changes";
 
 interface Props {
   project: string;
@@ -11,12 +14,15 @@ interface Props {
   busy: Set<string>;
   refreshKey: number;
   changed: string[];
+  diff: FileDiff[] | undefined;
+  tab: PanelTab;
+  onTab: (t: PanelTab) => void;
   onOpenCrew: () => void;
   onOpenConnections: () => void;
 }
 
 export function SidePanel(p: Props) {
-  const [tab, setTab] = useState<"preview" | "files">("preview");
+  const { tab, onTab: setTab } = p;
   const [files, setFiles] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [content, setContent] = useState<{ path: string; text: string } | null>(null);
@@ -89,6 +95,9 @@ export function SidePanel(p: Props) {
           <button role="tab" aria-selected={tab === "files"} className={tab === "files" ? "is-active" : ""} onClick={() => setTab("files")}>
             <Icon name="file" size={14} /> Files <span className="muted">{files.length}</span>
           </button>
+          <button role="tab" aria-selected={tab === "changes"} className={tab === "changes" ? "is-active" : ""} onClick={() => setTab("changes")}>
+            <Icon name="list" size={14} /> Changes {p.diff && p.diff.length > 0 && <span className="muted">{p.diff.length}</span>}
+          </button>
           {tab === "preview" && hasIndex && (
             <a className="icon-btn push-right" href={previewUrl} target="_blank" rel="noreferrer" title="Open in new tab" aria-label="Open preview in new tab">
               <Icon name="external" size={14} />
@@ -102,6 +111,8 @@ export function SidePanel(p: Props) {
           ) : (
             <p className="ws-empty">{files.length ? "No index.html to preview. Browse the code in Files." : "The preview appears once the crew writes index.html."}</p>
           ))}
+
+        {tab === "changes" && <DiffView files={p.diff} />}
 
         {tab === "files" && (
           <div className="files">

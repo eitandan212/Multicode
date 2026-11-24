@@ -48,7 +48,15 @@ npm start            # → http://localhost:4317   (add -- --open to open the br
 
 For development (`tsx watch` + Vite with hot reload): `npm run dev`, then open http://localhost:5173.
 
-Your projects live in `~/.multicode/projects/<name>` (override with `MULTICODE_HOME`).
+Your projects live in `~/.multicode/projects/<name>` and thread history in `~/.multicode/runs`
+(override the folder with `MULTICODE_HOME`). Threads, their agent output and their diffs survive restarts.
+
+### Shortcuts
+
+| Keys | Action |
+|---|---|
+| `Ctrl K` / `⌘K` | Command palette: jump to any thread or project, open crew, connections, preview, files, changes |
+| `Enter` / `Shift Enter` | Send to the crew / new line |
 
 ## Security
 

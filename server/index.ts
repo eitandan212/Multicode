@@ -13,12 +13,15 @@ const host = "127.0.0.1";
 const config = new ConfigStore();
 await config.load();
 
-const { app } = createApp({
+const { app, runs } = createApp({
   config,
   projectsDir: path.join(dataDir(), "projects"),
+  runsDir: path.join(dataDir(), "runs"),
   providerFactory: createProvider,
   webDir: path.resolve(here, "../web"),
 });
+
+await runs.load();
 
 app.listen(port, host, () => {
   const url = `http://localhost:${port}`;

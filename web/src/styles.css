@@ -22,10 +22,6 @@
   color-scheme: light;
 }
 
-code,
-pre {
-  font-variant-ligatures: none;
-}
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -925,6 +921,209 @@ button.card-row:hover {
   user-select: none;
 }
 
+/* Changes */
+.plus {
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+.minus {
+  color: var(--bad);
+  font-variant-numeric: tabular-nums;
+}
+.changes-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  text-align: left;
+  cursor: pointer;
+}
+.changes-card:hover {
+  background: var(--hover);
+}
+.changes-card > svg {
+  flex: none;
+  color: var(--muted);
+}
+.changes-card .muted {
+  flex: 1;
+}
+.diff {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.diff-summary {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
+}
+.diff-file + .diff-file {
+  border-top: 1px solid var(--line);
+}
+.diff-file-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  background: var(--card);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.diff-file-head:hover {
+  background: var(--hover);
+}
+.diff-file-head .plus,
+.diff-file-head .minus {
+  font-size: 12px;
+  font-weight: 400;
+}
+.diff-tag {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--muted);
+}
+.diff-tag.added {
+  color: var(--ok);
+}
+.diff-tag.deleted {
+  color: var(--bad);
+}
+.diff-body {
+  margin: 0;
+  padding: 0 0 8px;
+  font: 12px/1.6 var(--mono);
+  overflow-x: auto;
+}
+.dl {
+  display: block;
+  padding: 0 12px;
+  white-space: pre;
+  min-width: max-content;
+}
+.dl.add {
+  background: color-mix(in srgb, var(--ok) 13%, transparent);
+}
+.dl.del {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+.dl.hunk {
+  color: var(--muted);
+  background: var(--sidebar);
+  padding-top: 2px;
+  padding-bottom: 2px;
+  margin-top: 6px;
+}
+.dl.meta {
+  color: var(--muted);
+}
+
+/* Command palette */
+.kbd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.kbd-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+kbd {
+  font: 11.5px var(--font);
+  color: var(--muted);
+}
+.palette {
+  width: min(560px, calc(100vw - 24px));
+  margin-top: 14vh;
+}
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.palette-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+}
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+}
+.palette-group {
+  padding: 8px 10px 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.palette-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.palette-item > svg {
+  flex: none;
+  color: var(--muted);
+}
+.palette-item.is-active {
+  background: var(--hover);
+}
+.palette-hint {
+  margin-left: auto;
+  font-size: 12.5px;
+  max-width: 40%;
+}
+.palette-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
 /* Dialogs */
 .dialog {
   width: min(640px, calc(100vw - 24px));
@@ -1156,6 +1355,9 @@ button.card-row:hover {
   .topbar {
     padding: 0 10px;
   }
+  .kbd-btn kbd {
+    display: none;
+  }
   .scroll {
     padding: 8px 16px 16px;
   }
@@ -1183,4 +1385,15 @@ button.card-row:hover {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Show code exactly as typed (no "=>" to arrow ligatures). Kept last: the `font`
+   shorthand used above resets ligature settings. */
+code,
+pre,
+.code,
+.tool-body,
+.diff-body {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
 }

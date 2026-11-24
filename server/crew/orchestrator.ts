@@ -3,6 +3,7 @@ import type { Connection } from "../config.js";
 import type { Provider } from "../providers/types.js";
 import { CLI_KINDS, type CrewMember, type Plan, type PlanTask, type RunEvent, type Settings } from "../shared.js";
 import { Workspace, type FileSnapshot } from "../workspace.js";
+import { captureBaseline, diffChanges } from "./diff.js";
 import { parseFileOps, parsePlan, parseReview } from "./parse.js";
 import * as P from "./prompts.js";
 
@@ -86,6 +87,7 @@ export async function runCrew(o: RunOptions): Promise<{ summary: string; changed
   const { workspace: ws, roles, emit, signal } = o;
   const changed = new Set<string>();
   let known: FileSnapshot = await ws.snapshot();
+  const baseline = await captureBaseline(ws);
   let syncing: Promise<void> = Promise.resolve();
 
   const checkAbort = () => {
@@ -209,6 +211,7 @@ export async function runCrew(o: RunOptions): Promise<{ summary: string; changed
 
   await syncing;
   const changedFiles = [...changed].sort();
+  emit({ type: "run.diff", files: await diffChanges(ws, baseline, changedFiles) });
   const summary = [plan.summary, reviewSummary].filter(Boolean).join("\n\n");
   return { summary: summary || "Done.", changedFiles };
 }

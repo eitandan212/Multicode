@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { RunEvent, RunSummary } from "../../server/shared";
 import { api, type AppState } from "./api";
+import { CommandPalette, type Command } from "./components/CommandPalette";
 import { Composer } from "./components/Composer";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
-import { SidePanel } from "./components/SidePanel";
+import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Thread } from "./components/Thread";
 import { emptyRun, reduceRun, type RunView } from "./runState";
@@ -42,7 +43,8 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [dialog, setDialog] = useState<"connections" | "crew" | null>(null);
+  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | null>(null);
+  const [panelTab, setPanelTab] = useState<PanelTab>("preview");
   const [sidebarOpen, setSidebarOpen] = useState(() => !narrow() && store.get("sidebar") !== "0");
   const [panelOpen, setPanelOpen] = useState(() => !narrow() && store.get("panel") !== "0");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -62,6 +64,18 @@ export function App() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Ctrl/Cmd+K opens the command palette from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setDialog((d) => (d === "palette" ? null : d ?? "palette"));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Pick (or create) a project once state has loaded.
   useEffect(() => {
@@ -111,6 +125,11 @@ export function App() {
 
   const busy = useMemo(() => new Set(run?.streams.filter((s) => s.status === "live").map((s) => s.memberId) ?? []), [run?.streams]);
 
+  const showChanges = () => {
+    setPanelTab("changes");
+    togglePanel(true);
+  };
+
   const togglePanel = (open: boolean) => {
     setPanelOpen(open);
     if (!narrow()) store.set("panel", open ? "1" : "0");
@@ -137,6 +156,28 @@ export function App() {
     } catch (e) {
       window.alert((e as Error).message);
     }
+  };
+
+  const commands = (): Command[] => {
+    if (!state) return [];
+    const cmds: Command[] = [
+      { id: "new-thread", label: "New thread", icon: "compose", group: "Actions", run: () => dispatch({ kind: "reset", run: null }) },
+      { id: "new-project", label: "New project", icon: "folderPlus", group: "Actions", run: () => void newProject() },
+      { id: "crew", label: "Edit crew", icon: "users", group: "Actions", run: () => setDialog("crew") },
+      { id: "connections", label: "Connections", hint: "subscriptions, API keys, agents", icon: "plug", group: "Actions", run: () => setDialog("connections") },
+      { id: "toggle-sidebar", label: sidebarOpen ? "Hide sidebar" : "Show sidebar", icon: "sidebar", group: "View", run: () => toggleSidebar(!sidebarOpen) },
+      { id: "toggle-panel", label: panelOpen ? "Hide crew and preview" : "Show crew and preview", icon: "panelRight", group: "View", run: () => togglePanel(!panelOpen) },
+      { id: "preview", label: "Show preview", icon: "globe", group: "View", run: () => { setPanelTab("preview"); togglePanel(true); } },
+      { id: "files", label: "Show files", icon: "file", group: "View", run: () => { setPanelTab("files"); togglePanel(true); } },
+      { id: "changes", label: "Show changes", icon: "list", group: "View", run: showChanges },
+    ];
+    if (run?.status === "running")
+      cmds.unshift({ id: "stop", label: "Stop the crew", icon: "stop", group: "Actions", run: () => void api.cancelRun(run.id) });
+    for (const pr of state.projects)
+      cmds.push({ id: `project-${pr.name}`, label: pr.name, hint: `${pr.fileCount} files`, icon: "folder", group: "Projects", run: () => selectProject(pr.name) });
+    for (const r of runs)
+      cmds.push({ id: `run-${r.id}`, label: r.prompt, hint: r.project, icon: "terminal", group: "Threads", run: () => selectRun(r) });
+    return cmds;
   };
 
   if (!state) {
@@ -210,6 +251,10 @@ export function App() {
             <span className="muted sep">/</span>
             <span className="truncate">{run ? run.prompt : "New thread"}</span>
           </div>
+          <button className="kbd-btn" onClick={() => setDialog("palette")} title="Command palette" aria-label="Open command palette">
+            <Icon name="search" size={14} />
+            <kbd>{/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd>
+          </button>
           <button
             className={`icon-btn ${panelOpen ? "is-on" : ""}`}
             onClick={() => togglePanel(!panelOpen)}
@@ -224,7 +269,7 @@ export function App() {
         {run && project ? (
           <>
             <div className="scroll">
-              <Thread run={run} crew={crew} />
+              <Thread run={run} crew={crew} onShowChanges={showChanges} />
             </div>
             <div className="dock">{composer}</div>
           </>
@@ -256,6 +301,9 @@ export function App() {
             busy={busy}
             refreshKey={refreshKey}
             changed={run?.changed ?? []}
+            diff={run?.diff}
+            tab={panelTab}
+            onTab={setPanelTab}
             onOpenCrew={() => setDialog("crew")}
             onOpenConnections={() => setDialog("connections")}
           />
@@ -265,6 +313,7 @@ export function App() {
         </>
       )}
 
+      {dialog === "palette" && <CommandPalette commands={commands()} onClose={() => setDialog(null)} />}
       {dialog === "connections" && <ConnectionsDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
       {dialog === "crew" && (
         <CrewDialog state={state} onClose={() => setDialog(null)} onChanged={reload} onOpenConnections={() => setDialog("connections")} />
