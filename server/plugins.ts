@@ -62,6 +62,9 @@ export const PLUGINS: PluginDef[] = [
         "@playwright/mcp@0.0.86",
         "--headless",
         "--isolated",
+        // Screenshots and snapshots go to MultiCode's data folder, not into the project.
+        "--output-dir",
+        path.join(c.dataDir, "browser", c.project),
         ...(c.options.browserAnyWebsite ? [] : ["--allowed-origins", `${c.previewOrigin};${c.previewOrigin.replace("localhost", "127.0.0.1")}`]),
       ],
     }),

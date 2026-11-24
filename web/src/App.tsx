@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import type { RunEvent, RunSummary } from "../../server/shared";
 import { api, type AppState } from "./api";
 import { CommandPalette, type Command } from "./components/CommandPalette";
+import { applyAppearance, loadAppearance, motionReduced, saveAppearance, type Appearance } from "./appearance";
+import { AppearanceDialog } from "./components/AppearanceDialog";
 import { Composer } from "./components/Composer";
+import { Splash } from "./components/Splash";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
@@ -46,8 +49,33 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | "sync" | "extensions" | null>(null);
+  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | "sync" | "extensions" | "appearance" | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("preview");
+  const [appearance, setAppearanceState] = useState<Appearance>(loadAppearance);
+  // The intro plays once per browser session (and never with reduced motion).
+  const [intro, setIntro] = useState(() => {
+    const a = loadAppearance();
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem("multicode:intro") === "1";
+    } catch {
+      /* no storage: play it */
+    }
+    return a.intro && !seen && !motionReduced(a);
+  });
+  const endIntro = useCallback(() => {
+    setIntro(false);
+    try {
+      sessionStorage.setItem("multicode:intro", "1");
+    } catch {
+      /* fine */
+    }
+  }, []);
+  const setAppearance = (a: Appearance) => {
+    setAppearanceState(a);
+    applyAppearance(a);
+    saveAppearance(a);
+  };
   const [sidebarOpen, setSidebarOpen] = useState(() => !narrow() && store.get("sidebar") !== "0");
   const [panelOpen, setPanelOpen] = useState(() => !narrow() && store.get("panel") !== "0");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -167,6 +195,7 @@ export function App() {
       { id: "new-thread", label: "New thread", icon: "compose", group: "Actions", run: () => dispatch({ kind: "reset", run: null }) },
       { id: "new-project", label: "New project", icon: "folderPlus", group: "Actions", run: () => void newProject() },
       { id: "crew", label: "Edit crew", icon: "users", group: "Actions", run: () => setDialog("crew") },
+      { id: "appearance", label: "Appearance", hint: "theme, accent colour, font, size, motion", icon: "palette", group: "View", run: () => setDialog("appearance") },
       { id: "extensions", label: "Plugins & skills", hint: "memory graph, AI browser, computer control, skill packs", icon: "puzzle", group: "Actions", run: () => setDialog("extensions") },
       { id: "sync", label: "Sync across harnesses", hint: "instructions, MCP servers, memory", icon: "sync", group: "Actions", run: () => setDialog("sync") },
       { id: "connections", label: "Connections", hint: "subscriptions, API keys, agents", icon: "plug", group: "Actions", run: () => setDialog("connections") },
@@ -185,9 +214,12 @@ export function App() {
     return cmds;
   };
 
+  const splash = intro && <Splash onDone={endIntro} />;
+
   if (!state) {
     return (
       <div className="boot">
+        {splash}
         {loadError ? (
           <p className="err-text">
             MultiCode's server isn't reachable: {loadError}. Start it with <code>npm start</code>.
@@ -241,6 +273,7 @@ export function App() {
             onOpenCrew={() => setDialog("crew")}
             onOpenSync={() => setDialog("sync")}
             onOpenExtensions={() => setDialog("extensions")}
+            onOpenAppearance={() => setDialog("appearance")}
             onCollapse={() => toggleSidebar(false)}
           />
           <div className="scrim" onClick={() => toggleSidebar(false)} aria-hidden />
@@ -343,6 +376,18 @@ export function App() {
 
       {dialog === "palette" && <CommandPalette commands={commands()} onClose={() => setDialog(null)} />}
       {dialog === "extensions" && <ExtensionsDialog onClose={() => setDialog(null)} />}
+      {dialog === "appearance" && (
+        <AppearanceDialog
+          value={appearance}
+          onChange={setAppearance}
+          onReplayIntro={() => {
+            setDialog(null);
+            setIntro(true);
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {splash}
       {dialog === "sync" && project && <SyncDialog project={project} onClose={() => setDialog(null)} />}
       {dialog === "connections" && <ConnectionsDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
       {dialog === "crew" && (

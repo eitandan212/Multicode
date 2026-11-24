@@ -15,6 +15,7 @@ interface Props {
   onOpenCrew: () => void;
   onOpenSync: () => void;
   onOpenExtensions: () => void;
+  onOpenAppearance: () => void;
   onCollapse: () => void;
 }
 
@@ -137,6 +138,9 @@ export function Sidebar(p: Props) {
         </button>
         <button className="icon-btn" onClick={p.onOpenExtensions} title="Plugins & skills" aria-label="Plugins and skills">
           <Icon name="puzzle" />
+        </button>
+        <button className="icon-btn push-right" onClick={p.onOpenAppearance} title="Appearance" aria-label="Appearance">
+          <Icon name="palette" />
         </button>
       </div>
     </nav>

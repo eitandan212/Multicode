@@ -67,6 +67,12 @@ For development (`tsx watch` + Vite with hot reload): `npm run dev`, then open h
 Your projects live in `~/.multicode/projects/<name>` and thread history in `~/.multicode/runs`
 (override the folder with `MULTICODE_HOME`). Threads, their agent output and their diffs survive restarts.
 
+### Make it yours
+
+**Appearance** (palette icon in the sidebar, or `Ctrl K` → Appearance): theme (system, light, dark),
+accent colour (6 presets or any colour), font, interface size, animations, background ribbons and
+the opening animation. Saved in your browser and applied before the first paint.
+
 ### Shortcuts
 
 | Keys | Action |

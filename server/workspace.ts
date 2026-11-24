@@ -19,6 +19,7 @@ const IGNORED_DIRS = new Set([
   ".gemini",
   ".qwen",
   ".opencode",
+  ".playwright-mcp",
 ]);
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_FILES = 2000;
