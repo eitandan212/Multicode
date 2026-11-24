@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SyncConfig } from "./config.js";
 import type { HarnessSyncStatus, McpServer } from "./shared.js";
+import { skillMarkdown, type Skill } from "./skills.js";
 import type { Workspace } from "./workspace.js";
 
 /**
@@ -34,6 +35,23 @@ export interface MemoryEntry {
 interface SyncState {
   managedServers: string[];
   createdFiles: string[];
+  /** Skill folders MultiCode created (relative paths), so it never touches the user's own. */
+  managedSkills: string[];
+}
+
+/** Where each harness looks for project skills. OpenCode reads .claude/ and .agents/ too. */
+const SKILL_DIRS: { dir: string; harness: string }[] = [
+  { dir: ".claude/skills", harness: "Claude Code" },
+  { dir: ".agents/skills", harness: "Codex" },
+  { dir: ".gemini/skills", harness: "Gemini CLI" },
+  { dir: ".qwen/skills", harness: "Qwen Code" },
+];
+
+/** What plugins and skill packs add on top of the user's own sync settings. */
+export interface SyncExtras {
+  servers: McpServer[];
+  instructions: string[];
+  skills: Skill[];
 }
 
 export class ProjectMemory {
@@ -97,20 +115,24 @@ const envRef = {
   opencode: (n: string) => `{env:${n}}`,
 };
 
+/** Env for a server: fixed values literally, secrets as references. */
+const envFor = (s: McpServer, ref: (n: string) => string) =>
+  Object.fromEntries((s.envNames ?? []).map((n) => [n, s.fixedEnv?.[n] ?? ref(n)]));
+
 function claudeEntry(s: McpServer) {
   if (s.type === "http") return { type: "http", url: s.url };
-  return { command: s.command, args: s.args ?? [], env: Object.fromEntries((s.envNames ?? []).map((n) => [n, envRef.claude(n)])) };
+  return { command: s.command, args: s.args ?? [], env: envFor(s, envRef.claude) };
 }
 function geminiEntry(s: McpServer) {
   if (s.type === "http") return { httpUrl: s.url };
-  return { command: s.command, args: s.args ?? [], env: Object.fromEntries((s.envNames ?? []).map((n) => [n, envRef.gemini(n)])) };
+  return { command: s.command, args: s.args ?? [], env: envFor(s, envRef.gemini) };
 }
 function opencodeEntry(s: McpServer) {
   if (s.type === "http") return { type: "remote", url: s.url, enabled: true };
   return {
     type: "local",
     command: [s.command!, ...(s.args ?? [])],
-    environment: Object.fromEntries((s.envNames ?? []).map((n) => [n, envRef.opencode(n)])),
+    environment: envFor(s, envRef.opencode),
     enabled: true,
   };
 }
@@ -128,7 +150,10 @@ export function codexMcpArgs(servers: McpServer[]): string[] {
     const key = `mcp_servers.${s.name}`;
     if (s.type === "http") return ["-c", `${key}.url=${toml(s.url!)}`];
     const out = ["-c", `${key}.command=${toml(s.command!)}`, "-c", `${key}.args=[${(s.args ?? []).map(toml).join(",")}]`];
-    if (s.envNames?.length) out.push("-c", `${key}.env_vars=[${s.envNames.map(toml).join(",")}]`);
+    const fixed = Object.entries(s.fixedEnv ?? {});
+    const secret = (s.envNames ?? []).filter((n) => !(n in (s.fixedEnv ?? {})));
+    if (fixed.length) out.push("-c", `${key}.env={${fixed.map(([k, v]) => `${k}=${toml(v)}`).join(",")}}`);
+    if (secret.length) out.push("-c", `${key}.env_vars=[${secret.map(toml).join(",")}]`);
     return out;
   });
 }
@@ -161,17 +186,19 @@ export class HarnessSync {
   private async state(project: string): Promise<SyncState> {
     try {
       const s = JSON.parse(await readFile(this.stateFile(project), "utf8"));
-      return { managedServers: s.managedServers ?? [], createdFiles: s.createdFiles ?? [] };
+      return { managedServers: s.managedServers ?? [], createdFiles: s.createdFiles ?? [], managedSkills: s.managedSkills ?? [] };
     } catch {
-      return { managedServers: [], createdFiles: [] };
+      return { managedServers: [], createdFiles: [], managedSkills: [] };
     }
   }
 
   /** Writes the shared state into every harness file of the project. */
-  async apply(project: string, ws: Workspace, cfg: SyncConfig): Promise<HarnessSyncStatus[]> {
+  async apply(project: string, ws: Workspace, cfg: SyncConfig, extras: SyncExtras = { servers: [], instructions: [], skills: [] }): Promise<HarnessSyncStatus[]> {
     const state = await this.state(project);
     const created = new Set(state.createdFiles);
-    const block = renderBlock(cfg.instructions, await this.memory.read(project));
+    const instructions = [cfg.instructions.trim(), ...extras.instructions].filter(Boolean).join("\n\n");
+    const block = renderBlock(instructions, await this.memory.read(project));
+    const servers = [...cfg.mcpServers, ...extras.servers.filter((p) => !cfg.mcpServers.some((u) => u.name === p.name))];
     const status = new Map<string, Set<string>>();
     const touch = (harness: string, file: string) => status.set(harness, (status.get(harness) ?? new Set()).add(file));
 
@@ -195,7 +222,7 @@ export class HarnessSync {
       touch("Qwen Code", "QWEN.md");
     }
 
-    const names = cfg.mcpServers.map((s) => s.name);
+    const names = servers.map((s) => s.name);
     for (const t of JSON_TARGETS) {
       const raw = await ws.tryRead(t.file);
       let doc: Record<string, unknown>;
@@ -208,7 +235,7 @@ export class HarnessSync {
       }
       const section = { ...((doc[t.key] as Record<string, unknown>) ?? {}) };
       for (const old of state.managedServers) if (!names.includes(old)) delete section[old];
-      for (const s of cfg.mcpServers) section[s.name] = t.entry(s);
+      for (const s of servers) section[s.name] = t.entry(s);
       const next: Record<string, unknown> = { ...(raw ? {} : t.base ?? {}), ...doc };
       if (Object.keys(section).length) next[t.key] = section;
       else delete next[t.key];
@@ -219,18 +246,43 @@ export class HarnessSync {
         created.delete(t.file);
         continue;
       }
-      if (!raw && !cfg.mcpServers.length) continue;
+      if (!raw && !servers.length) continue;
       const text = `${JSON.stringify(next, null, 2)}\n`;
       if (text !== raw) {
         if (!raw) created.add(t.file);
         await ws.write(t.file, text);
       }
-      if (cfg.mcpServers.length) touch(t.harness, t.file);
+      if (servers.length) touch(t.harness, t.file);
     }
-    if (cfg.mcpServers.length) touch("Codex", "MCP passed per run (-c mcp_servers.*)");
+    if (servers.length) touch("Codex", "MCP passed per run (-c mcp_servers.*)");
+
+    // Skills: one folder per skill in every harness's skills directory.
+    const wanted = new Set<string>();
+    const userOwned: string[] = [];
+    for (const { dir, harness } of SKILL_DIRS) {
+      for (const skill of extras.skills) {
+        const rel = `${dir}/${skill.name}`;
+        const file = `${rel}/SKILL.md`;
+        const existing = await ws.tryRead(file);
+        if (existing !== undefined && !state.managedSkills.includes(rel)) {
+          userOwned.push(file); // the user's own skill with that name wins
+          continue;
+        }
+        wanted.add(rel);
+        const text = skillMarkdown(skill);
+        if (existing !== text) await ws.write(file, text);
+        touch(harness, `${dir}/ (${extras.skills.length} skills)`);
+      }
+    }
+    if (extras.skills.length) touch("OpenCode", ".claude/skills + .agents/skills");
+    for (const rel of state.managedSkills) if (!wanted.has(rel)) await rm(ws.abs(rel), { recursive: true, force: true });
 
     await mkdir(this.stateDir, { recursive: true });
-    await writeFile(this.stateFile(project), JSON.stringify({ managedServers: names, createdFiles: [...created] }));
-    return [...status.entries()].map(([harness, files]) => ({ harness, files: [...files] }));
+    await writeFile(this.stateFile(project), JSON.stringify({ managedServers: names, createdFiles: [...created], managedSkills: [...wanted] }));
+    return [...status.entries()].map(([harness, files]) => ({
+      harness,
+      files: [...files],
+      ...(userOwned.length && harness === "Claude Code" ? { note: `Kept your own: ${userOwned.join(", ")}` } : {}),
+    }));
   }
 }

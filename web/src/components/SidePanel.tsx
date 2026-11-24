@@ -21,6 +21,7 @@ interface Props {
   onOpenCrew: () => void;
   onOpenConnections: () => void;
   onOpenSync: () => void;
+  onOpenExtensions: () => void;
 }
 
 export function SidePanel(p: Props) {
@@ -99,6 +100,11 @@ export function SidePanel(p: Props) {
           <Icon name="plug" />
           <span>Connections</span>
           <span className="muted push-right">{p.connections.length}</span>
+        </button>
+        <button className="card-row" onClick={p.onOpenExtensions}>
+          <Icon name="puzzle" />
+          <span>Plugins & skills</span>
+          <Icon name="chevron" size={14} className="push-right" />
         </button>
         <button className="card-row" onClick={p.onOpenSync}>
           <Icon name="sync" />

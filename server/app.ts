@@ -7,7 +7,9 @@ import { CLI_BINARIES, CLI_INSTALL_HINTS, findBinary, type CliKind } from "./pro
 import type { ProviderFactory } from "./providers/registry.js";
 import { RunManager } from "./runs.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
-import { CLI_KINDS, type ProviderKind } from "./shared.js";
+import { enabledPlugins, PLUGINS } from "./plugins.js";
+import { SKILL_PACKS } from "./skills.js";
+import { CLI_KINDS, type ExtensionsView, type ProviderKind } from "./shared.js";
 import { listProjects, validateProjectName, Workspace } from "./workspace.js";
 
 const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
@@ -19,6 +21,8 @@ export interface AppOptions {
   runsDir?: string;
   /** Where project memory and sync state live. Omit to disable harness sync. */
   stateDir?: string;
+  /** Origin the UI and previews are served from (for the browser plugin). */
+  publicOrigin?: string;
   providerFactory: ProviderFactory;
   webDir?: string;
 }
@@ -32,7 +36,15 @@ const param = (req: Request, key: string): string => String(req.params[key] ?? "
 export function createApp(opts: AppOptions) {
   const { config, projectsDir } = opts;
   const memory = opts.stateDir ? new ProjectMemory(path.join(opts.stateDir, "memory")) : undefined;
-  const sync = opts.stateDir && memory ? { harness: new HarnessSync(path.join(opts.stateDir, "sync"), memory), memory } : undefined;
+  const sync =
+    opts.stateDir && memory
+      ? {
+          harness: new HarnessSync(path.join(opts.stateDir, "sync"), memory),
+          memory,
+          dataDir: opts.stateDir,
+          previewOrigin: opts.publicOrigin ?? "http://localhost:4317",
+        }
+      : undefined;
   const runs = new RunManager(config, projectsDir, opts.providerFactory, opts.runsDir, sync);
   const app = express();
   app.disable("x-powered-by");
@@ -134,6 +146,38 @@ export function createApp(opts: AppOptions) {
   );
 
   api.get("/sync", (_req, res) => res.json(config.syncView()));
+  const extensionsView = (): ExtensionsView => {
+    const ext = config.extensions;
+    const on = new Set(enabledPlugins({ enabled: ext.pluginsEnabled, disabled: ext.pluginsDisabled }).map((p) => p.id));
+    return {
+      plugins: PLUGINS.map(({ id, name, category, description, risk, source, optionalEnv }) => ({
+        id,
+        name,
+        category,
+        description,
+        risk,
+        source,
+        optionalEnv,
+        enabled: on.has(id),
+      })),
+      packs: SKILL_PACKS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        skills: p.skills.map((s) => ({ name: s.name, description: s.description })),
+        mode: ext.packModes[p.id] ?? "auto",
+      })),
+      browserAnyWebsite: ext.browserAnyWebsite,
+    };
+  };
+  api.get("/extensions", (_req, res) => res.json(extensionsView()));
+  api.put(
+    "/extensions",
+    wrap(async (req, res) => {
+      await config.setExtensions(req.body ?? {});
+      res.json(extensionsView());
+    }),
+  );
   api.put("/sync", wrap(async (req, res) => res.json(await config.setSync(req.body ?? {}))));
   api.post(
     "/projects/:name/sync",

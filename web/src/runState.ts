@@ -36,6 +36,8 @@ export interface RunView {
   startedAt?: number;
   endedAt?: number;
   diff?: FileDiff[];
+  /** Skills and plugins active for this thread. */
+  context?: { skills: string[]; plugins: string[] };
 }
 
 const MAX_STREAM_CHARS = 200_000;
@@ -48,6 +50,8 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
   switch (e.type) {
     case "run.started":
       return { ...s, prompt: e.prompt, startedAt: e.at };
+    case "context":
+      return { ...s, context: { skills: e.skills, plugins: e.plugins } };
     case "phase":
       return { ...s, phase: e.phase };
     case "plan":

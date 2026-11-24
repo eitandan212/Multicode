@@ -7,7 +7,11 @@ import { HttpError } from "./config.js";
 import { assignRoles, hashText, runCrew, type Checkpoint, type ResolvedMember } from "./crew/orchestrator.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import type { CrewMember, RunEvent, RunSummary } from "./shared.js";
-import type { HarnessSync, ProjectMemory } from "./sync.js";
+import type { HarnessSync, ProjectMemory, SyncExtras } from "./sync.js";
+import { memoryGraphFile, pluginContributions, enabledPlugins } from "./plugins.js";
+import { inlineSkills, selectPacks, type ActivePack } from "./skills.js";
+import { recordRun } from "./graph.js";
+import { HARNESS_NAMES, type McpServer } from "./shared.js";
 import { Workspace } from "./workspace.js";
 
 type Listener = (e: RunEvent) => void;
@@ -56,14 +60,34 @@ export class RunManager {
     private projectsDir: string,
     private providerFactory: ProviderFactory,
     private runsDir?: string,
-    private sync?: { harness: HarnessSync; memory: ProjectMemory },
+    private sync?: { harness: HarnessSync; memory: ProjectMemory; dataDir: string; previewOrigin: string },
   ) {}
 
-  /** Writes shared instructions, memory and MCP servers into the project's harness files. */
-  async syncProject(project: string) {
-    if (!this.sync) return [];
+  /** Plugins and skill packs for a request: what gets synced and handed to the crew. */
+  private async extras(project: string, request: string) {
     const ws = await Workspace.open(this.projectsDir, project);
-    return this.sync.harness.apply(project, ws, this.config.sync);
+    const ext = this.config.extensions;
+    const pluginState = { enabled: ext.pluginsEnabled, disabled: ext.pluginsDisabled };
+    const plugins = this.sync
+      ? pluginContributions(pluginState, {
+          project,
+          dataDir: this.sync.dataDir,
+          previewOrigin: this.sync.previewOrigin,
+          options: { browserAnyWebsite: ext.browserAnyWebsite },
+        })
+      : { servers: [] as McpServer[], instructions: [] as string[] };
+    const packs: ActivePack[] = selectPacks(ext.packModes, request, await ws.list());
+    const extras: SyncExtras = { servers: plugins.servers, instructions: plugins.instructions, skills: packs.flatMap((p) => p.pack.skills) };
+    const servers = [...this.config.sync.mcpServers, ...plugins.servers.filter((p) => !this.config.sync.mcpServers.some((u) => u.name === p.name))];
+    const env = { ...this.config.sync.env, ...Object.assign({}, ...plugins.servers.map((s) => s.fixedEnv ?? {})) };
+    return { ws, extras, packs, servers, env, pluginNames: this.sync ? enabledPlugins(pluginState).map((p) => p.name) : [] };
+  }
+
+  /** Writes shared instructions, memory, MCP servers and skills into the project's harness files. */
+  async syncProject(project: string, request = "") {
+    if (!this.sync) return [];
+    const { ws, extras } = await this.extras(project, request);
+    return this.sync.harness.apply(project, ws, this.config.sync, extras);
   }
 
   private async saveCheckpoint(id: string, cp: Checkpoint): Promise<void> {
@@ -228,8 +252,12 @@ export class RunManager {
       .reverse()
       .map((r) => r.prompt.slice(0, 500));
 
-    // Every harness sees the same instructions, memory and MCP servers before the crew starts.
-    await this.syncProject(project).catch((err: Error) => console.error(`Sync failed for ${project}:`, err.message));
+    // Every harness sees the same instructions, memory, tools and skills before the crew starts.
+    const ctx = await this.extras(project, prompt);
+    if (this.sync)
+      await this.sync.harness
+        .apply(project, ctx.ws, this.config.sync, ctx.extras)
+        .catch((err: Error) => console.error(`Sync failed for ${project}:`, err.message));
 
     const run: Run = {
       id: randomUUID(),
@@ -255,6 +283,13 @@ export class RunManager {
       for (const l of run.listeners) l(e);
     };
     emit({ type: "run.started", runId: run.id, project, prompt: run.prompt, at: run.startedAt });
+    emit({ type: "context", skills: ctx.packs.flatMap((p) => p.pack.skills.map((s) => s.name)), plugins: ctx.pluginNames });
+
+    // Who wrote which file, for the memory graph.
+    const wrote = new Map<string, Set<string>>();
+    const track = (e: RunEvent) => {
+      if (e.type === "file.changed") wrote.set(e.memberId, (wrote.get(e.memberId) ?? new Set()).add(e.path));
+    };
 
     const finish = async (status: RunSummary["status"], last: RunEvent) => {
       run.status = status;
@@ -272,9 +307,13 @@ export class RunManager {
       workspace,
       roles,
       settings: this.config.settings,
-      mcpServers: this.config.sync.mcpServers,
-      env: this.config.sync.env,
-      emit,
+      mcpServers: ctx.servers,
+      env: ctx.env,
+      skillText: inlineSkills(ctx.packs),
+      emit: (e) => {
+        track(e);
+        emit(e);
+      },
       signal: run.controller!.signal,
     })
       .then(async ({ summary, changedFiles, checkpoint }) => {
@@ -284,7 +323,21 @@ export class RunManager {
         }
         if (this.sync) {
           await this.sync.memory.add(project, { at: Date.now(), prompt: run.prompt, summary });
-          await this.syncProject(project).catch(() => {});
+          if (ctx.pluginNames.length && enabledPlugins({ enabled: this.config.extensions.pluginsEnabled, disabled: this.config.extensions.pluginsDisabled }).some((p) => p.id === "memory-graph")) {
+            const agents = [...wrote.entries()].map(([id, files]) => {
+              const m = members.find((x) => x.id === id);
+              return { name: m?.name ?? id, harness: m ? HARNESS_NAMES[m.connection.kind] : "agent", files: [...files] };
+            });
+            await recordRun(memoryGraphFile(this.sync.dataDir, project), {
+              project,
+              prompt: run.prompt,
+              summary,
+              files: changedFiles,
+              agents,
+              at: Date.now(),
+            }).catch((err: Error) => console.error("Could not update the memory graph:", err.message));
+          }
+          await this.sync.harness.apply(project, ctx.ws, this.config.sync, ctx.extras).catch(() => {});
         }
         await finish("done", { type: "run.done", summary, changedFiles, at: Date.now() });
       })

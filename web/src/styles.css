@@ -1117,6 +1117,7 @@ kbd {
 
 /* Dialogs */
 .dialog {
+  position: relative;
   width: min(640px, calc(100vw - 24px));
   max-height: calc(100dvh - 24px);
   padding: 0;
@@ -1510,6 +1511,201 @@ kbd {
   border-top: 1px solid var(--line);
   font-size: 12.5px;
   color: var(--warn);
+}
+
+/* Thread context chips */
+.context-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -6px;
+}
+.ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.ctx-chip.plugin {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: var(--accent-soft);
+}
+
+/* Plugins & skills */
+.ext-dialog {
+  width: min(720px, calc(100vw - 24px));
+}
+.ext-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ext-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.ext-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ext-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition:
+    border-color 200ms var(--ease-soft),
+    background-color 200ms var(--ease-soft);
+}
+.ext-card.is-on {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.ext-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--sidebar);
+  color: var(--muted);
+}
+.ext-card.is-on .ext-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ext-card.is-on .ext-icon.risk-high {
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
+  color: var(--bad);
+}
+.ext-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ext-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.risk-tag {
+  font-size: 11px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+}
+.risk-tag.risk-medium {
+  color: var(--warn);
+}
+.risk-tag.risk-high {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+.ext-source {
+  font: 11.5px var(--mono);
+  color: var(--muted);
+}
+.ext-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ext-option input[type="password"] {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--card);
+}
+.skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.skill-chip {
+  font: 11.5px var(--mono);
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--sidebar);
+  color: var(--muted);
+}
+.switch {
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background-color 200ms var(--ease-soft);
+}
+.switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 240ms var(--ease);
+}
+.switch.on {
+  background: var(--brand);
+}
+.switch.on span {
+  transform: translateX(16px);
+}
+.confirm-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 0.35);
+  border-radius: inherit;
+  animation: fade-in 180ms ease-out;
+}
+.confirm-box {
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, var(--line));
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.25);
+  animation: dialog-in 260ms var(--ease);
+}
+.btn.danger-solid {
+  background: var(--bad);
+  color: #fff;
+  border-color: transparent;
 }
 
 /* ============ Motion (Qoder-like: soft ease-out, blur-in, shimmer, breathing) ============ */

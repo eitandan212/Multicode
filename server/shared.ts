@@ -28,6 +28,49 @@ export const KIND_LABELS: Record<ProviderKind, string> = {
   "qwen-cli": "Qwen Code (free Qwen account)",
 };
 
+/** The name people know each harness or service by, shown with its logo. */
+export const HARNESS_NAMES: Record<ProviderKind, string> = {
+  "claude-cli": "Claude Code",
+  "codex-cli": "Codex",
+  "gemini-cli": "Gemini CLI",
+  "opencode-cli": "OpenCode",
+  "qwen-cli": "Qwen Code",
+  anthropic: "Claude API",
+  openai: "OpenAI API",
+  gemini: "Gemini API",
+  "openai-compatible": "OpenAI-compatible",
+};
+
+const ENDPOINT_BRANDS: [RegExp, string][] = [
+  [/openrouter/i, "OpenRouter"],
+  [/groq/i, "Groq"],
+  [/deepseek/i, "DeepSeek"],
+  [/mistral/i, "Mistral"],
+  [/together/i, "Together AI"],
+  [/:11434|ollama/i, "Ollama"],
+  [/:1234|lmstudio/i, "LM Studio"],
+];
+
+/** Default name for a connection: the harness, plus the model where it tells them apart. */
+export function connectionName(kind: ProviderKind, baseUrl?: string, model?: string): string {
+  if (kind === "openai-compatible") {
+    const brand = ENDPOINT_BRANDS.find(([re]) => re.test(baseUrl ?? ""))?.[1];
+    let host = "";
+    try {
+      host = baseUrl ? new URL(baseUrl).hostname : "";
+    } catch {
+      /* invalid URL: fall back to the generic name */
+    }
+    return brand ?? (host || HARNESS_NAMES[kind]);
+  }
+  if (kind === "opencode-cli" && model) {
+    const short = model.split("/").pop()!;
+    const free = /-free$|big-pickle/.test(short);
+    return `OpenCode · ${short.replace(/-free$/, "")}${free ? " (free)" : ""}`;
+  }
+  return HARNESS_NAMES[kind];
+}
+
 /** A connection as seen by the UI: secrets are never sent, only whether one is set. */
 export interface ConnectionView {
   id: string;
@@ -70,6 +113,37 @@ export interface McpServer {
   url?: string;
   /** Names of environment variables the server needs. Values live in MultiCode's private config. */
   envNames?: string[];
+  /** Non-secret values written as-is (e.g. a data file path). */
+  fixedEnv?: Record<string, string>;
+}
+
+export type PluginRisk = "low" | "medium" | "high";
+
+export interface PluginInfo {
+  id: string;
+  name: string;
+  category: "memory" | "browser" | "knowledge" | "reasoning" | "computer";
+  description: string;
+  risk: PluginRisk;
+  source: string;
+  optionalEnv?: string[];
+  enabled: boolean;
+}
+
+export type SkillMode = "auto" | "on" | "off";
+
+export interface SkillPackInfo {
+  id: string;
+  name: string;
+  description: string;
+  skills: { name: string; description: string }[];
+  mode: SkillMode;
+}
+
+export interface ExtensionsView {
+  plugins: PluginInfo[];
+  packs: SkillPackInfo[];
+  browserAnyWebsite: boolean;
 }
 
 export interface SyncConfigView {
@@ -140,6 +214,7 @@ export type RunEvent =
   | { type: "run.started"; runId: string; project: string; prompt: string; at: number }
   | { type: "phase"; phase: "planning" | "building" | "reviewing" | "fixing"; round: number }
   | { type: "plan"; plan: Plan }
+  | { type: "context"; skills: string[]; plugins: string[] }
   | { type: "tasks.added"; tasks: PlanTask[]; round: number }
   | { type: "task.status"; taskId: string; status: TaskStatus; memberId?: string; error?: string }
   | { type: "agent.start"; streamId: string; memberId: string; title: string }

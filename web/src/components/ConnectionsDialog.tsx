@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { API_KINDS, CLI_KINDS, KIND_LABELS, OPEN_SOURCE_KINDS, SUBSCRIPTION_KINDS, type ConnectionView, type ProviderKind } from "../../../server/shared";
+import { API_KINDS, CLI_KINDS, KIND_LABELS, connectionName, OPEN_SOURCE_KINDS, SUBSCRIPTION_KINDS, type ConnectionView, type ProviderKind } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { Icon } from "./Icon";
 import { ProviderLogo } from "./ProviderLogo";
@@ -241,7 +241,7 @@ function AddConnection(props: {
         </label>
         <label className="field">
           <span>Name</span>
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={KIND_LABELS[kind]} maxLength={80} />
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={connectionName(kind, baseUrl, model)} maxLength={80} />
         </label>
       </div>
 

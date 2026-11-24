@@ -18,6 +18,7 @@ const { app, runs } = createApp({
   projectsDir: path.join(dataDir(), "projects"),
   runsDir: path.join(dataDir(), "runs"),
   stateDir: dataDir(),
+  publicOrigin: `http://localhost:${port}`,
   providerFactory: createProvider,
   webDir: path.resolve(here, "../web"),
 });

@@ -71,6 +71,21 @@ export function Thread({ run, crew, connections, undo, onShowChanges, onUndo }: 
         )}
       </div>
 
+      {run.context && (run.context.skills.length > 0 || run.context.plugins.length > 0) && (
+        <div className="context-row enter">
+          {run.context.plugins.map((p) => (
+            <span key={p} className="ctx-chip plugin" title="Plugin">
+              <Icon name="puzzle" size={12} /> {p}
+            </span>
+          ))}
+          {run.context.skills.map((s) => (
+            <span key={s} className="ctx-chip" title="Skill">
+              <Icon name="book" size={12} /> {s}
+            </span>
+          ))}
+        </div>
+      )}
+
       {run.plan && (
         <div className="msg-agent enter">
           {run.plan.summary && <p>{run.plan.summary}</p>}

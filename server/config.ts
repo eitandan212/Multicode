@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   API_KINDS,
   KIND_LABELS,
+  connectionName,
   type ConnectionView,
   type CrewMember,
   type DispatchMode,
@@ -12,8 +13,11 @@ import {
   type ProviderKind,
   type Role,
   type Settings,
+  type SkillMode,
   type SyncConfigView,
 } from "./shared.js";
+import { PLUGINS } from "./plugins.js";
+import { SKILL_PACKS } from "./skills.js";
 
 export interface Connection {
   id: string;
@@ -31,11 +35,21 @@ export interface SyncConfig {
   env: Record<string, string>;
 }
 
+export interface ExtensionsConfig {
+  /** Opt-in plugins the user turned on. */
+  pluginsEnabled: string[];
+  /** Default-on plugins the user turned off. */
+  pluginsDisabled: string[];
+  packModes: Record<string, SkillMode>;
+  browserAnyWebsite: boolean;
+}
+
 export interface ConfigData {
   connections: Connection[];
   crew: CrewMember[];
   settings: Settings;
   sync: SyncConfig;
+  extensions: ExtensionsConfig;
 }
 
 const ALL_KINDS = Object.keys(KIND_LABELS) as ProviderKind[];
@@ -51,6 +65,7 @@ function emptyConfig(): ConfigData {
     crew: [],
     settings: { maxReviewRounds: 2, dispatch: "smart" },
     sync: { instructions: "", mcpServers: [], env: {} },
+    extensions: { pluginsEnabled: [], pluginsDisabled: [], packModes: {}, browserAnyWebsite: false },
   };
 }
 
@@ -95,6 +110,7 @@ export class ConfigStore {
         crew: Array.isArray(raw.crew) ? raw.crew : [],
         settings: { ...emptyConfig().settings, ...(raw.settings ?? {}) },
         sync: { ...emptyConfig().sync, ...(raw.sync ?? {}) },
+        extensions: { ...emptyConfig().extensions, ...(raw.extensions ?? {}) },
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
@@ -152,7 +168,10 @@ export class ConfigStore {
     const next: Connection = {
       id: existing?.id ?? randomUUID(),
       kind,
-      label: str(input.label, "label", 80) ?? existing?.label ?? KIND_LABELS[kind],
+      label:
+        str(input.label, "label", 80) ??
+        existing?.label ??
+        connectionName(kind, str(input.baseUrl, "baseUrl", 500), str(input.defaultModel, "defaultModel", 200)),
       apiKey: apiKey ?? existing?.apiKey,
       baseUrl: input.baseUrl === undefined ? existing?.baseUrl : str(input.baseUrl, "baseUrl", 500),
       defaultModel:
@@ -216,6 +235,37 @@ export class ConfigStore {
     this.data.settings = next;
     await this.save();
     return next;
+  }
+
+  get extensions(): ExtensionsConfig {
+    return this.data.extensions;
+  }
+
+  /** Turn plugins on/off, set skill-pack modes. High-risk plugins need `confirmRisk: true`. */
+  async setExtensions(input: Record<string, unknown>): Promise<ExtensionsConfig> {
+    const ext = structuredClone(this.data.extensions);
+    if (input.plugin && typeof input.plugin === "object") {
+      const { id, enabled, confirmRisk } = input.plugin as { id?: unknown; enabled?: unknown; confirmRisk?: unknown };
+      const def = PLUGINS.find((p) => p.id === id);
+      if (!def) throw new HttpError(400, "unknown plugin");
+      if (enabled === true && def.risk === "high" && confirmRisk !== true)
+        throw new HttpError(400, `${def.name} can control this computer. Confirm the risk to turn it on.`);
+      const on = enabled === true;
+      ext.pluginsEnabled = ext.pluginsEnabled.filter((x) => x !== def.id);
+      ext.pluginsDisabled = ext.pluginsDisabled.filter((x) => x !== def.id);
+      if (def.defaultOn && !on) ext.pluginsDisabled.push(def.id);
+      if (!def.defaultOn && on) ext.pluginsEnabled.push(def.id);
+    }
+    if (input.pack && typeof input.pack === "object") {
+      const { id, mode } = input.pack as { id?: unknown; mode?: unknown };
+      if (!SKILL_PACKS.some((p) => p.id === id)) throw new HttpError(400, "unknown skill pack");
+      if (mode !== "auto" && mode !== "on" && mode !== "off") throw new HttpError(400, "mode must be auto, on or off");
+      ext.packModes[id as string] = mode;
+    }
+    if (input.browserAnyWebsite !== undefined) ext.browserAnyWebsite = input.browserAnyWebsite === true;
+    this.data.extensions = ext;
+    await this.save();
+    return ext;
   }
 
   get sync(): SyncConfig {

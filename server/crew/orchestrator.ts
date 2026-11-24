@@ -97,6 +97,8 @@ export interface RunOptions {
   /** Shared MCP servers and their env values, handed to every CLI agent. */
   mcpServers?: McpServer[];
   env?: Record<string, string>;
+  /** Skill-pack instructions for API agents (CLI agents load skills from their folders). */
+  skillText?: string;
   /** Watchdog limits for each agent call (defaults: 4 min silent, 15 min total). */
   limits?: { idleMs: number; maxMs: number };
 }
@@ -228,7 +230,7 @@ export async function runCrew(o: RunOptions): Promise<{ summary: string; changed
           const reply = await call(
             member,
             attempt ? `${task.title} (retry)` : task.title,
-            P.builderSystem(cli, member.instructions),
+            P.builderSystem(cli, member.instructions) + (cli || !o.skillText ? "" : `\n\nSkills to apply:${o.skillText}`),
             P.builderPrompt({ request: o.prompt, plan: basePlan, task, tree: ctx.tree, files: ctx.files }),
             "edit",
           );

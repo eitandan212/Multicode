@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,6 +11,10 @@ import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/cre
 import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
 import type { GenerateRequest, Provider } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
+import { enabledPlugins, PLUGINS } from "../server/plugins.js";
+import { selectPacks, SKILL_PACKS } from "../server/skills.js";
+import { recordRun } from "../server/graph.js";
+import { connectionName } from "../server/shared.js";
 import { codexMcpArgs, HarnessSync, ProjectMemory, renderBlock, upsertBlock } from "../server/sync.js";
 import type { PlanTask, RunEvent } from "../server/shared.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
@@ -493,6 +497,91 @@ describe("watchdog", () => {
       expect(failed).toMatchObject({ memberId: "stuck" });
       expect((failed as { error: string }).error).toMatch(/went silent/);
       expect(await ws.read("app.js")).toBe("ok()\n");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("harness names", () => {
+  it("names connections after the harness people know", () => {
+    expect(connectionName("claude-cli")).toBe("Claude Code");
+    expect(connectionName("codex-cli")).toBe("Codex");
+    expect(connectionName("opencode-cli", undefined, "opencode/big-pickle")).toBe("OpenCode · big-pickle (free)");
+    expect(connectionName("openai-compatible", "https://openrouter.ai/api/v1")).toBe("OpenRouter");
+    expect(connectionName("openai-compatible", "http://localhost:11434/v1")).toBe("Ollama");
+    expect(connectionName("openai-compatible", "https://api.example.dev/v1")).toBe("api.example.dev");
+  });
+});
+
+describe("plugins", () => {
+  it("turns on memory and browser by default and guards computer control", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-plug-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      const ids = () => enabledPlugins({ enabled: config.extensions.pluginsEnabled, disabled: config.extensions.pluginsDisabled }).map((p) => p.id);
+      expect(ids()).toEqual(["memory-graph", "browser"]);
+      await expect(config.setExtensions({ plugin: { id: "computer-use", enabled: true } })).rejects.toThrow(/Confirm the risk/);
+      await config.setExtensions({ plugin: { id: "computer-use", enabled: true, confirmRisk: true } });
+      await config.setExtensions({ plugin: { id: "browser", enabled: false } });
+      expect(ids()).toEqual(["memory-graph", "computer-use"]);
+
+      const ctx = { project: "p", dataDir: "/data", previewOrigin: "http://localhost:4317", options: {} };
+      const browser = PLUGINS.find((p) => p.id === "browser")!.server(ctx);
+      expect(browser.args).toContain("--allowed-origins");
+      expect(PLUGINS.find((p) => p.id === "browser")!.server({ ...ctx, options: { browserAnyWebsite: true } }).args).not.toContain("--allowed-origins");
+      const memory = PLUGINS.find((p) => p.id === "memory-graph")!.server(ctx);
+      expect(memory.fixedEnv?.MEMORY_FILE_PATH).toBe(path.join("/data", "graphs", "p.jsonl"));
+      // Every plugin pins an exact version.
+      for (const p of PLUGINS) expect(p.server(ctx).args?.find((a) => a.includes("@") && !a.startsWith("-"))).toMatch(/@\d+\.\d+\.\d+$/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("skill packs", () => {
+  it("picks packs from the request and project files", () => {
+    const ids = (r: string, f: string[] = [], m = {}) => selectPacks(m, r, f).map((a) => a.pack.id);
+    expect(ids("make a landing page")).toEqual(["quality", "web"]);
+    expect(ids("build a roblox obby")).toEqual(["quality", "roblox"]);
+    expect(ids("refactor", ["src/game.luau"])).toEqual(["quality", "roblox"]);
+    expect(ids("anything", [], { quality: "off", python: "on" })).toEqual(["python"]);
+  });
+
+  it("writes skills for every harness, keeps the user's own, and cleans up", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-skill-"));
+    try {
+      const ws = await Workspace.open(dir, "s");
+      await ws.write(".claude/skills/self-review/SKILL.md", "my own version\n");
+      const sync = new HarnessSync(path.join(dir, "state"), new ProjectMemory(path.join(dir, "mem")));
+      const skills = SKILL_PACKS.find((p) => p.id === "quality")!.skills;
+      const cfg = { instructions: "", mcpServers: [], env: {} };
+      await sync.apply("s", ws, cfg, { servers: [], instructions: [], skills });
+      for (const d of [".agents", ".gemini", ".qwen"]) expect(await ws.read(`${d}/skills/secure-coding/SKILL.md`)).toMatch(/^---\nname: secure-coding\n/);
+      expect(await ws.read(".claude/skills/self-review/SKILL.md")).toBe("my own version\n");
+      await sync.apply("s", ws, cfg, { servers: [], instructions: [], skills: [] });
+      expect(await ws.tryRead(".agents/skills/secure-coding/SKILL.md")).toBeUndefined();
+      expect(await ws.read(".claude/skills/self-review/SKILL.md")).toBe("my own version\n");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("memory graph", () => {
+  it("records a run in the memory server's JSONL format", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-graph-"));
+    try {
+      const file = path.join(dir, "g.jsonl");
+      const rec = { project: "p", prompt: "add login", summary: "done", files: ["auth.js"], agents: [{ name: "Codex", harness: "Codex", files: ["auth.js"] }], at: Date.UTC(2026, 10, 24) };
+      await recordRun(file, rec);
+      await recordRun(file, rec); // idempotent for identical facts
+      const lines = (await readFile(file, "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+      expect(lines).toContainEqual({ type: "entity", name: "project:p", entityType: "project", observations: ['2026-11-24: "add login" → done'] });
+      expect(lines).toContainEqual({ type: "relation", from: "agent:Codex", to: "file:auth.js", relationType: "edited" });
+      expect(lines.filter((l) => l.type === "relation")).toHaveLength(3);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

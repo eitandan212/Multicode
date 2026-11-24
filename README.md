@@ -15,6 +15,14 @@ build your project together as a crew.
   detected and never silently overwritten.
 * **Sync across harnesses:** shared instructions, MCP servers and project memory reach Claude Code,
   Codex, Gemini CLI, Qwen Code and OpenCode through the files each one reads.
+* **Plugins**, wired into every harness automatically (pinned versions):
+  * **Memory graph** (on): a shared knowledge graph; MultiCode records every thread in it.
+  * **AI browser** (on): Playwright MCP, limited to the app preview unless you allow any website.
+  * Chrome DevTools, live library docs (Context7), sequential thinking.
+  * **Computer control** and **Desktop Commander**: off; turning them on needs an explicit confirmation.
+* **Skill packs** (Agent Skills / `SKILL.md`): quality, web craft, testing, Node & TypeScript, Python,
+  Roblox & Luau. In Auto they switch on from your request and the project's files, land in
+  `.claude/skills`, `.agents/skills`, `.gemini/skills`, `.qwen/skills`, and are inlined for API agents.
 
 ## Connect your AI
 

@@ -1,6 +1,7 @@
 import type {
   ConnectionView,
   CrewMember,
+  ExtensionsView,
   HarnessSyncStatus,
   McpServer,
   SyncConfigView,
@@ -51,6 +52,8 @@ export const api = {
   models: (id: string) => request<{ models: string[]; error?: string }>("GET", `/api/connections/${id}/models`),
   saveCrew: (crew: CrewMember[]) => request<CrewMember[]>("PUT", "/api/crew", crew),
   saveSettings: (s: Partial<Settings>) => request<Settings>("PUT", "/api/settings", s),
+  extensions: () => request<ExtensionsView>("GET", "/api/extensions"),
+  saveExtensions: (body: Record<string, unknown>) => request<ExtensionsView>("PUT", "/api/extensions", body),
   sync: () => request<SyncConfigView>("GET", "/api/sync"),
   saveSync: (body: { instructions?: string; mcpServers?: McpServer[]; env?: Record<string, string> }) =>
     request<SyncConfigView>("PUT", "/api/sync", body),

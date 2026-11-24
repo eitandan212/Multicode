@@ -3,7 +3,23 @@ import path from "node:path";
 import { HttpError } from "./config.js";
 import type { ProjectInfo } from "./shared.js";
 
-const IGNORED_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".venv", "__pycache__", ".cache"]);
+// Harness folders (skills, settings) are managed by MultiCode's sync; keep them out of
+// file listings, snapshots and prompts.
+const IGNORED_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  ".venv",
+  "__pycache__",
+  ".cache",
+  ".claude",
+  ".agents",
+  ".gemini",
+  ".qwen",
+  ".opencode",
+]);
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_FILES = 2000;
 const PROJECT_NAME = /^[a-z0-9][a-z0-9-_]{0,47}$/i;
