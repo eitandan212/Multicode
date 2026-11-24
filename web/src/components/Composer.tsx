@@ -9,6 +9,8 @@ interface Props {
   project: string;
   canRun: boolean;
   running: boolean;
+  /** Finished / total tasks of the running thread, for the progress bar. */
+  progress?: { done: number; total: number };
   placeholder: string;
   onSubmit: (prompt: string) => Promise<void>;
   onStop: () => void;
@@ -85,6 +87,14 @@ export function Composer(p: Props) {
         <span className="meta-item">
           <Icon name="folder" size={13} /> {p.project}
         </span>
+        {p.running && p.progress && p.progress.total > 0 && (
+          <span className="meta-item progress" aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}>
+            <span className="progress-track">
+              <span className="progress-fill" style={{ width: `${(p.progress.done / p.progress.total) * 100}%` }} />
+            </span>
+            {p.progress.done}/{p.progress.total}
+          </span>
+        )}
         {error ? (
           <span className="err-text">{error}</span>
         ) : (

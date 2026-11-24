@@ -67,16 +67,25 @@ run at the same time (per-file locks).
 * CLI builders run with edit-only permissions (no blanket "bypass all" flags).
 
 ## UI
-A quiet, neutral workspace in the spirit of T3 Code (MIT): colour is reserved for the crew.
-MultiCode uses its own name, logo and code; no T3 Code assets or trademarks are used.
+Layout in the spirit of T3 Code (MIT); palette and motion in the spirit of Qoder. MultiCode uses
+its own name, logo, illustrations and code; no assets or trademarks of either product are used.
+
+* **Palette:** warm off-white / warm charcoal neutrals, forest-green primary (`#255a41`), leaf-green
+  accent; crew colours are the only other hues. Type: Instrument Sans + JetBrains Mono.
+* **Motion** (one easing, `cubic-bezier(.22,1,.36,1)`): new thread items settle in from a slight blur;
+  running titles carry a light sweep; a breathing dot marks thinking agents; queued tasks pulse;
+  dialogs rise from 95%; the start screen's ribbons draw in once. All of it is off under
+  `prefers-reduced-motion`.
 
 * **Sidebar:** projects with their threads, search, a "Working" group with elapsed time,
   and Connections / Crew at the bottom.
 * **Thread:** breadcrumb `project / thread`; your request as a bubble; "Working for Ns";
   the plan as a checklist coloured by assignee; each agent call folded into one line
-  (`›_ Agent  Task`) that expands to its live output; review verdicts; a short summary.
+  (`›_ Agent  Task`) that expands to its live output; review verdicts; an "Edited N files" card
+  with per-file line counts and a Review button that opens the diff.
 * **Composer:** rounded card with the crew chip and a round send/stop button; a meta row
-  underneath holds the project and the review-rounds setting. Enter sends.
+  underneath holds the project, a task-progress bar while the crew works, and the review-rounds
+  setting. Enter sends.
 * **Side panel:** a crew card (members, Edit crew, Connections) and a Preview / Files / Changes card.
   Changes is a unified diff per thread (computed with jsdiff against a snapshot taken when the thread starts).
 * **Command palette** (Ctrl/Cmd+K): threads, projects and every action, keyboard-driven.

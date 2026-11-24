@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { CrewMember } from "../../../server/shared";
+import type { CrewMember, FileDiff } from "../../../server/shared";
 import { colorFor } from "../crewColors";
 import type { RunView, StreamState } from "../runState";
-import { Icon, Spinner } from "./Icon";
+import { Icon, Pulse } from "./Icon";
 import { elapsed } from "./Sidebar";
 
 const PHASE_TEXT: Record<string, string> = {
@@ -24,24 +24,32 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
     return () => window.clearInterval(t);
   }, [running]);
 
-  // Follow the conversation while the crew works.
+  // Follow the conversation while the crew works, and once more to land on the result.
+  const wasRunning = useRef(running);
   useEffect(() => {
     if (running) end.current?.scrollIntoView({ block: "end" });
   }, [running, run.streams.length, run.tasks, run.reviews.length]);
+  useEffect(() => {
+    if (wasRunning.current && !running) {
+      // Wait a frame so the final card has its height before scrolling to it.
+      requestAnimationFrame(() => end.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
+    }
+    wasRunning.current = running;
+  }, [running, run.diff]);
 
   const name = (id?: string) => crew.find((m) => m.id === id)?.name ?? "Agent";
   const took = run.startedAt ? elapsed((run.endedAt ?? now) - run.startedAt) : "";
 
   return (
     <div className="thread">
-      <div className="msg-user">
+      <div className="msg-user enter">
         <p>{run.prompt}</p>
       </div>
 
-      <div className="work-head">
+      <div className="work-head enter">
         {running ? (
           <>
-            <Spinner size={12} /> {PHASE_TEXT[run.phase] ?? "Working"} · {took}
+            <Pulse /> <span className="shiny">{PHASE_TEXT[run.phase] ?? "Working"}</span> <span>· {took}</span>
           </>
         ) : (
           <>Worked for {took}</>
@@ -49,17 +57,17 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
       </div>
 
       {run.plan && (
-        <div className="msg-agent">
+        <div className="msg-agent enter">
           {run.plan.summary && <p>{run.plan.summary}</p>}
           <ul className="checklist">
             {run.tasks.map((t) => (
-              <li key={t.id} className={`check s-${t.status}`} style={{ ["--agent" as string]: colorFor(crew, t.memberId) }}>
+              <li key={t.id} className={`check enter s-${t.status}`} style={{ ["--agent" as string]: colorFor(crew, t.memberId) }}>
                 <span className="check-mark" aria-label={t.status}>
                   {t.status === "done" ? <Icon name="check" size={12} /> : t.status === "failed" ? <Icon name="x" size={12} /> : null}
                 </span>
                 <span>
                   {t.fix && <span className="fix-tag">Fix</span>}
-                  {t.title}
+                  <span className={t.status === "running" ? "shiny" : undefined}>{t.title}</span>
                   <span className="muted">
                     {" "}
                     · {t.memberId ? name(t.memberId) : "queued"}
@@ -82,7 +90,7 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
       )}
 
       {run.reviews.map(({ round, review }) => (
-        <div key={round} className="msg-agent">
+        <div key={round} className="msg-agent enter">
           <p className="review-line">
             <span className={`review-badge ${review.approved ? "ok" : "warn"}`}>
               {review.approved ? "Approved" : `${review.issues.length} issue${review.issues.length === 1 ? "" : "s"}`}
@@ -102,22 +110,13 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
       ))}
 
       {run.status === "done" && (
-        <div className="msg-agent">
-          <p>Done. {run.changed.length} file{run.changed.length === 1 ? "" : "s"} changed.</p>
-          {run.diff && run.diff.length > 0 && (
-            <button className="changes-card" onClick={onShowChanges}>
-              <Icon name="file" size={14} />
-              <span>Changes</span>
-              <span className="muted truncate">{run.diff.map((d) => d.path).join(", ")}</span>
-              <span className="plus">+{run.diff.reduce((n, d) => n + d.additions, 0)}</span>
-              <span className="minus">−{run.diff.reduce((n, d) => n + d.deletions, 0)}</span>
-              <Icon name="chevron" size={13} />
-            </button>
-          )}
+        <div className="msg-agent enter">
+          <p>Done. {run.changed.length === 0 ? "No files changed." : "The crew finished and reviewed the work."}</p>
+          {run.diff && run.diff.length > 0 && <EditedCard files={run.diff} onReview={onShowChanges} />}
         </div>
       )}
       {run.status === "error" && (
-        <div className="msg-agent" role="alert">
+        <div className="msg-agent enter" role="alert">
           <p className={run.error === "Cancelled" ? "muted" : "err-text"}>
             {run.error === "Cancelled" ? "You stopped the crew." : `The crew couldn't finish: ${run.error}`}
           </p>
@@ -142,13 +141,13 @@ function ToolLine({ stream, name, color }: { stream: StreamState; name: string; 
   }, [stream.text, stream.status, open]);
 
   return (
-    <div className={`tool-line st-${stream.status}`} style={{ ["--agent" as string]: color }}>
+    <div className={`tool-line enter st-${stream.status}`} style={{ ["--agent" as string]: color }}>
       <button className="tool-row" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {stream.status === "live" ? <Spinner size={12} /> : <Icon name="terminal" size={14} />}
+        {stream.status === "live" ? <Pulse /> : <Icon name="terminal" size={14} />}
         <span className="tool-who">{name}</span>
-        <span className="tool-what truncate">{stream.title}</span>
+        <span className={`tool-what truncate ${stream.status === "live" ? "shiny" : ""}`}>{stream.title}</span>
         <span className="tool-meta">
-          {stream.status === "live" ? "" : stream.status === "error" ? "failed" : `${stream.text.length.toLocaleString()} chars`}
+          {stream.status === "live" ? <span className="ellipsis" aria-label="working"><i /><i /><i /></span> : stream.status === "error" ? "failed" : `${stream.text.length.toLocaleString()} chars`}
         </span>
         <Icon name={open ? "chevronDown" : "chevron"} size={13} />
       </button>
@@ -157,6 +156,51 @@ function ToolLine({ stream, name, color }: { stream: StreamState; name: string; 
           {stream.text || (stream.status === "live" ? "Thinking…" : "")}
           {stream.error && <span className="err-text">{`\n${stream.error}`}</span>}
         </pre>
+      )}
+    </div>
+  );
+}
+
+const SHOWN_FILES = 3;
+
+/** "Edited N files" summary with per-file line counts. */
+function EditedCard({ files, onReview }: { files: FileDiff[]; onReview: () => void }) {
+  const [all, setAll] = useState(false);
+  const adds = files.reduce((n, f) => n + f.additions, 0);
+  const dels = files.reduce((n, f) => n + f.deletions, 0);
+  const shown = all ? files : files.slice(0, SHOWN_FILES);
+  return (
+    <div className="edited">
+      <div className="edited-head">
+        <span className="edited-icon" aria-hidden>
+          <Icon name="file" size={15} />
+        </span>
+        <span className="edited-title">
+          <b>
+            Edited {files.length} file{files.length === 1 ? "" : "s"}
+          </b>
+          <span>
+            <span className="plus">+{adds}</span> <span className="minus">−{dels}</span>
+          </span>
+        </span>
+        <button className="btn small" onClick={onReview}>
+          Review
+        </button>
+      </div>
+      <ul className="edited-files">
+        {shown.map((f) => (
+          <li key={f.path}>
+            <span className="truncate">{f.path}</span>
+            <span className="plus">+{f.additions}</span>
+            <span className="minus">−{f.deletions}</span>
+          </li>
+        ))}
+      </ul>
+      {files.length > SHOWN_FILES && (
+        <button className="edited-more" onClick={() => setAll(!all)} aria-expanded={all}>
+          {all ? "Show fewer files" : `Show ${files.length - SHOWN_FILES} more file${files.length - SHOWN_FILES === 1 ? "" : "s"}`}
+          <Icon name={all ? "chevronDown" : "chevron"} size={12} />
+        </button>
       )}
     </div>
   );

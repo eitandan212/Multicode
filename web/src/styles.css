@@ -1,47 +1,60 @@
 /* MultiCode: quiet, neutral workspace. Color is reserved for the crew. */
 :root {
-  --bg: #fcfcfc;
-  --sidebar: #f6f6f7;
+  --bg: #f4f4f1;
+  --sidebar: #ededea;
   --card: #ffffff;
-  --hover: #efeff1;
-  --bubble: #efeff1;
-  --line: #e8e8eb;
-  --line-strong: #dcdce0;
-  --text: #18181b;
-  --muted: #84848c;
-  --link: #2563eb;
-  --ok: #16a34a;
-  --warn: #c2850c;
-  --bad: #e5484d;
-  --send: #18181b;
-  --send-ink: #ffffff;
-  --focus: #2563eb;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px rgb(0 0 0 / 0.04);
-  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --hover: #e6e6e2;
+  --bubble: #e9e9e5;
+  --line: #e2e2dd;
+  --line-strong: #d3d3cd;
+  --text: #0f0d0c;
+  --muted: #84827c;
+  --brand: #255a41;
+  --brand-hover: #317052;
+  --brand-ink: #ffffff;
+  --accent: #3d8c66;
+  --accent-soft: #eaf7e7;
+  --ribbon-1: #80c776;
+  --ribbon-2: #4ea35a;
+  --link: #2f7a55;
+  --ok: #3d8c66;
+  --warn: #b7791f;
+  --bad: #d9413a;
+  --send: var(--brand);
+  --send-ink: var(--brand-ink);
+  --focus: #3d8c66;
+  --shadow: 0 1px 2px rgb(15 13 12 / 0.04), 0 6px 20px rgb(15 13 12 / 0.05);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   color-scheme: light;
 }
 
-
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161616;
-    --sidebar: #1c1c1d;
-    --card: #1f1f20;
-    --hover: #2a2a2c;
-    --bubble: #2a2a2c;
-    --line: #2b2b2d;
-    --line-strong: #38383b;
-    --text: #ececee;
-    --muted: #8e8e95;
-    --link: #6ea2ff;
-    --ok: #4ade80;
-    --warn: #e9b44c;
-    --bad: #ff6369;
-    --send: #ececee;
-    --send-ink: #161616;
-    --focus: #6ea2ff;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.2);
+    --bg: #171716;
+    --sidebar: #1c1c1a;
+    --card: #21211f;
+    --hover: #2c2c29;
+    --bubble: #2c2c29;
+    --line: #2c2b28;
+    --line-strong: #3a3935;
+    --text: #eeeeeb;
+    --muted: #8e8c86;
+    --brand: #3d8c66;
+    --brand-hover: #4a9c74;
+    --brand-ink: #ffffff;
+    --accent: #75bb6b;
+    --accent-soft: #1f381f;
+    --ribbon-1: #30582f;
+    --ribbon-2: #3d8c66;
+    --link: #80c776;
+    --ok: #75bb6b;
+    --warn: #e0b04f;
+    --bad: #ff6b62;
+    --focus: #75bb6b;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 20px rgb(0 0 0 / 0.25);
     color-scheme: dark;
   }
 }
@@ -185,13 +198,12 @@ code {
   cursor: not-allowed;
 }
 .btn.primary {
-  background: var(--send);
-  color: var(--send-ink);
+  background: var(--brand);
+  color: var(--brand-ink);
   border-color: transparent;
 }
 .btn.primary:hover:not(:disabled) {
-  background: var(--send);
-  opacity: 0.88;
+  background: var(--brand-hover);
 }
 .btn.ghost {
   background: transparent;
@@ -471,6 +483,9 @@ code {
   padding: 0 24px 14px;
 }
 .hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -930,30 +945,6 @@ button.card-row:hover {
   color: var(--bad);
   font-variant-numeric: tabular-nums;
 }
-.changes-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  max-width: 520px;
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
-  text-align: left;
-  cursor: pointer;
-}
-.changes-card:hover {
-  background: var(--hover);
-}
-.changes-card > svg {
-  flex: none;
-  color: var(--muted);
-}
-.changes-card .muted {
-  flex: 1;
-}
 .diff {
   flex: 1;
   min-height: 0;
@@ -1378,12 +1369,361 @@ kbd {
   }
 }
 
+/* ============ Motion (Qoder-like: soft ease-out, blur-in, shimmer, breathing) ============ */
+
+/* New items in a thread settle in from a slight blur. */
+.enter {
+  animation: enter 420ms var(--ease) both;
+}
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(0.8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* Work in progress: a light sweep runs across the text. */
+.shiny {
+  color: transparent;
+  background: linear-gradient(100deg, var(--muted) 40%, var(--text) 50%, var(--muted) 60%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shine 2.2s linear infinite;
+}
+.tool-what.shiny {
+  background-image: linear-gradient(100deg, var(--text) 40%, var(--accent) 50%, var(--text) 60%);
+}
+@keyframes shine {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* Thinking: a breathing dot with a soft ring. */
+.pulse-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: breathe 1.6s var(--ease-soft) infinite;
+}
+.tool-row .pulse-dot {
+  background: var(--agent);
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.86);
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 0%, transparent);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.08);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+.ellipsis {
+  display: inline-flex;
+  gap: 3px;
+}
+.ellipsis i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: blink 1.2s infinite;
+}
+.ellipsis i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ellipsis i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.18;
+    transform: scale(0.72);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/* Waiting tasks breathe quietly. */
+.s-queued .check-mark {
+  animation: wait 1.8s ease-in-out infinite;
+}
+@keyframes wait {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.check-mark {
+  transition:
+    background-color 300ms var(--ease),
+    border-color 300ms var(--ease),
+    transform 300ms var(--ease);
+}
+.s-done .check-mark {
+  animation: pop 360ms var(--ease);
+}
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+  }
+}
+
+/* Dialogs and palette: fade in, rise from 95%. */
+.dialog[open] {
+  animation: dialog-in 280ms var(--ease);
+}
+.dialog[open]::backdrop {
+  animation: fade-in 220ms ease-out;
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Panels and sidebar slide open on narrow screens. */
+@media (max-width: 900px) {
+  .sidebar {
+    animation: slide-right 320ms var(--ease);
+  }
+  .side {
+    animation: rise 320ms var(--ease);
+  }
+  .scrim {
+    animation: fade-in 220ms ease-out;
+  }
+}
+@keyframes slide-right {
+  from {
+    transform: translateX(-24px);
+    opacity: 0;
+  }
+}
+@keyframes rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+
+/* Interactive feedback. */
+.btn,
+.icon-btn,
+.chip,
+.tool-row,
+.sb-thread,
+.sb-project-row,
+.card-row,
+.palette-item,
+.seg > button,
+.tree button,
+.kind-option {
+  transition:
+    background-color 160ms var(--ease-soft),
+    color 160ms var(--ease-soft),
+    border-color 160ms var(--ease-soft);
+}
+.send {
+  transition:
+    transform 200ms var(--ease),
+    background-color 200ms var(--ease-soft);
+}
+.send:not(:disabled):hover {
+  background: var(--brand-hover);
+  transform: translateY(-1px);
+}
+.send:not(:disabled):active {
+  transform: scale(0.94);
+}
+.send.stop:hover {
+  background: var(--bad);
+}
+.composer {
+  transition:
+    border-color 200ms var(--ease-soft),
+    box-shadow 300ms var(--ease);
+}
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+  box-shadow:
+    var(--shadow),
+    0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Start screen: ribbons draw in, then the content settles. */
+.ribbons {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+.ribbon {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 1.6s var(--ease) forwards;
+}
+.r1 {
+  stroke: var(--ribbon-1);
+  stroke-width: 90;
+  opacity: 0.22;
+}
+.r2 {
+  stroke: var(--ribbon-2);
+  stroke-width: 46;
+  opacity: 0.14;
+  animation-delay: 120ms;
+}
+.r3 {
+  stroke: var(--ribbon-1);
+  stroke-width: 60;
+  opacity: 0.16;
+  animation-delay: 240ms;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.hero > :not(.ribbons) {
+  animation: enter 600ms var(--ease) 250ms both;
+}
+
+/* "Edited N files" card */
+.edited {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+.edited-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.edited-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.edited-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  font-size: 12.5px;
+}
+.edited-title b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.edited-files {
+  list-style: none;
+  margin: 0;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.edited-files li {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+}
+.edited-files li .truncate {
+  flex: 1;
+}
+.edited-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 12px 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.edited-more:hover {
+  color: var(--text);
+}
+
+/* Composer progress */
+.progress {
+  margin-left: auto;
+  margin-right: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.progress-track {
+  width: 56px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--line-strong);
+  overflow: hidden;
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 600ms var(--ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+  .ribbon {
+    stroke-dashoffset: 0;
+  }
+  .shiny {
+    color: inherit;
+    background: none;
   }
 }
 

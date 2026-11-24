@@ -6,6 +6,7 @@ import { Composer } from "./components/Composer";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
+import { Ribbons } from "./components/Ribbons";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Thread } from "./components/Thread";
@@ -204,6 +205,7 @@ export function App() {
       project={project}
       canRun={canRun}
       running={running}
+      progress={run ? { done: run.tasks.filter((t) => t.status === "done" || t.status === "failed").length, total: run.tasks.length } : undefined}
       placeholder={canRun ? (run ? "Ask the crew for a change" : "Describe what to build") : "Connect an AI to start"}
       onSubmit={startRun}
       onStop={() => run && void api.cancelRun(run.id)}
@@ -275,6 +277,7 @@ export function App() {
           </>
         ) : (
           <div className="hero">
+            <Ribbons />
             <h1>
               What should the crew build in <b>{project}</b>?
             </h1>

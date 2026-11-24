@@ -49,3 +49,8 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
 export function Spinner({ size = 14 }: { size?: number }) {
   return <span className="spinner" style={{ width: size, height: size }} aria-hidden />;
 }
+
+/** Agent "thinking" indicator: a dot that breathes with a soft ring. */
+export function Pulse() {
+  return <span className="pulse-dot" aria-hidden />;
+}
