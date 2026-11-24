@@ -509,10 +509,13 @@ describe("harness names", () => {
   it("names connections after the harness people know", () => {
     expect(connectionName("claude-cli")).toBe("Claude Code");
     expect(connectionName("codex-cli")).toBe("Codex");
-    expect(connectionName("opencode-cli", undefined, "opencode/big-pickle")).toBe("OpenCode · big-pickle (free)");
+    expect(connectionName("opencode-cli", undefined, "opencode/big-pickle")).toBe("Big Pickle (free)");
+    expect(connectionName("anthropic", undefined, "claude-opus-5-5")).toBe("Claude Opus 5.5");
+    expect(connectionName("openai-compatible", "https://openrouter.ai/api/v1", "openai/gpt-5")).toBe("GPT-5");
     expect(connectionName("openai-compatible", "https://openrouter.ai/api/v1")).toBe("OpenRouter");
     expect(connectionName("openai-compatible", "http://localhost:11434/v1")).toBe("Ollama");
     expect(connectionName("openai-compatible", "https://api.example.dev/v1")).toBe("api.example.dev");
+    expect(connectionName("openai-compatible", "http://127.0.0.1:8080/v1")).toBe("Local server");
   });
 });
 

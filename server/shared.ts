@@ -51,24 +51,69 @@ const ENDPOINT_BRANDS: [RegExp, string][] = [
   [/:1234|lmstudio/i, "LM Studio"],
 ];
 
-/** Default name for a connection: the harness, plus the model where it tells them apart. */
+const BRANDS: Record<string, string> = {
+  gpt: "GPT",
+  openai: "OpenAI",
+  claude: "Claude",
+  gemini: "Gemini",
+  gemma: "Gemma",
+  deepseek: "DeepSeek",
+  qwen: "Qwen",
+  llama: "Llama",
+  glm: "GLM",
+  grok: "Grok",
+  kimi: "Kimi",
+  mistral: "Mistral",
+  codestral: "Codestral",
+  phi: "Phi",
+  nemotron: "Nemotron",
+};
+
+/**
+ * A model id as people say it: "claude-opus-5-5" → "Claude Opus 5.5", "gpt-5" → "GPT-5",
+ * "deepseek-v4.1-flash-free" → "DeepSeek V4.1 Flash", "openrouter/auto" → "Auto Router".
+ */
+export function modelDisplayName(model: string): string {
+  const id = model.trim().split("/").pop()!.replace(/:free$|-free$/i, "");
+  if (!id) return model;
+  if (/^auto$/i.test(id)) return "Auto Router";
+  const out: string[] = [];
+  for (const raw of id.split(/[-_\s]+/).filter(Boolean)) {
+    const t = raw.toLowerCase();
+    const prev = out[out.length - 1];
+    if (/^\d+$/.test(t) && prev && /^\d+(\.\d+)?$/.test(prev) && !prev.includes(".") && t.length <= 2) {
+      out[out.length - 1] = `${prev}.${t}`; // "5", "5" → "5.5"
+    } else if (/^\d+(\.\d+)?$/.test(t) && prev === "GPT") {
+      out[out.length - 1] = `GPT-${t}`;
+    } else if (BRANDS[t]) out.push(BRANDS[t]);
+    else if (/^v\d/.test(t)) out.push(t.toUpperCase());
+    else if (/^\d+(\.\d+)?[bkm]$/.test(t)) out.push(t.toUpperCase());
+    else if (/^o\d/.test(t)) out.push(t); // OpenAI o-series stays lowercase
+    else out.push(t.charAt(0).toUpperCase() + t.slice(1));
+  }
+  return out.join(" ");
+}
+
+const isFreeModel = (model?: string) => Boolean(model && /(-free|:free|big-pickle)$/i.test(model));
+
+/** The service behind a connection: the harness, or the brand of an OpenAI-compatible endpoint. */
+export function serviceName(kind: ProviderKind, baseUrl?: string): string {
+  if (kind !== "openai-compatible") return HARNESS_NAMES[kind];
+  const brand = ENDPOINT_BRANDS.find(([re]) => re.test(baseUrl ?? ""))?.[1];
+  if (brand) return brand;
+  try {
+    const host = baseUrl ? new URL(baseUrl).hostname : "";
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(host)) return "Local server";
+    return host || HARNESS_NAMES[kind];
+  } catch {
+    return HARNESS_NAMES[kind];
+  }
+}
+
+/** Default name for a connection or agent: its model, or the harness when no model is set. */
 export function connectionName(kind: ProviderKind, baseUrl?: string, model?: string): string {
-  if (kind === "openai-compatible") {
-    const brand = ENDPOINT_BRANDS.find(([re]) => re.test(baseUrl ?? ""))?.[1];
-    let host = "";
-    try {
-      host = baseUrl ? new URL(baseUrl).hostname : "";
-    } catch {
-      /* invalid URL: fall back to the generic name */
-    }
-    return brand ?? (host || HARNESS_NAMES[kind]);
-  }
-  if (kind === "opencode-cli" && model) {
-    const short = model.split("/").pop()!;
-    const free = /-free$|big-pickle/.test(short);
-    return `OpenCode · ${short.replace(/-free$/, "")}${free ? " (free)" : ""}`;
-  }
-  return HARNESS_NAMES[kind];
+  if (model) return `${modelDisplayName(model)}${isFreeModel(model) ? " (free)" : ""}`;
+  return serviceName(kind, baseUrl);
 }
 
 /** A connection as seen by the UI: secrets are never sent, only whether one is set. */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ProjectInfo, RunSummary } from "../../../server/shared";
-import { Icon, Spinner, type IconName } from "./Icon";
+import { Icon, Spinner } from "./Icon";
 import { Lockup } from "./Logo";
 
 interface Props {
@@ -64,23 +64,6 @@ export function Sidebar(p: Props) {
         <Lockup size={20} />
       </div>
 
-      <nav className="sb-nav" aria-label="Main">
-        {(
-          [
-            ["Chat", "compose", p.onNewThread, true],
-            ["Agents", "users", p.onOpenCrew, false],
-            ["Models", "plug", p.onOpenConnections, false],
-            ["Plugins & skills", "puzzle", p.onOpenExtensions, false],
-            ["Settings", "settings", p.onOpenSafety, false],
-          ] as [string, IconName, () => void, boolean][]
-        ).map(([label, icon, onClick, active]) => (
-          <button key={label} className={`sb-nav-item ${active ? "is-active" : ""}`} onClick={onClick}>
-            <Icon name={icon} size={17} />
-            {label}
-          </button>
-        ))}
-      </nav>
-
       <div className="sb-search">
         <label className="search-field">
           <Icon name="search" />
@@ -94,7 +77,6 @@ export function Sidebar(p: Props) {
         </button>
       </div>
 
-      <div className="sb-section">Projects &amp; recent</div>
       <div className="sb-list">
         {projects.length === 0 && <p className="sb-empty">{q ? "No matches" : "No projects yet"}</p>}
         {projects.map((pr) => {
@@ -156,6 +138,9 @@ export function Sidebar(p: Props) {
         </button>
         <button className="icon-btn" onClick={p.onOpenExtensions} title="Plugins & skills" aria-label="Plugins and skills">
           <Icon name="puzzle" />
+        </button>
+        <button className="icon-btn" onClick={p.onOpenSafety} title="Savings & safety" aria-label="Savings and safety">
+          <Icon name="shield" />
         </button>
         <button className="icon-btn push-right" onClick={p.onOpenAppearance} title="Appearance" aria-label="Appearance">
           <Icon name="palette" />

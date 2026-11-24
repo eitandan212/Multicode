@@ -240,7 +240,7 @@ export class RunManager {
   private async freeFallback(): Promise<ResolvedMember | undefined> {
     const f = this.config.settings.freeFallback;
     if (!f.enabled || !(await findBinary(CLI_BINARIES["opencode-cli"]))) return undefined;
-    const connection: Connection = { id: "free-fallback", kind: "opencode-cli", label: `${connectionName("opencode-cli", undefined, f.model)}`, defaultModel: f.model };
+    const connection: Connection = { id: "free-fallback", kind: "opencode-cli", label: connectionName("opencode-cli", undefined, f.model), defaultModel: f.model };
     return { id: "free-fallback", name: `${connection.label} · fallback`, role: "builder", connectionId: connection.id, connection, provider: this.providerFactory(connection), agents: 1 };
   }
 

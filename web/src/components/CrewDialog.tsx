@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CrewMember, Role } from "../../../server/shared";
+import { connectionName, type CrewMember, type Role } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { colorFor, ROLE_HINT, ROLE_LABEL } from "../crewColors";
 import { Icon } from "./Icon";
@@ -183,7 +183,12 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                       connectionId={m.connectionId}
                       value={m.model ?? ""}
                       placeholder={conn(m.connectionId)?.defaultModel ?? "Default"}
-                      onChange={(v) => update(i, { model: v || undefined })}
+                      onChange={(v) => {
+                        const c = conn(m.connectionId);
+                        const was = c ? connectionName(c.kind, c.baseUrl, m.model || c.defaultModel) : "";
+                        const next = c ? connectionName(c.kind, c.baseUrl, v || c.defaultModel) : "";
+                        update(i, { model: v || undefined, ...(m.name === was || m.name === c?.label ? { name: next } : {}) });
+                      }}
                     />
                   </label>
                 </div>

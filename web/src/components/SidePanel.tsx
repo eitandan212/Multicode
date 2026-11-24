@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ConnectionView, CrewMember, FileDiff } from "../../../server/shared";
 import { api } from "../api";
-import { colorFor, ROLE_LABEL, VENDOR } from "../crewColors";
+import { serviceName } from "../../../server/shared";
+import { colorFor, ROLE_LABEL } from "../crewColors";
 import { DiffView } from "./DiffView";
 import { ProviderLogo } from "./ProviderLogo";
 import { Icon, Spinner } from "./Icon";
@@ -85,7 +86,7 @@ export function SidePanel(p: Props) {
                 <span className="member-name truncate">{m.name}</span>
                 <span className="muted truncate member-meta">
                   {ROLE_LABEL[m.role]}
-                  {m.role === "builder" && (m.agents ?? 1) > 1 ? ` · ${m.agents} agents` : ""} · {c ? VENDOR[c.kind] : "missing"}
+                  {m.role === "builder" && (m.agents ?? 1) > 1 ? ` · ${m.agents} agents` : ""} · {c ? serviceName(c.kind, c.baseUrl) : "missing"}
                 </span>
                 {p.busy.has(m.id) && <Spinner size={11} />}
                 {(p.limits[m.connectionId] ?? 0) > Date.now() && (

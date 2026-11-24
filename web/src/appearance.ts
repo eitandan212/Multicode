@@ -18,7 +18,7 @@ export interface Appearance {
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
-  theme: "dark",
+  theme: "system",
   accent: null,
   font: "inter",
   size: "default",

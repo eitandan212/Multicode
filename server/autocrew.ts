@@ -1,5 +1,5 @@
 import type { Connection } from "./config.js";
-import type { CrewMember } from "./shared.js";
+import { connectionName, type CrewMember } from "./shared.js";
 
 interface ModelInfo {
   id: string;
@@ -27,19 +27,19 @@ export async function autoCrew(conn: Connection, fetchImpl: typeof fetch = fetch
   if (!builderModel) throw new Error("This endpoint lists no models.");
   const planner = free[0]?.id ?? builderModel;
   const checker = free[1]?.id ?? planner;
-  const short = (id: string) => id.split("/").pop()!.replace(/:free$/, "");
+  const name = (id: string) => connectionName(conn.kind, conn.baseUrl, id);
   const base = { connectionId: conn.id };
   return [
-    { ...base, id: crypto.randomUUID(), name: `Dispatcher · ${short(planner)}`, role: "architect", model: planner, agents: 1 },
+    { ...base, id: crypto.randomUUID(), name: name(planner), role: "architect", model: planner, agents: 1 },
     {
       ...base,
       id: crypto.randomUUID(),
-      name: isOpenRouter ? "Builders · Auto Router" : `Builders · ${short(builderModel)}`,
+      name: name(builderModel),
       role: "builder",
       model: builderModel,
       agents: 3,
       instructions: "General builder; the router picks the best model for each task.",
     },
-    { ...base, id: crypto.randomUUID(), name: `Reviewer · ${short(checker)}`, role: "reviewer", model: checker, agents: 1 },
+    { ...base, id: crypto.randomUUID(), name: name(checker), role: "reviewer", model: checker, agents: 1 },
   ];
 }
