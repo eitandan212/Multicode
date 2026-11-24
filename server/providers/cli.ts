@@ -4,6 +4,7 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import type { Connection } from "../config.js";
 import type { ProviderKind } from "../shared.js";
+import { codexMcpArgs } from "../sync.js";
 import { ProviderError, type DeltaHandler, type GenerateRequest, type Provider } from "./types.js";
 
 export type CliKind = Extract<ProviderKind, `${string}-cli`>;
@@ -56,6 +57,7 @@ export const CLI_SPECS: Record<CliKind, CliSpec> = {
       "--cd",
       req.cwd,
       ...modelArg(req),
+      ...codexMcpArgs(req.mcpServers ?? []),
       prompt,
     ],
   },
@@ -212,7 +214,7 @@ export class CliProvider implements Provider {
       const child = spawn(bin, spec.args(call, prompt), {
         cwd: req.cwd,
         // PWD too: some agents (OpenCode) resolve their project from it rather than the real cwd.
-        env: { ...process.env, PWD: req.cwd, NO_COLOR: "1", FORCE_COLOR: "0", ...(spec.env?.(call) ?? {}) },
+        env: { ...process.env, ...(req.env ?? {}), PWD: req.cwd, NO_COLOR: "1", FORCE_COLOR: "0", ...(spec.env?.(call) ?? {}) },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });

@@ -3,10 +3,18 @@
 Connect the AI accounts you already have — **subscriptions or API keys** — and let them
 build your project together as a crew.
 
-* An **Architect** splits your request into tasks with clear file ownership.
-* **Builders** (as many as you connect) write the code **in parallel**.
-* A **Reviewer** checks the result and sends fixes back until it's approved.
-* You watch every agent stream live and try the result in the built-in preview.
+* A **Dispatcher** plans the work and assigns every task to the best-fitting agent, weighing
+  each member's specialty and cost (free → subscription → pay-per-token). One click makes a
+  **free OpenCode model** your dispatcher, so paid models spend their time building.
+* **Builders** write the code **in parallel**. Each member can run up to 4 agents of its own and
+  carry its own specialty or instructions.
+* Every task is **verified**: an agent that writes nothing, goes silent (4 min) or runs too long
+  (15 min) is stopped and its task is **reassigned** to another agent.
+* A **Reviewer** checks the result and sends fixes back to the agent that wrote the file.
+* **Undo** any thread (like rewind in Claude Code or undo in Codex); edits made after it are
+  detected and never silently overwritten.
+* **Sync across harnesses:** shared instructions, MCP servers and project memory reach Claude Code,
+  Codex, Gemini CLI, Qwen Code and OpenCode through the files each one reads.
 
 ## Connect your AI
 
@@ -58,6 +66,20 @@ Your projects live in `~/.multicode/projects/<name>` and thread history in `~/.m
 | `Ctrl K` / `⌘K` | Command palette: jump to any thread or project, open crew, connections, preview, files, changes |
 | `Enter` / `Shift Enter` | Send to the crew / new line |
 
+## Sync across harnesses
+
+| Harness | Instructions + memory | MCP servers |
+|---|---|---|
+| Claude Code | `CLAUDE.md` | `.mcp.json` |
+| Codex | `AGENTS.md` | passed per run (`-c mcp_servers.*`) |
+| Gemini CLI | `GEMINI.md` | `.gemini/settings.json` |
+| Qwen Code | `QWEN.md` | `.qwen/settings.json` |
+| OpenCode | `AGENTS.md` | `opencode.json` |
+
+MultiCode edits only its own marked block and the MCP entries it created; your own content is
+kept. Secrets are stored in MultiCode's private config and injected into agent processes; project
+files only reference variable names.
+
 ## Security
 
 * The server only listens on `127.0.0.1` and rejects non-loopback `Host` headers.
@@ -75,3 +97,10 @@ npm run typecheck
 ```
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the architecture.
+
+## Trademarks
+
+Provider logos come from [@lobehub/icons](https://github.com/lobehub/lobe-icons) (MIT). Claude,
+Claude Code, OpenAI, Codex, Gemini, Qwen, OpenCode and the other names and logos are trademarks of
+their owners. MultiCode uses them only to show which service a connection uses and is not
+affiliated with or endorsed by any of them.

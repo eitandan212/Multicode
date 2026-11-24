@@ -9,6 +9,7 @@ import { Icon } from "./components/Icon";
 import { Ribbons } from "./components/Ribbons";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
+import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
 import { emptyRun, reduceRun, type RunView } from "./runState";
 
@@ -44,7 +45,7 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | null>(null);
+  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | "sync" | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("preview");
   const [sidebarOpen, setSidebarOpen] = useState(() => !narrow() && store.get("sidebar") !== "0");
   const [panelOpen, setPanelOpen] = useState(() => !narrow() && store.get("panel") !== "0");
@@ -165,6 +166,7 @@ export function App() {
       { id: "new-thread", label: "New thread", icon: "compose", group: "Actions", run: () => dispatch({ kind: "reset", run: null }) },
       { id: "new-project", label: "New project", icon: "folderPlus", group: "Actions", run: () => void newProject() },
       { id: "crew", label: "Edit crew", icon: "users", group: "Actions", run: () => setDialog("crew") },
+      { id: "sync", label: "Sync across harnesses", hint: "instructions, MCP servers, memory", icon: "sync", group: "Actions", run: () => setDialog("sync") },
       { id: "connections", label: "Connections", hint: "subscriptions, API keys, agents", icon: "plug", group: "Actions", run: () => setDialog("connections") },
       { id: "toggle-sidebar", label: sidebarOpen ? "Hide sidebar" : "Show sidebar", icon: "sidebar", group: "View", run: () => toggleSidebar(!sidebarOpen) },
       { id: "toggle-panel", label: panelOpen ? "Hide crew and preview" : "Show crew and preview", icon: "panelRight", group: "View", run: () => togglePanel(!panelOpen) },
@@ -235,6 +237,7 @@ export function App() {
             onNewProject={newProject}
             onOpenConnections={() => setDialog("connections")}
             onOpenCrew={() => setDialog("crew")}
+            onOpenSync={() => setDialog("sync")}
             onCollapse={() => toggleSidebar(false)}
           />
           <div className="scrim" onClick={() => toggleSidebar(false)} aria-hidden />
@@ -271,7 +274,24 @@ export function App() {
         {run && project ? (
           <>
             <div className="scroll">
-              <Thread run={run} crew={crew} onShowChanges={showChanges} />
+              <Thread
+                run={run}
+                crew={crew}
+                connections={state.connections}
+                undo={{
+                  can: Boolean(runs.find((r) => r.id === run.id)?.canUndo),
+                  undoneAt: runs.find((r) => r.id === run.id)?.undoneAt,
+                }}
+                onShowChanges={showChanges}
+                onUndo={async (force) => {
+                  const r = await api.undo(run.id, force);
+                  if (!r.conflicts.length) {
+                    await reload();
+                    setRefreshKey((k) => k + 1);
+                  }
+                  return r;
+                }}
+              />
             </div>
             <div className="dock">{composer}</div>
           </>
@@ -309,6 +329,7 @@ export function App() {
             onTab={setPanelTab}
             onOpenCrew={() => setDialog("crew")}
             onOpenConnections={() => setDialog("connections")}
+            onOpenSync={() => setDialog("sync")}
           />
           <button className="panel-close icon-btn" onClick={() => togglePanel(false)} aria-label="Close panel">
             <Icon name="x" />
@@ -317,6 +338,7 @@ export function App() {
       )}
 
       {dialog === "palette" && <CommandPalette commands={commands()} onClose={() => setDialog(null)} />}
+      {dialog === "sync" && project && <SyncDialog project={project} onClose={() => setDialog(null)} />}
       {dialog === "connections" && <ConnectionsDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
       {dialog === "crew" && (
         <CrewDialog state={state} onClose={() => setDialog(null)} onChanged={reload} onOpenConnections={() => setDialog("connections")} />

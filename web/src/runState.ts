@@ -17,6 +17,8 @@ export interface TaskState {
   memberId?: string;
   error?: string;
   fix?: boolean;
+  /** Why the dispatcher picked this agent. */
+  why?: string;
 }
 
 export interface RunView {
@@ -52,14 +54,14 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
       return {
         ...s,
         plan: e.plan,
-        tasks: e.plan.tasks.map((t) => ({ id: t.id, title: t.title, files: t.files, status: "queued" })),
+        tasks: e.plan.tasks.map((t): TaskState => ({ id: t.id, title: t.title, files: t.files, status: "queued", memberId: t.assignee, why: t.why })),
       };
     case "tasks.added":
       return {
         ...s,
         tasks: [
           ...s.tasks,
-          ...e.tasks.map((t): TaskState => ({ id: t.id, title: t.title, files: t.files, status: "queued", fix: true })),
+          ...e.tasks.map((t): TaskState => ({ id: t.id, title: t.title, files: t.files, status: "queued", fix: true, memberId: t.assignee, why: t.why })),
         ],
       };
     case "task.status":

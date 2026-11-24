@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { API_KINDS, CLI_KINDS, KIND_LABELS, OPEN_SOURCE_KINDS, SUBSCRIPTION_KINDS, type ConnectionView, type ProviderKind } from "../../../server/shared";
 import { api, type AppState } from "../api";
-import { VENDOR } from "../crewColors";
 import { Icon } from "./Icon";
+import { ProviderLogo } from "./ProviderLogo";
 
 interface Props {
   state: AppState;
@@ -88,7 +88,9 @@ function ConnectionRow({ conn, onChanged }: { conn: ConnectionView; onChanged: (
 
   return (
     <li className="conn-row">
-      <span className={`vendor-chip v-${VENDOR[conn.kind].toLowerCase()}`}>{VENDOR[conn.kind]}</span>
+      <span className="conn-logo">
+        <ProviderLogo kind={conn.kind} baseUrl={conn.baseUrl} model={conn.defaultModel} size={20} />
+      </span>
       <div className="conn-main">
         <strong>{conn.label}</strong>
         <span className="muted small">
@@ -266,7 +268,7 @@ function KindOption({ kind, current, onPick }: { kind: ProviderKind; current: Pr
   return (
     <label className={`kind-option ${current === kind ? "is-active" : ""}`}>
       <input type="radio" name="kind" checked={current === kind} onChange={() => onPick(kind)} />
-      <span className={`vendor-dot v-${VENDOR[kind].toLowerCase()}`} aria-hidden />
+      <ProviderLogo kind={kind} size={15} />
       {KIND_LABELS[kind]}
     </label>
   );

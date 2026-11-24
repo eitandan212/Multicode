@@ -3,6 +3,7 @@ import type { ConnectionView, CrewMember, FileDiff } from "../../../server/share
 import { api } from "../api";
 import { colorFor, ROLE_LABEL, VENDOR } from "../crewColors";
 import { DiffView } from "./DiffView";
+import { ProviderLogo } from "./ProviderLogo";
 import { Icon, Spinner } from "./Icon";
 
 export type PanelTab = "preview" | "files" | "changes";
@@ -19,6 +20,7 @@ interface Props {
   onTab: (t: PanelTab) => void;
   onOpenCrew: () => void;
   onOpenConnections: () => void;
+  onOpenSync: () => void;
 }
 
 export function SidePanel(p: Props) {
@@ -29,8 +31,19 @@ export function SidePanel(p: Props) {
   const [fileError, setFileError] = useState("");
   const changedSet = useMemo(() => new Set(p.changed), [p.changed]);
 
+  // The preview only reloads once the file list for this refresh has arrived, so it never
+  // requests an index.html that the last change removed.
+  const [filesKey, setFilesKey] = useState(-1);
   useEffect(() => {
-    api.files(p.project).then(setFiles, () => setFiles([]));
+    let live = true;
+    const key = p.refreshKey;
+    api.files(p.project).then(
+      (f) => live && (setFiles(f), setFilesKey(key)),
+      () => live && (setFiles([]), setFilesKey(key)),
+    );
+    return () => {
+      live = false;
+    };
   }, [p.project, p.refreshKey]);
 
   useEffect(() => {
@@ -47,7 +60,7 @@ export function SidePanel(p: Props) {
     );
   }, [p.project, selected, p.refreshKey]);
 
-  const hasIndex = files.includes("index.html");
+  const hasIndex = filesKey === p.refreshKey && files.includes("index.html");
   const previewUrl = `/preview/${p.project}/?v=${p.refreshKey}`;
   const conn = (id: string) => p.connections.find((c) => c.id === id);
 
@@ -65,9 +78,11 @@ export function SidePanel(p: Props) {
             return (
               <div key={m.id} className="card-row member-row" style={{ ["--agent" as string]: colorFor(p.crew, m.id) }}>
                 <span className="member-dot" />
+                {c && <ProviderLogo kind={c.kind} baseUrl={c.baseUrl} model={m.model || c.defaultModel} />}
                 <span className="member-name truncate">{m.name}</span>
                 <span className="muted truncate member-meta">
-                  {ROLE_LABEL[m.role]} · {c ? VENDOR[c.kind] : "missing"}
+                  {ROLE_LABEL[m.role]}
+                  {m.role === "builder" && (m.agents ?? 1) > 1 ? ` · ${m.agents} agents` : ""} · {c ? VENDOR[c.kind] : "missing"}
                 </span>
                 {p.busy.has(m.id) && <Spinner size={11} />}
               </div>
@@ -84,6 +99,11 @@ export function SidePanel(p: Props) {
           <Icon name="plug" />
           <span>Connections</span>
           <span className="muted push-right">{p.connections.length}</span>
+        </button>
+        <button className="card-row" onClick={p.onOpenSync}>
+          <Icon name="sync" />
+          <span>Sync across harnesses</span>
+          <Icon name="chevron" size={14} className="push-right" />
         </button>
       </section>
 

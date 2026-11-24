@@ -7,9 +7,12 @@ import {
   KIND_LABELS,
   type ConnectionView,
   type CrewMember,
+  type DispatchMode,
+  type McpServer,
   type ProviderKind,
   type Role,
   type Settings,
+  type SyncConfigView,
 } from "./shared.js";
 
 export interface Connection {
@@ -21,10 +24,18 @@ export interface Connection {
   defaultModel?: string;
 }
 
+export interface SyncConfig {
+  instructions: string;
+  mcpServers: McpServer[];
+  /** Secret values for the MCP servers' env vars. Never written into project files. */
+  env: Record<string, string>;
+}
+
 export interface ConfigData {
   connections: Connection[];
   crew: CrewMember[];
   settings: Settings;
+  sync: SyncConfig;
 }
 
 const ALL_KINDS = Object.keys(KIND_LABELS) as ProviderKind[];
@@ -35,8 +46,16 @@ export function dataDir(): string {
 }
 
 function emptyConfig(): ConfigData {
-  return { connections: [], crew: [], settings: { maxReviewRounds: 2 } };
+  return {
+    connections: [],
+    crew: [],
+    settings: { maxReviewRounds: 2, dispatch: "smart" },
+    sync: { instructions: "", mcpServers: [], env: {} },
+  };
 }
+
+const MCP_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}$/;
+const ENV_NAME = /^[A-Z_][A-Z0-9_]{0,63}$/;
 
 export class HttpError extends Error {
   constructor(
@@ -75,6 +94,7 @@ export class ConfigStore {
         connections: Array.isArray(raw.connections) ? raw.connections : [],
         crew: Array.isArray(raw.crew) ? raw.crew : [],
         settings: { ...emptyConfig().settings, ...(raw.settings ?? {}) },
+        sync: { ...emptyConfig().sync, ...(raw.sync ?? {}) },
       };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
@@ -165,12 +185,16 @@ export class ConfigStore {
       if (!ROLES.includes(role)) throw new HttpError(400, `crew[${i}].role is invalid`);
       const connectionId = str(m.connectionId, `crew[${i}].connectionId`, 100, true)!;
       if (!this.connection(connectionId)) throw new HttpError(400, `crew[${i}] uses an unknown connection`);
+      const agents = m.agents === undefined || m.agents === null ? 1 : Number(m.agents);
+      if (!Number.isInteger(agents) || agents < 1 || agents > 4) throw new HttpError(400, `crew[${i}].agents must be 1-4`);
       return {
         id: str(m.id, "id", 100) ?? randomUUID(),
         name: str(m.name, `crew[${i}].name`, 40) ?? `Agent ${i + 1}`,
         role,
         connectionId,
         model: str(m.model, `crew[${i}].model`, 200),
+        agents,
+        instructions: str(m.instructions, `crew[${i}].instructions`, 1000),
       };
     });
     this.data.crew = crew;
@@ -179,11 +203,67 @@ export class ConfigStore {
   }
 
   async setSettings(input: Record<string, unknown>): Promise<Settings> {
-    const rounds = Number(input.maxReviewRounds);
-    if (!Number.isInteger(rounds) || rounds < 0 || rounds > 5)
-      throw new HttpError(400, "maxReviewRounds must be an integer 0-5");
-    this.data.settings = { ...this.data.settings, maxReviewRounds: rounds };
+    const next = { ...this.data.settings };
+    if (input.maxReviewRounds !== undefined) {
+      const rounds = Number(input.maxReviewRounds);
+      if (!Number.isInteger(rounds) || rounds < 0 || rounds > 5) throw new HttpError(400, "maxReviewRounds must be an integer 0-5");
+      next.maxReviewRounds = rounds;
+    }
+    if (input.dispatch !== undefined) {
+      if (input.dispatch !== "smart" && input.dispatch !== "balanced") throw new HttpError(400, "dispatch must be smart or balanced");
+      next.dispatch = input.dispatch as DispatchMode;
+    }
+    this.data.settings = next;
     await this.save();
-    return this.data.settings;
+    return next;
   }
+
+  get sync(): SyncConfig {
+    return this.data.sync;
+  }
+
+  syncView(): SyncConfigView {
+    const { instructions, mcpServers, env } = this.data.sync;
+    return { instructions, mcpServers, envSet: Object.keys(env).filter((k) => env[k]) };
+  }
+
+  /** Replaces shared instructions and MCP servers. `env` sets values; an empty string removes one. */
+  async setSync(input: Record<string, unknown>): Promise<SyncConfigView> {
+    const instructions = input.instructions === undefined ? this.data.sync.instructions : (str(input.instructions, "instructions", 20_000) ?? "");
+    let mcpServers = this.data.sync.mcpServers;
+    if (input.mcpServers !== undefined) {
+      if (!Array.isArray(input.mcpServers) || input.mcpServers.length > 30) throw new HttpError(400, "mcpServers must be an array (max 30)");
+      const seen = new Set<string>();
+      mcpServers = input.mcpServers.map((raw, i): McpServer => {
+        const m = (raw ?? {}) as Record<string, unknown>;
+        const name = str(m.name, `mcpServers[${i}].name`, 40, true)!;
+        if (!MCP_NAME.test(name)) throw new HttpError(400, `MCP server name "${name}" may use letters, digits, - and _`);
+        if (seen.has(name)) throw new HttpError(400, `duplicate MCP server "${name}"`);
+        seen.add(name);
+        const type = m.type === "http" ? "http" : "stdio";
+        const envNames = Array.isArray(m.envNames) ? m.envNames.map(String).filter(Boolean) : [];
+        for (const e of envNames) if (!ENV_NAME.test(e)) throw new HttpError(400, `"${e}" is not a valid environment variable name`);
+        if (type === "http") {
+          const url = str(m.url, `mcpServers[${i}].url`, 500, true)!;
+          if (!/^https?:\/\//i.test(url)) throw new HttpError(400, `MCP server "${name}" needs an http(s) URL`);
+          return { name, type, url, envNames };
+        }
+        const command = str(m.command, `mcpServers[${i}].command`, 300, true)!;
+        const args = Array.isArray(m.args) ? m.args.map(String).slice(0, 40) : [];
+        return { name, type, command, args, envNames };
+      });
+    }
+    const env = { ...this.data.sync.env };
+    if (input.env && typeof input.env === "object") {
+      for (const [k, v] of Object.entries(input.env as Record<string, unknown>)) {
+        if (!ENV_NAME.test(k)) throw new HttpError(400, `"${k}" is not a valid environment variable name`);
+        if (v === "" || v === null) delete env[k];
+        else if (typeof v === "string" && v.length <= 4000) env[k] = v;
+      }
+    }
+    this.data.sync = { instructions, mcpServers, env };
+    await this.save();
+    return this.syncView();
+  }
+
 }

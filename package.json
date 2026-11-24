@@ -25,6 +25,7 @@
     "openai": "^7.63.0"
   },
   "devDependencies": {
+    "@lobehub/icons-static-svg": "^1.106.0",
     "@types/express": "^5.0.6",
     "@types/node": "^22.10.0",
     "@types/react": "^19.3.0",

@@ -4,9 +4,10 @@ import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promise
 import path from "node:path";
 import type { ConfigStore, Connection } from "./config.js";
 import { HttpError } from "./config.js";
-import { assignRoles, runCrew, type ResolvedMember } from "./crew/orchestrator.js";
+import { assignRoles, hashText, runCrew, type Checkpoint, type ResolvedMember } from "./crew/orchestrator.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import type { CrewMember, RunEvent, RunSummary } from "./shared.js";
+import type { HarnessSync, ProjectMemory } from "./sync.js";
 import { Workspace } from "./workspace.js";
 
 type Listener = (e: RunEvent) => void;
@@ -23,14 +24,22 @@ const MAX_EVENTS = 20_000;
 const MAX_CACHED_EVENT_LOGS = 12;
 const RUN_ID = /^[0-9a-f-]{36}$/;
 
-const summaryOf = ({ id, project, prompt, status, startedAt, endedAt }: Run): RunSummary => ({
+const summaryOf = ({ id, project, prompt, status, startedAt, endedAt, undoneAt, canUndo }: Run): RunSummary => ({
   id,
   project,
   prompt,
   status,
   startedAt,
   endedAt,
+  undoneAt,
+  canUndo,
 });
+
+export interface UndoResult {
+  restored: string[];
+  conflicts: string[];
+  skipped: string[];
+}
 
 /**
  * Starts crew runs and keeps their history. Each run is stored as `<id>.json` (summary)
@@ -39,13 +48,64 @@ const summaryOf = ({ id, project, prompt, status, startedAt, endedAt }: Run): Ru
 export class RunManager {
   private runs = new Map<string, Run>();
   private cached: string[] = [];
+  /** Checkpoints of runs when no runsDir is configured (tests, in-memory mode). */
+  private checkpoints = new Map<string, Checkpoint>();
 
   constructor(
     private config: ConfigStore,
     private projectsDir: string,
     private providerFactory: ProviderFactory,
     private runsDir?: string,
+    private sync?: { harness: HarnessSync; memory: ProjectMemory },
   ) {}
+
+  /** Writes shared instructions, memory and MCP servers into the project's harness files. */
+  async syncProject(project: string) {
+    if (!this.sync) return [];
+    const ws = await Workspace.open(this.projectsDir, project);
+    return this.sync.harness.apply(project, ws, this.config.sync);
+  }
+
+  private async saveCheckpoint(id: string, cp: Checkpoint): Promise<void> {
+    if (!this.runsDir) return void this.checkpoints.set(id, cp);
+    await writeFile(path.join(this.runsDir, `${id}.checkpoint.json`), JSON.stringify(cp));
+  }
+
+  private async loadCheckpoint(id: string): Promise<Checkpoint | undefined> {
+    if (!this.runsDir) return this.checkpoints.get(id);
+    try {
+      return JSON.parse(await readFile(path.join(this.runsDir, `${id}.checkpoint.json`), "utf8")) as Checkpoint;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Restores the files a run changed. Files edited again since then are reported as
+   * conflicts and left alone unless `force` is set.
+   */
+  async undo(id: string, force = false): Promise<UndoResult> {
+    const run = this.get(id);
+    if (run.status === "running") throw new HttpError(409, "stop the crew before undoing its work");
+    if (run.undoneAt) throw new HttpError(409, "this thread was already undone");
+    const cp = await this.loadCheckpoint(id);
+    if (!cp) throw new HttpError(404, "this thread has no checkpoint to undo");
+    const ws = await Workspace.open(this.projectsDir, run.project);
+
+    const conflicts: string[] = [];
+    for (const f of cp.files) if (hashText(await ws.tryRead(f.path)) !== f.afterHash) conflicts.push(f.path);
+    if (conflicts.length && !force) return { restored: [], conflicts, skipped: cp.skipped };
+
+    const restored: string[] = [];
+    for (const f of cp.files) {
+      if (f.before === null) await ws.remove(f.path);
+      else await ws.write(f.path, f.before);
+      restored.push(f.path);
+    }
+    run.undoneAt = Date.now();
+    await this.saveSummary(run);
+    return { restored, conflicts: [], skipped: cp.skipped };
+  }
 
   /** Loads stored run summaries. Runs that were still going when MultiCode stopped are closed. */
   async load(): Promise<void> {
@@ -168,6 +228,9 @@ export class RunManager {
       .reverse()
       .map((r) => r.prompt.slice(0, 500));
 
+    // Every harness sees the same instructions, memory and MCP servers before the crew starts.
+    await this.syncProject(project).catch((err: Error) => console.error(`Sync failed for ${project}:`, err.message));
+
     const run: Run = {
       id: randomUUID(),
       project,
@@ -209,10 +272,22 @@ export class RunManager {
       workspace,
       roles,
       settings: this.config.settings,
+      mcpServers: this.config.sync.mcpServers,
+      env: this.config.sync.env,
       emit,
       signal: run.controller!.signal,
     })
-      .then(({ summary, changedFiles }) => finish("done", { type: "run.done", summary, changedFiles, at: Date.now() }))
+      .then(async ({ summary, changedFiles, checkpoint }) => {
+        if (checkpoint.files.length) {
+          await this.saveCheckpoint(run.id, checkpoint).catch((err: Error) => console.error("Could not save checkpoint:", err.message));
+          run.canUndo = true;
+        }
+        if (this.sync) {
+          await this.sync.memory.add(project, { at: Date.now(), prompt: run.prompt, summary });
+          await this.syncProject(project).catch(() => {});
+        }
+        await finish("done", { type: "run.done", summary, changedFiles, at: Date.now() });
+      })
       .catch((err: Error) => {
         const aborted = run.controller!.signal.aborted;
         return finish(aborted ? "cancelled" : "error", { type: "run.error", error: aborted ? "Cancelled" : err.message, at: Date.now() });

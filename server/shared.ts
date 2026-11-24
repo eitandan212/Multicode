@@ -47,10 +47,42 @@ export interface CrewMember {
   role: Role;
   connectionId: string;
   model?: string;
+  /** How many parallel agents this member runs (builders only). 1-4. */
+  agents?: number;
+  /** The member's specialty or standing instructions; also used by the dispatcher. */
+  instructions?: string;
 }
+
+export type DispatchMode = "smart" | "balanced";
 
 export interface Settings {
   maxReviewRounds: number;
+  /** smart: the dispatcher assigns each task to the best-fitting agent. balanced: first free agent. */
+  dispatch: DispatchMode;
+}
+
+/** An MCP server shared with every harness that supports MCP. */
+export interface McpServer {
+  name: string;
+  type: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+  /** Names of environment variables the server needs. Values live in MultiCode's private config. */
+  envNames?: string[];
+}
+
+export interface SyncConfigView {
+  instructions: string;
+  mcpServers: McpServer[];
+  /** Env var names that have a stored value (values are never sent to the UI). */
+  envSet: string[];
+}
+
+export interface HarnessSyncStatus {
+  harness: string;
+  files: string[];
+  note?: string;
 }
 
 export interface ProjectInfo {
@@ -64,6 +96,10 @@ export interface PlanTask {
   title: string;
   description: string;
   files: string[];
+  /** Crew member the dispatcher picked for this task. */
+  assignee?: string;
+  /** One-line reason for the pick. */
+  why?: string;
 }
 
 export interface Plan {
@@ -122,4 +158,8 @@ export interface RunSummary {
   status: "running" | "done" | "error" | "cancelled";
   startedAt: number;
   endedAt?: number;
+  /** Set when the run's file changes have been undone. */
+  undoneAt?: number;
+  /** True when a checkpoint exists, so the run can be undone. */
+  canUndo?: boolean;
 }

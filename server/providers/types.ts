@@ -1,3 +1,5 @@
+import type { McpServer } from "../shared.js";
+
 export interface GenerateRequest {
   system: string;
   prompt: string;
@@ -9,6 +11,10 @@ export interface GenerateRequest {
    * "edit": the agent may change files. API agents still answer with file blocks.
    */
   mode: "text" | "edit";
+  /** Shared MCP servers (CLI agents only; files-based harnesses get them through sync). */
+  mcpServers?: McpServer[];
+  /** Extra environment for agent processes (e.g. MCP server secrets). */
+  env?: Record<string, string>;
 }
 
 export type DeltaHandler = (text: string) => void;

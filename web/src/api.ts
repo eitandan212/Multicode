@@ -1,6 +1,9 @@
 import type {
   ConnectionView,
   CrewMember,
+  HarnessSyncStatus,
+  McpServer,
+  SyncConfigView,
   ProjectInfo,
   ProviderKind,
   RunEvent,
@@ -47,7 +50,13 @@ export const api = {
     request<{ ok: boolean; message: string }>("POST", `/api/connections/${id}/test`, { model }),
   models: (id: string) => request<{ models: string[]; error?: string }>("GET", `/api/connections/${id}/models`),
   saveCrew: (crew: CrewMember[]) => request<CrewMember[]>("PUT", "/api/crew", crew),
-  saveSettings: (s: Settings) => request<Settings>("PUT", "/api/settings", s),
+  saveSettings: (s: Partial<Settings>) => request<Settings>("PUT", "/api/settings", s),
+  sync: () => request<SyncConfigView>("GET", "/api/sync"),
+  saveSync: (body: { instructions?: string; mcpServers?: McpServer[]; env?: Record<string, string> }) =>
+    request<SyncConfigView>("PUT", "/api/sync", body),
+  syncProject: (project: string) => request<HarnessSyncStatus[]>("POST", `/api/projects/${project}/sync`),
+  undo: (id: string, force = false) =>
+    request<{ restored: string[]; conflicts: string[]; skipped: string[] }>("POST", `/api/runs/${id}/undo`, { force }),
   createProject: (name: string) => request<{ name: string }>("POST", "/api/projects", { name }),
   files: (project: string) => request<string[]>("GET", `/api/projects/${project}/files`),
   file: (project: string, path: string) =>

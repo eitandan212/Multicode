@@ -6,6 +6,7 @@ import { DEFAULT_MODELS } from "./providers/api.js";
 import { CLI_BINARIES, CLI_INSTALL_HINTS, findBinary, type CliKind } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import { RunManager } from "./runs.js";
+import { HarnessSync, ProjectMemory } from "./sync.js";
 import { CLI_KINDS, type ProviderKind } from "./shared.js";
 import { listProjects, validateProjectName, Workspace } from "./workspace.js";
 
@@ -16,6 +17,8 @@ export interface AppOptions {
   projectsDir: string;
   /** Where run history is stored. Omit to keep runs in memory only. */
   runsDir?: string;
+  /** Where project memory and sync state live. Omit to disable harness sync. */
+  stateDir?: string;
   providerFactory: ProviderFactory;
   webDir?: string;
 }
@@ -28,7 +31,9 @@ const param = (req: Request, key: string): string => String(req.params[key] ?? "
 
 export function createApp(opts: AppOptions) {
   const { config, projectsDir } = opts;
-  const runs = new RunManager(config, projectsDir, opts.providerFactory, opts.runsDir);
+  const memory = opts.stateDir ? new ProjectMemory(path.join(opts.stateDir, "memory")) : undefined;
+  const sync = opts.stateDir && memory ? { harness: new HarnessSync(path.join(opts.stateDir, "sync"), memory), memory } : undefined;
+  const runs = new RunManager(config, projectsDir, opts.providerFactory, opts.runsDir, sync);
   const app = express();
   app.disable("x-powered-by");
 
@@ -128,6 +133,16 @@ export function createApp(opts: AppOptions) {
     }),
   );
 
+  api.get("/sync", (_req, res) => res.json(config.syncView()));
+  api.put("/sync", wrap(async (req, res) => res.json(await config.setSync(req.body ?? {}))));
+  api.post(
+    "/projects/:name/sync",
+    wrap(async (req, res) => res.json(await runs.syncProject(validateProjectName(param(req, "name"))))),
+  );
+  api.post(
+    "/runs/:id/undo",
+    wrap(async (req, res) => res.json(await runs.undo(param(req, "id"), req.body?.force === true))),
+  );
   api.put("/crew", wrap(async (req, res) => res.json(await config.setCrew(req.body))));
   api.put("/settings", wrap(async (req, res) => res.json(await config.setSettings(req.body ?? {}))));
 

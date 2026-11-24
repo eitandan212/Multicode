@@ -11,6 +11,7 @@ import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/cre
 import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
 import type { GenerateRequest, Provider } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
+import { codexMcpArgs, HarnessSync, ProjectMemory, renderBlock, upsertBlock } from "../server/sync.js";
 import type { PlanTask, RunEvent } from "../server/shared.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
 
@@ -122,8 +123,8 @@ function fakeProvider(script: { review: string[] }): Provider {
         out = JSON.stringify({
           summary: "Two files.",
           tasks: [
-            { title: "Page", description: "html", files: ["index.html"] },
-            { title: "Logic", description: "js", files: ["app.js"] },
+            { title: "Page", description: "html", files: ["index.html"], assignee: "b2", why: "markup" },
+            { title: "Logic", description: "js", files: ["app.js"], assignee: "b1", why: "logic" },
           ],
         });
       else if (req.system.includes("REVIEWER")) out = script.review[reviews++] ?? '{"approved":true,"summary":"ok","issues":[]}';
@@ -171,15 +172,20 @@ describe("crew orchestration", () => {
       history: [],
       workspace: ws,
       roles: assignRoles([member("arch", "architect", p), member("b1", "builder", p), member("b2", "builder", p), member("rev", "reviewer", p)]),
-      settings: { maxReviewRounds: 2 },
+      settings: { maxReviewRounds: 2, dispatch: "smart" },
       emit: (e) => events.push(e),
       signal: new AbortController().signal,
     });
     expect(result.changedFiles).toEqual(["app.js", "index.html"]);
     expect(await ws.read("app.js")).toBe('console.log("fixed")\n');
     expect(events.filter((e) => e.type === "review")).toHaveLength(2);
-    const builders = new Set(events.flatMap((e) => (e.type === "task.status" && e.status === "running" ? [e.memberId] : [])));
-    expect(builders.size).toBe(2);
+    const ran = (id: string) => events.find((e) => e.type === "task.status" && e.taskId === id && e.status === "running");
+    // The dispatcher's picks are honoured.
+    expect(ran("t1")).toMatchObject({ memberId: "b2" });
+    expect(ran("t2")).toMatchObject({ memberId: "b1" });
+    // The review fix goes back to the agent that wrote app.js.
+    expect(ran("r1-1")).toMatchObject({ memberId: "b1" });
+    expect(result.checkpoint.files.map((f) => f.path)).toEqual(["app.js", "index.html"]);
   });
 });
 
@@ -295,6 +301,198 @@ describe("run history", () => {
       expect(types).toContain("run.diff");
       expect(types.at(-1)).toBe("run.done");
       expect((await second.events(ghost)).at(-1)?.type).toBe("run.error");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("dispatch and member agents", () => {
+  it("routes assigned tasks to their member and runs a member's agents in parallel", async () => {
+    const tasks: PlanTask[] = [
+      { id: "a", title: "a", description: "", files: ["a.js"], assignee: "m1" },
+      { id: "b", title: "b", description: "", files: ["b.js"], assignee: "m1" },
+      { id: "c", title: "c", description: "", files: ["c.js"], assignee: "m2" },
+    ];
+    const m1 = { id: "m1" };
+    const m2 = { id: "m2" };
+    const who: Record<string, string> = {};
+    let live = 0;
+    let peakM1 = 0;
+    await scheduleTasks(
+      tasks,
+      [m1, m1, m2], // m1 has two agents
+      async (t, w) => {
+        who[t.id] = w.id;
+        if (w.id === "m1") peakM1 = Math.max(peakM1, ++live);
+        await new Promise((r) => setTimeout(r, 15));
+        if (w.id === "m1") live--;
+      },
+      (t, w) => !t.assignee || t.assignee === w.id,
+    );
+    expect(who).toEqual({ a: "m1", b: "m1", c: "m2" });
+    expect(peakM1).toBe(2);
+  });
+});
+
+describe("harness sync", () => {
+  it("manages only its own block and MCP entries", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-sync-"));
+    try {
+      const ws = await Workspace.open(dir, "s");
+      await ws.write("CLAUDE.md", "# My notes\nkeep me\n");
+      await ws.write(".mcp.json", JSON.stringify({ mcpServers: { mine: { command: "x" } } }));
+      const memory = new ProjectMemory(path.join(dir, "mem"));
+      await memory.add("s", { at: Date.UTC(2026, 10, 24), prompt: "make a timer", summary: "built it" });
+      const sync = new HarnessSync(path.join(dir, "state"), memory);
+      const cfg = {
+        instructions: "Use TypeScript.",
+        mcpServers: [{ name: "docs", type: "stdio" as const, command: "npx", args: ["-y", "docs-mcp"], envNames: ["DOCS_TOKEN"] }],
+        env: { DOCS_TOKEN: "secret-value" },
+      };
+      await sync.apply("s", ws, cfg);
+
+      const claude = await ws.read("CLAUDE.md");
+      expect(claude).toContain("keep me");
+      expect(claude).toContain("Use TypeScript.");
+      expect(claude).toContain("make a timer → built it");
+      for (const f of ["AGENTS.md", "GEMINI.md", "QWEN.md"]) expect(await ws.read(f)).toContain("Use TypeScript.");
+      const mcp = JSON.parse(await ws.read(".mcp.json"));
+      expect(Object.keys(mcp.mcpServers).sort()).toEqual(["docs", "mine"]);
+      expect(mcp.mcpServers.docs.env.DOCS_TOKEN).toBe("${DOCS_TOKEN}");
+      expect(JSON.parse(await ws.read("opencode.json")).mcp.docs.command).toEqual(["npx", "-y", "docs-mcp"]);
+      expect(JSON.parse(await ws.read(".gemini/settings.json")).mcpServers.docs.env.DOCS_TOKEN).toBe("$DOCS_TOKEN");
+      // Secrets never reach project files.
+      for (const f of await ws.list()) expect(await ws.read(f)).not.toContain("secret-value");
+
+      // Removing everything cleans up after itself but keeps the user's content.
+      await sync.apply("s", ws, { instructions: "", mcpServers: [], env: {} });
+      await new ProjectMemory(path.join(dir, "mem")); // memory stays, so the block stays with memory only
+      expect(await ws.read("CLAUDE.md")).toContain("keep me");
+      expect(await ws.read("CLAUDE.md")).not.toContain("Use TypeScript.");
+      expect(JSON.parse(await ws.read(".mcp.json")).mcpServers).toEqual({ mine: { command: "x" } });
+      expect(await ws.tryRead("opencode.json")).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps user files intact when the block is removed", () => {
+    const withBlock = upsertBlock("Hello\n", renderBlock("Rule", []));
+    expect(withBlock).toContain("Rule");
+    expect(upsertBlock(withBlock, "")).toBe("Hello\n");
+  });
+
+  it("passes MCP servers to Codex without secrets on the command line", () => {
+    const args = codexMcpArgs([{ name: "docs", type: "stdio", command: "npx", args: ["-y", "d"], envNames: ["TOKEN"] }]);
+    expect(args).toEqual([
+      "-c",
+      'mcp_servers.docs.command="npx"',
+      "-c",
+      'mcp_servers.docs.args=["-y","d"]',
+      "-c",
+      'mcp_servers.docs.env_vars=["TOKEN"]',
+    ]);
+  });
+});
+
+describe("undo", () => {
+  it("restores a run's files and refuses when they changed since", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-undo-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const projects = path.join(dir, "projects");
+      const ws = await Workspace.open(projects, "u");
+      await ws.write("index.html", "original\n");
+      const runs = new RunManager(config, projects, () => fakeProvider({ review: [] }), path.join(dir, "runs"));
+      const finished = async () => {
+        const r = await runs.start("u", "go");
+        await new Promise<void>((resolve) => {
+          const off = runs.subscribe(r.id, (e) => {
+            if (e.type === "run.done" || e.type === "run.error") {
+              off();
+              resolve();
+            }
+          });
+        });
+        return r.id;
+      };
+
+      const first = await finished();
+      expect(await ws.read("index.html")).toContain("app.js");
+      await ws.write("index.html", "hand edit\n");
+      expect((await runs.undo(first)).conflicts).toEqual(["index.html"]);
+
+      const second = await finished();
+      const result = await runs.undo(second);
+      expect(result.conflicts).toEqual([]);
+      expect(await ws.read("index.html")).toBe("hand edit\n");
+      expect(await ws.tryRead("app.js")).toBeDefined(); // existed before the second run (from the first)
+      await expect(runs.undo(second)).rejects.toThrow(/already undone/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("verification and reassignment", () => {
+  it("fails a task whose agent wrote nothing and hands it to another builder", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-retry-"));
+    try {
+      const ws = await Workspace.open(dir, "r");
+      const plan = JSON.stringify({ summary: "s", tasks: [{ title: "Logic", description: "", files: ["app.js"], assignee: "lazy", why: "fit" }] });
+      const lazy: Provider = { editsFiles: false, async generate(req) { return req.system.includes("ARCHITECT") ? plan : '<file path="other.txt">\nnot mine\n</file>'; } };
+      const good: Provider = { editsFiles: false, async generate() { return '<file path="app.js">\nok()\n</file>'; } };
+      const events: RunEvent[] = [];
+      await runCrew({
+        prompt: "p",
+        history: [],
+        workspace: ws,
+        roles: assignRoles([member("arch", "architect", lazy), member("lazy", "builder", lazy), member("good", "builder", good)]),
+        settings: { maxReviewRounds: 0, dispatch: "smart" },
+        emit: (e) => events.push(e),
+        signal: new AbortController().signal,
+      });
+      const statuses = events.flatMap((e) => (e.type === "task.status" && e.status !== "queued" ? [`${e.taskId}:${e.status}:${e.memberId}`] : []));
+      expect(statuses).toEqual(["t1:running:lazy", "t1:failed:lazy", "t1-retry:running:good", "t1-retry:done:good"]);
+      expect(await ws.read("app.js")).toBe("ok()\n");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("watchdog", () => {
+  it("stops a silent agent and reassigns its task", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-dog-"));
+    try {
+      const ws = await Workspace.open(dir, "w");
+      const plan = JSON.stringify({ summary: "s", tasks: [{ title: "Logic", description: "", files: ["app.js"], assignee: "stuck" }] });
+      const stuck: Provider = {
+        editsFiles: false,
+        generate: (req, _d, signal) =>
+          req.system.includes("ARCHITECT")
+            ? Promise.resolve(plan)
+            : new Promise((_r, reject) => signal.addEventListener("abort", () => reject(new Error("Cancelled")))),
+      };
+      const good: Provider = { editsFiles: false, async generate() { return '<file path="app.js">\nok()\n</file>'; } };
+      const events: RunEvent[] = [];
+      await runCrew({
+        prompt: "p",
+        history: [],
+        workspace: ws,
+        roles: assignRoles([member("arch", "architect", stuck), member("stuck", "builder", stuck), member("good", "builder", good)]),
+        settings: { maxReviewRounds: 0, dispatch: "smart" },
+        emit: (e) => events.push(e),
+        signal: new AbortController().signal,
+        limits: { idleMs: 50, maxMs: 1000 },
+      });
+      const failed = events.find((e) => e.type === "task.status" && e.status === "failed");
+      expect(failed).toMatchObject({ memberId: "stuck" });
+      expect((failed as { error: string }).error).toMatch(/went silent/);
+      expect(await ws.read("app.js")).toBe("ok()\n");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

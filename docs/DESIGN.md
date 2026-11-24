@@ -59,6 +59,24 @@ Missing roles fall back to any connected member, so a single connection is a val
 Scheduling: tasks run in parallel across builders; two tasks touching the same file never
 run at the same time (per-file locks).
 
+## Dispatch, agents, verification
+* **Smart dispatch** (default): the Dispatcher (architect role) gets a roster of builders with id,
+  model, cost tier (free / subscription / pay-per-token), parallel agents and specialty, and returns
+  `assignee` + `why` per task. The scheduler holds a task for its assignee; **Balanced** ignores picks.
+* **Member agents:** a member with N agents contributes N workers; file locks still apply.
+* **Verification:** a task is done only if a file it owns changed. Failures are reassigned once to a
+  different builder (`<id>-retry`). Review fixes go to the agent that last wrote the file.
+* **Watchdog:** an agent call is aborted after 4 min without output or 15 min total
+  (`MULTICODE_AGENT_IDLE_MS`, `MULTICODE_AGENT_MAX_MS`).
+* **Checkpoints / undo:** each run stores the before-content of the files it changed plus a hash of
+  the after-content; undo refuses (unless forced) when a file changed since.
+
+## Harness sync
+Shared instructions + the last 15 project-memory entries are written as a marked block into
+`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `QWEN.md`. MCP servers go to `.mcp.json`, `.gemini/settings.json`,
+`.qwen/settings.json`, `opencode.json`, and to Codex as `-c mcp_servers.*` overrides (with
+`env_vars`, so secrets never hit argv). Sync runs before every crew run and after it (memory).
+
 ## Security
 * Server listens on `127.0.0.1` only. Host header must be loopback (DNS-rebinding guard);
   mutating requests require a custom header (blocks cross-site form/fetch CSRF).

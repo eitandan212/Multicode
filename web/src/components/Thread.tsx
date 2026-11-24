@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { CrewMember, FileDiff } from "../../../server/shared";
+import type { ConnectionView, CrewMember, FileDiff } from "../../../server/shared";
+import { ProviderLogo } from "./ProviderLogo";
 import { colorFor } from "../crewColors";
 import type { RunView, StreamState } from "../runState";
 import { Icon, Pulse } from "./Icon";
@@ -13,7 +14,16 @@ const PHASE_TEXT: Record<string, string> = {
   fixing: "Fixing review notes",
 };
 
-export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewMember[]; onShowChanges: () => void }) {
+interface ThreadProps {
+  run: RunView;
+  crew: CrewMember[];
+  connections: ConnectionView[];
+  undo: { can: boolean; undoneAt?: number };
+  onShowChanges: () => void;
+  onUndo: (force: boolean) => Promise<{ conflicts: string[]; skipped: string[] }>;
+}
+
+export function Thread({ run, crew, connections, undo, onShowChanges, onUndo }: ThreadProps) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
   const end = useRef<HTMLDivElement>(null);
@@ -38,6 +48,11 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
   }, [running, run.diff]);
 
   const name = (id?: string) => crew.find((m) => m.id === id)?.name ?? "Agent";
+  const logo = (id?: string) => {
+    const m = crew.find((x) => x.id === id);
+    const c = m && connections.find((x) => x.id === m.connectionId);
+    return c ? <ProviderLogo kind={c.kind} baseUrl={c.baseUrl} model={m.model || c.defaultModel} size={14} /> : null;
+  };
   const took = run.startedAt ? elapsed((run.endedAt ?? now) - run.startedAt) : "";
 
   return (
@@ -66,13 +81,14 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
                   {t.status === "done" ? <Icon name="check" size={12} /> : t.status === "failed" ? <Icon name="x" size={12} /> : null}
                 </span>
                 <span>
-                  {t.fix && <span className="fix-tag">Fix</span>}
+                  {t.fix && <span className="fix-tag">{t.id.endsWith("-retry") ? "Retry" : "Fix"}</span>}
                   <span className={t.status === "running" ? "shiny" : undefined}>{t.title}</span>
                   <span className="muted">
                     {" "}
-                    · {t.memberId ? name(t.memberId) : "queued"}
+                    · {t.memberId ? name(t.memberId) : "next free agent"}
                     {t.files.length ? ` · ${t.files.join(", ")}` : ""}
                   </span>
+                  {t.why && <span className="why">{t.why}</span>}
                   {t.error && <span className="err-text block-line">{t.error}</span>}
                 </span>
               </li>
@@ -84,7 +100,7 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
       {run.streams.length > 0 && (
         <div className="tool-lines">
           {run.streams.map((s) => (
-            <ToolLine key={s.id} stream={s} name={name(s.memberId)} color={colorFor(crew, s.memberId)} />
+            <ToolLine key={s.id} stream={s} name={name(s.memberId)} logo={logo(s.memberId)} color={colorFor(crew, s.memberId)} />
           ))}
         </div>
       )}
@@ -112,7 +128,7 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
       {run.status === "done" && (
         <div className="msg-agent enter">
           <p>Done. {run.changed.length === 0 ? "No files changed." : "The crew finished and reviewed the work."}</p>
-          {run.diff && run.diff.length > 0 && <EditedCard files={run.diff} onReview={onShowChanges} />}
+          {run.diff && run.diff.length > 0 && <EditedCard files={run.diff} undo={undo} onReview={onShowChanges} onUndo={onUndo} />}
         </div>
       )}
       {run.status === "error" && (
@@ -127,7 +143,7 @@ export function Thread({ run, crew, onShowChanges }: { run: RunView; crew: CrewM
   );
 }
 
-function ToolLine({ stream, name, color }: { stream: StreamState; name: string; color: string }) {
+function ToolLine({ stream, name, logo, color }: { stream: StreamState; name: string; logo: React.ReactNode; color: string }) {
   const [open, setOpen] = useState(false);
   const body = useRef<HTMLPreElement>(null);
 
@@ -144,6 +160,7 @@ function ToolLine({ stream, name, color }: { stream: StreamState; name: string; 
     <div className={`tool-line enter st-${stream.status}`} style={{ ["--agent" as string]: color }}>
       <button className="tool-row" onClick={() => setOpen(!open)} aria-expanded={open}>
         {stream.status === "live" ? <Pulse /> : <Icon name="terminal" size={14} />}
+        {logo}
         <span className="tool-who">{name}</span>
         <span className={`tool-what truncate ${stream.status === "live" ? "shiny" : ""}`}>{stream.title}</span>
         <span className="tool-meta">
@@ -164,8 +181,28 @@ function ToolLine({ stream, name, color }: { stream: StreamState; name: string; 
 const SHOWN_FILES = 3;
 
 /** "Edited N files" summary with per-file line counts. */
-function EditedCard({ files, onReview }: { files: FileDiff[]; onReview: () => void }) {
+function EditedCard({
+  files,
+  undo,
+  onReview,
+  onUndo,
+}: {
+  files: FileDiff[];
+  undo: ThreadProps["undo"];
+  onReview: () => void;
+  onUndo: ThreadProps["onUndo"];
+}) {
   const [all, setAll] = useState(false);
+  const [state, setState] = useState<{ busy?: boolean; conflicts?: string[]; error?: string }>({});
+  const runUndo = async (force: boolean) => {
+    setState({ busy: true });
+    try {
+      const r = await onUndo(force);
+      setState(r.conflicts.length ? { conflicts: r.conflicts } : {});
+    } catch (e) {
+      setState({ error: (e as Error).message });
+    }
+  };
   const adds = files.reduce((n, f) => n + f.additions, 0);
   const dels = files.reduce((n, f) => n + f.deletions, 0);
   const shown = all ? files : files.slice(0, SHOWN_FILES);
@@ -183,10 +220,30 @@ function EditedCard({ files, onReview }: { files: FileDiff[]; onReview: () => vo
             <span className="plus">+{adds}</span> <span className="minus">−{dels}</span>
           </span>
         </span>
+        {undo.undoneAt ? (
+          <span className="muted small">Undone</span>
+        ) : (
+          undo.can && (
+            <button className="btn small ghost" onClick={() => runUndo(false)} disabled={state.busy}>
+              <Icon name="undo" size={13} /> Undo
+            </button>
+          )
+        )}
         <button className="btn small" onClick={onReview}>
           Review
         </button>
       </div>
+      {state.conflicts && (
+        <div className="edited-warn" role="alert">
+          <span>
+            {state.conflicts.join(", ")} changed after this thread. Undo would overwrite those edits.
+          </span>
+          <button className="btn small danger" onClick={() => runUndo(true)}>
+            Undo anyway
+          </button>
+        </div>
+      )}
+      {state.error && <p className="err-text small edited-warn">{state.error}</p>}
       <ul className="edited-files">
         {shown.map((f) => (
           <li key={f.path}>

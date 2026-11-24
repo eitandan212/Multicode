@@ -76,6 +76,8 @@ export function parsePlan(text: string, request: string): Plan {
         title: title.slice(0, 120),
         description: asString(o.description).slice(0, 4000),
         files: Array.isArray(o.files) ? o.files.filter((f): f is string => typeof f === "string").slice(0, 30) : [],
+        ...(typeof o.assignee === "string" && o.assignee ? { assignee: o.assignee } : {}),
+        ...(typeof o.why === "string" && o.why ? { why: o.why.slice(0, 120) } : {}),
       });
     });
   }

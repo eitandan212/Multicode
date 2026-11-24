@@ -17,6 +17,7 @@ const { app, runs } = createApp({
   config,
   projectsDir: path.join(dataDir(), "projects"),
   runsDir: path.join(dataDir(), "runs"),
+  stateDir: dataDir(),
   providerFactory: createProvider,
   webDir: path.resolve(here, "../web"),
 });
