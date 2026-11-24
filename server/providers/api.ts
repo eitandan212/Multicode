@@ -1,0 +1,134 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
+import type { Connection } from "../config.js";
+import { ProviderError, type DeltaHandler, type GenerateRequest, type Provider } from "./types.js";
+
+const MAX_OUTPUT_TOKENS = 64_000;
+
+export const DEFAULT_MODELS: Partial<Record<Connection["kind"], string>> = {
+  anthropic: "claude-opus-5-5",
+  openai: "gpt-5",
+  gemini: "gemini-2.5-pro",
+};
+
+function requireModel(req: GenerateRequest, conn: Connection): string {
+  const model = req.model || conn.defaultModel || DEFAULT_MODELS[conn.kind];
+  if (!model) throw new ProviderError(`No model set for "${conn.label}". Pick one in Connections.`);
+  return model;
+}
+
+export class AnthropicProvider implements Provider {
+  readonly editsFiles = false;
+  private client: Anthropic;
+
+  constructor(private conn: Connection) {
+    this.client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseUrl || undefined });
+  }
+
+  async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
+    const model = requireModel(req, this.conn);
+    // Current-generation models can decline on safety grounds; let the API reroute such
+    // requests to a fallback model instead of failing the whole crew run.
+    const fallback = /^claude-(opus-5|fable-5|sonnet-5-5)/.test(model);
+    const stream = this.client.beta.messages.stream(
+      {
+        model,
+        max_tokens: MAX_OUTPUT_TOKENS,
+        system: req.system,
+        messages: [{ role: "user", content: req.prompt }],
+        ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+      },
+      { signal },
+    );
+    stream.on("text", (t) => onDelta(t));
+    const message = await stream.finalMessage();
+    if (message.stop_reason === "refusal") throw new ProviderError("The model declined this request.");
+    const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    if (message.stop_reason === "max_tokens") return `${text}\n<!-- output truncated: max_tokens -->`;
+    return text;
+  }
+
+  async listModels(): Promise<string[]> {
+    const ids: string[] = [];
+    for await (const m of this.client.models.list()) ids.push(m.id);
+    return ids;
+  }
+}
+
+export class OpenAIProvider implements Provider {
+  readonly editsFiles = false;
+  private client: OpenAI;
+
+  constructor(private conn: Connection) {
+    this.client = new OpenAI({
+      apiKey: conn.apiKey || "not-needed",
+      baseURL: conn.baseUrl || undefined,
+    });
+  }
+
+  async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
+    const stream = await this.client.chat.completions.create(
+      {
+        model: requireModel(req, this.conn),
+        stream: true,
+        messages: [
+          { role: "system", content: req.system },
+          { role: "user", content: req.prompt },
+        ],
+      },
+      { signal },
+    );
+    let text = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        text += delta;
+        onDelta(delta);
+      }
+    }
+    return text;
+  }
+
+  async listModels(): Promise<string[]> {
+    const ids: string[] = [];
+    for await (const m of this.client.models.list()) ids.push(m.id);
+    return ids.sort();
+  }
+}
+
+export class GeminiProvider implements Provider {
+  readonly editsFiles = false;
+  private client: GoogleGenAI;
+
+  constructor(private conn: Connection) {
+    this.client = new GoogleGenAI({ apiKey: conn.apiKey });
+  }
+
+  async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
+    const stream = await this.client.models.generateContentStream({
+      model: requireModel(req, this.conn),
+      contents: req.prompt,
+      config: { systemInstruction: req.system, abortSignal: signal },
+    });
+    let text = "";
+    for await (const chunk of stream) {
+      const delta = chunk.text;
+      if (delta) {
+        text += delta;
+        onDelta(delta);
+      }
+    }
+    return text;
+  }
+
+  async listModels(): Promise<string[]> {
+    const ids: string[] = [];
+    const pager = await this.client.models.list();
+    for await (const m of pager) {
+      if (m.name && (m.supportedActions ?? ["generateContent"]).includes("generateContent"))
+        ids.push(m.name.replace(/^models\//, ""));
+    }
+    return ids;
+  }
+}

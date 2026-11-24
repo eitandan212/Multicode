@@ -1,0 +1,102 @@
+// Types shared by the server and the web UI. Keep this file dependency-free.
+
+export type ProviderKind =
+  | "anthropic"
+  | "openai"
+  | "gemini"
+  | "openai-compatible"
+  | "claude-cli"
+  | "codex-cli"
+  | "gemini-cli";
+
+export const API_KINDS: ProviderKind[] = ["anthropic", "openai", "gemini", "openai-compatible"];
+export const CLI_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "gemini-cli"];
+
+export const KIND_LABELS: Record<ProviderKind, string> = {
+  anthropic: "Anthropic API",
+  openai: "OpenAI API",
+  gemini: "Google Gemini API",
+  "openai-compatible": "OpenAI-compatible API",
+  "claude-cli": "Claude subscription (Claude Code)",
+  "codex-cli": "ChatGPT subscription (Codex CLI)",
+  "gemini-cli": "Google subscription (Gemini CLI)",
+};
+
+/** A connection as seen by the UI: secrets are never sent, only whether one is set. */
+export interface ConnectionView {
+  id: string;
+  kind: ProviderKind;
+  label: string;
+  baseUrl?: string;
+  defaultModel?: string;
+  hasKey: boolean;
+  keyHint?: string;
+}
+
+export type Role = "architect" | "builder" | "reviewer";
+
+export interface CrewMember {
+  id: string;
+  name: string;
+  role: Role;
+  connectionId: string;
+  model?: string;
+}
+
+export interface Settings {
+  maxReviewRounds: number;
+}
+
+export interface ProjectInfo {
+  name: string;
+  fileCount: number;
+  updatedAt: number;
+}
+
+export interface PlanTask {
+  id: string;
+  title: string;
+  description: string;
+  files: string[];
+}
+
+export interface Plan {
+  summary: string;
+  tasks: PlanTask[];
+}
+
+export interface ReviewIssue {
+  file: string;
+  problem: string;
+  fix: string;
+}
+
+export interface Review {
+  approved: boolean;
+  summary: string;
+  issues: ReviewIssue[];
+}
+
+export type TaskStatus = "queued" | "running" | "done" | "failed";
+
+export type RunEvent =
+  | { type: "run.started"; runId: string; project: string; prompt: string; at: number }
+  | { type: "phase"; phase: "planning" | "building" | "reviewing" | "fixing"; round: number }
+  | { type: "plan"; plan: Plan }
+  | { type: "tasks.added"; tasks: PlanTask[]; round: number }
+  | { type: "task.status"; taskId: string; status: TaskStatus; memberId?: string; error?: string }
+  | { type: "agent.start"; streamId: string; memberId: string; title: string }
+  | { type: "agent.delta"; streamId: string; text: string }
+  | { type: "agent.end"; streamId: string; ok: boolean; error?: string }
+  | { type: "file.changed"; path: string; change: "write" | "delete"; memberId: string }
+  | { type: "review"; review: Review; round: number }
+  | { type: "run.done"; summary: string; changedFiles: string[]; at: number }
+  | { type: "run.error"; error: string; at: number };
+
+export interface RunSummary {
+  id: string;
+  project: string;
+  prompt: string;
+  status: "running" | "done" | "error" | "cancelled";
+  startedAt: number;
+}
