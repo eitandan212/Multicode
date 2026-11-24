@@ -174,6 +174,8 @@ export async function runCrew(o: RunOptions): Promise<{ summary: string; changed
   emit({ type: "phase", phase: "building", round: 0 });
   await build(plan.tasks, plan);
   if (failures === plan.tasks.length) throw new Error("Every build task failed — check the agent errors above.");
+  await syncing;
+  if (!changed.size) throw new Error("The builders finished without changing any files in the project.");
 
   // 3. Review loop
   let reviewSummary = "";

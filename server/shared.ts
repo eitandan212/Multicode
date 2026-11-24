@@ -7,10 +7,14 @@ export type ProviderKind =
   | "openai-compatible"
   | "claude-cli"
   | "codex-cli"
-  | "gemini-cli";
+  | "gemini-cli"
+  | "opencode-cli"
+  | "qwen-cli";
 
 export const API_KINDS: ProviderKind[] = ["anthropic", "openai", "gemini", "openai-compatible"];
-export const CLI_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "gemini-cli"];
+export const SUBSCRIPTION_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "gemini-cli"];
+export const OPEN_SOURCE_KINDS: ProviderKind[] = ["opencode-cli", "qwen-cli"];
+export const CLI_KINDS: ProviderKind[] = [...SUBSCRIPTION_KINDS, ...OPEN_SOURCE_KINDS];
 
 export const KIND_LABELS: Record<ProviderKind, string> = {
   anthropic: "Anthropic API",
@@ -20,6 +24,8 @@ export const KIND_LABELS: Record<ProviderKind, string> = {
   "claude-cli": "Claude subscription (Claude Code)",
   "codex-cli": "ChatGPT subscription (Codex CLI)",
   "gemini-cli": "Google subscription (Gemini CLI)",
+  "opencode-cli": "OpenCode (75+ providers, free models)",
+  "qwen-cli": "Qwen Code (free Qwen account)",
 };
 
 /** A connection as seen by the UI: secrets are never sent, only whether one is set. */

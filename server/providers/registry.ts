@@ -17,6 +17,8 @@ export const createProvider: ProviderFactory = (conn) => {
     case "claude-cli":
     case "codex-cli":
     case "gemini-cli":
+    case "opencode-cli":
+    case "qwen-cli":
       return new CliProvider(conn);
   }
 };

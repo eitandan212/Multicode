@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { API_KINDS, CLI_KINDS, KIND_LABELS, type ConnectionView, type ProviderKind } from "../../../server/shared";
+import { API_KINDS, CLI_KINDS, KIND_LABELS, OPEN_SOURCE_KINDS, SUBSCRIPTION_KINDS, type ConnectionView, type ProviderKind } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { VENDOR } from "../crewColors";
 
@@ -14,6 +14,11 @@ const KEY_HELP: Partial<Record<ProviderKind, string>> = {
   openai: "platform.openai.com → API keys",
   gemini: "aistudio.google.com → Get API key",
   "openai-compatible": "OpenRouter, Groq, DeepSeek, Together, or a local Ollama / LM Studio server",
+};
+
+const MODEL_HINT: Partial<Record<ProviderKind, string>> = {
+  "opencode-cli": "provider/model, e.g. opencode/big-pickle (free)",
+  "qwen-cli": "Leave empty for Qwen's default",
 };
 
 export function ConnectionsDialog({ state, onClose, onChanged }: Props) {
@@ -166,7 +171,13 @@ function AddConnection(props: {
     >
       <fieldset className="kind-picker">
         <legend>Use a subscription</legend>
-        {CLI_KINDS.map((k) => (
+        {SUBSCRIPTION_KINDS.map((k) => (
+          <KindOption key={k} kind={k} current={kind} onPick={props.onKind} />
+        ))}
+      </fieldset>
+      <fieldset className="kind-picker">
+        <legend>Use an open-source agent</legend>
+        {OPEN_SOURCE_KINDS.map((k) => (
           <KindOption key={k} kind={k} current={kind} onPick={props.onKind} />
         ))}
       </fieldset>
@@ -181,8 +192,10 @@ function AddConnection(props: {
         <div className={`cli-status ${cli.installed ? "is-ok" : "is-missing"}`}>
           {cli.installed ? (
             <>
-              <strong>{cli.binary} is installed.</strong> MultiCode runs it on this computer with your signed-in
-              subscription. If you haven't signed in yet, run <code>{cli.binary}</code> once in a terminal.
+              <strong>{cli.binary} is installed.</strong>{" "}
+              {OPEN_SOURCE_KINDS.includes(kind)
+                ? `MultiCode runs this open-source agent on this computer. ${cli.hint.split("→")[1]?.trim() ?? ""}`
+                : "MultiCode runs it on this computer with your signed-in subscription. If you haven't signed in yet, run it once in a terminal."}
             </>
           ) : (
             <>
@@ -219,7 +232,7 @@ function AddConnection(props: {
           <input
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={isCli ? "Leave empty for the CLI's default" : "e.g. model id"}
+            placeholder={MODEL_HINT[kind] ?? (isCli ? "Leave empty for the CLI's default" : "e.g. model id")}
             required={kind === "openai-compatible"}
           />
         </label>

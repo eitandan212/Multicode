@@ -17,6 +17,9 @@ build your project together as a crew.
 | Google AI Pro / free Google account | Google subscription | `gemini` (Gemini CLI) |
 | Anthropic / OpenAI / Gemini API key | the matching API | official SDKs |
 | OpenRouter, Groq, DeepSeek, Ollama, LM Studio… | OpenAI-compatible API | any `/v1` endpoint |
+| Nothing yet — start free | OpenCode | `opencode` with its free models (e.g. `opencode/big-pickle`) |
+| GitHub Copilot, or any of 75+ providers | OpenCode | `opencode auth login`, then pick `provider/model` |
+| A free Qwen account | Qwen Code | `qwen` |
 
 Subscriptions don't come with API keys, so MultiCode drives each vendor's official CLI
 on your machine. Install the CLI and sign in once:
@@ -25,7 +28,13 @@ on your machine. Install the CLI and sign in once:
 npm i -g @anthropic-ai/claude-code   # then run: claude
 npm i -g @openai/codex               # then run: codex login
 npm i -g @google/gemini-cli          # then run: gemini
+
+# Open-source agents
+npm i -g opencode-ai                 # free models work immediately
+npm i -g @qwen-code/qwen-code        # then run: qwen
 ```
+
+In the crew editor, the model field suggests every model the agent offers (OpenCode lists 200+).
 
 ## Run it
 
@@ -48,7 +57,7 @@ Your projects live in `~/.multicode/projects/<name>` (override with `MULTICODE_H
 * API keys are stored in `~/.multicode/config.json` with `0600` permissions and are never sent back to the browser.
 * Model-written file paths are confined to the project folder (`..`, absolute paths, `.git` and `node_modules` are refused).
 * The preview runs in a sandboxed, opaque origin, so generated code cannot call MultiCode's API.
-* CLI agents run with edit-only permissions (`acceptEdits` / `workspace-write` / `auto_edit`), and read-only for planning and review. MultiCode never passes "bypass all permissions" flags.
+* CLI agents run with edit-only permissions (`acceptEdits` / `workspace-write` / `auto_edit` / `auto-edit`), and read-only for planning and review. OpenCode runs with its shell and web tools removed. MultiCode never passes "bypass all permissions" flags.
 
 ## Tests
 

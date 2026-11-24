@@ -19,6 +19,23 @@ signs in with the subscription:
 Therefore MultiCode is a **local app**: a Node server bound to `127.0.0.1` plus a web UI.
 It drives the CLIs on the user's machine and calls APIs directly with the user's keys.
 
+### Open-source agents
+| Agent | License | Headless invocation | Notes |
+|---|---|---|---|
+| OpenCode (`opencode`) | MIT | `opencode run --format json --dir <project> --agent build\|plan -m provider/model` | 75+ providers, free models, Copilot login. Shell/web tools denied via `OPENCODE_CONFIG_CONTENT`. |
+| Qwen Code (`qwen`) | Apache-2.0 | `qwen --approval-mode auto-edit\|plan -o text` | Free Qwen OAuth tier. |
+
+Considered and not added yet:
+* **T3 Code** (MIT) is a GUI over agents, i.e. a peer of MultiCode, not an agent to plug in.
+  MultiCode follows the same idea: one local server that runs the agents and normalises
+  their event streams into a single timeline.
+* **Kilo CLI** (MIT, OpenCode fork): same CLI shape, but its shell tool could not yet be
+  verified as deniable, so it is held back.
+* **Crush** (FSL-1.1): no read-only mode in headless runs.
+* **Aider** (Apache-2.0): Python; candidate for a later adapter.
+
+Agents that read the `PWD` environment variable get it set to the project folder.
+
 ## Providers
 One interface (`Provider.generate(req, onDelta, signal)`), two families:
 

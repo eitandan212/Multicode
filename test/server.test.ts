@@ -7,7 +7,7 @@ import { createApp } from "../server/app.js";
 import { ConfigStore, type Connection } from "../server/config.js";
 import { assignRoles, runCrew, scheduleTasks, type ResolvedMember } from "../server/crew/orchestrator.js";
 import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/crew/parse.js";
-import { buildCliArgs, parseClaudeStreamLine } from "../server/providers/cli.js";
+import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
 import type { GenerateRequest, Provider } from "../server/providers/types.js";
 import type { PlanTask, RunEvent } from "../server/shared.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
@@ -54,12 +54,18 @@ describe("workspace safety", () => {
 describe("cli adapters", () => {
   const req: GenerateRequest = { system: "", prompt: "", cwd: "/p", mode: "edit", model: "m" };
   it("never uses blanket permission bypass flags", () => {
-    for (const kind of ["claude-cli", "codex-cli", "gemini-cli"] as const) {
+    for (const kind of Object.keys(CLI_SPECS) as CliKind[]) {
       for (const mode of ["text", "edit"] as const) {
-        const args = buildCliArgs(kind, { ...req, mode }, "do it").join(" ");
-        expect(args).not.toMatch(/dangerously|yolo|bypass/i);
+        const args = buildCliArgs(kind, { ...req, mode }, "do it");
+        expect(args.join(" ")).not.toMatch(/dangerously|yolo|bypass/i);
+        expect(args).not.toContain("--auto");
+        expect(args).not.toContain("-y");
       }
     }
+    expect(buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x")).toEqual(expect.arrayContaining(["--agent", "plan", "--dir", "/p"]));
+    expect(buildCliArgs("qwen-cli", { ...req, mode: "text" }, "x")).toEqual(expect.arrayContaining(["--approval-mode", "plan"]));
+    const ocEnv = JSON.parse(CLI_SPECS["opencode-cli"].env!(req).OPENCODE_CONFIG_CONTENT!);
+    expect(ocEnv.permission.bash).toBe("deny");
     expect(buildCliArgs("codex-cli", { ...req, mode: "text" }, "x")).toContain("read-only");
     expect(buildCliArgs("claude-cli", { ...req, mode: "text" }, "x")).toContain("plan");
   });
@@ -67,6 +73,12 @@ describe("cli adapters", () => {
     expect(parseClaudeStreamLine('{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}')).toEqual({ text: "hi" });
     expect(parseClaudeStreamLine('{"type":"result","is_error":false,"result":"done"}')).toEqual({ result: "done" });
     expect(parseClaudeStreamLine("garbage")).toEqual({});
+  });
+  it("parses OpenCode json events", () => {
+    expect(parseOpenCodeLine('{"type":"text","part":{"type":"text","text":"done"}}')).toEqual({ text: "done" });
+    expect(parseOpenCodeLine('{"type":"tool_use","part":{"tool":"write","state":{"status":"completed","input":{"filePath":"/p/app.js"}}}}')).toEqual({ text: "▸ write app.js" });
+    expect(parseOpenCodeLine('{"type":"error","error":{"name":"APIError","data":{"message":"bad key"}}}')).toEqual({ error: "bad key" });
+    expect(parseOpenCodeLine('{"type":"step_start"}')).toEqual({});
   });
 });
 

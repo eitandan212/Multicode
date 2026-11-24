@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CrewMember, Role } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { colorFor, initials, ROLE_HINT, ROLE_LABEL, VENDOR } from "../crewColors";
@@ -67,10 +67,11 @@ export function CrewPanel({ state, busyMembers, onChanged, onOpenConnections }: 
               </label>
               <label className="field">
                 <span>Model</span>
-                <input
+                <ModelInput
+                  connectionId={m.connectionId}
                   value={m.model ?? ""}
                   placeholder={conn(m.connectionId)?.defaultModel ?? "Default"}
-                  onChange={(e) => update(i, { model: e.target.value || undefined })}
+                  onChange={(v) => update(i, { model: v || undefined })}
                 />
               </label>
             </div>
@@ -172,5 +173,37 @@ export function CrewPanel({ state, busyMembers, onChanged, onOpenConnections }: 
         </select>
       </label>
     </div>
+  );
+}
+
+const modelCache = new Map<string, Promise<string[]>>();
+
+/** Free-text model field with suggestions from the connection's own model list. */
+function ModelInput(props: { connectionId: string; value: string; placeholder: string; onChange: (v: string) => void }) {
+  const [models, setModels] = useState<string[]>([]);
+  const listId = `models-${props.connectionId}`;
+
+  useEffect(() => {
+    let live = true;
+    if (!modelCache.has(props.connectionId))
+      modelCache.set(
+        props.connectionId,
+        api.models(props.connectionId).then((r) => r.models, () => []),
+      );
+    void modelCache.get(props.connectionId)!.then((m) => live && setModels(m));
+    return () => {
+      live = false;
+    };
+  }, [props.connectionId]);
+
+  return (
+    <>
+      <input list={listId} value={props.value} placeholder={props.placeholder} onChange={(e) => props.onChange(e.target.value)} />
+      <datalist id={listId}>
+        {models.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
+    </>
   );
 }

@@ -27,6 +27,8 @@ export const VENDOR: Record<ProviderKind, string> = {
   gemini: "Gemini",
   "gemini-cli": "Gemini",
   "openai-compatible": "Custom",
+  "opencode-cli": "OpenCode",
+  "qwen-cli": "Qwen",
 };
 
 export function initials(name: string): string {

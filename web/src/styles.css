@@ -880,6 +880,12 @@ textarea {
 .v-custom {
   --vendor: #c59cff;
 }
+.v-opencode {
+  --vendor: #e6e8f2;
+}
+.v-qwen {
+  --vendor: #5cc8e8;
+}
 .add-conn {
   display: flex;
   flex-direction: column;

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { ConfigStore, HttpError } from "./config.js";
 import { DEFAULT_MODELS } from "./providers/api.js";
-import { CLI_BINARIES, CLI_INSTALL_HINTS, findBinary } from "./providers/cli.js";
+import { CLI_BINARIES, CLI_INSTALL_HINTS, findBinary, type CliKind } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import { RunManager } from "./runs.js";
 import { CLI_KINDS, type ProviderKind } from "./shared.js";
@@ -52,9 +52,9 @@ export function createApp(opts: AppOptions) {
       const clis = await Promise.all(
         CLI_KINDS.map(async (kind) => ({
           kind,
-          binary: CLI_BINARIES[kind as keyof typeof CLI_BINARIES],
-          installed: Boolean(await findBinary(CLI_BINARIES[kind as keyof typeof CLI_BINARIES])),
-          hint: CLI_INSTALL_HINTS[kind as keyof typeof CLI_INSTALL_HINTS],
+          binary: CLI_BINARIES[kind as CliKind],
+          installed: Boolean(await findBinary(CLI_BINARIES[kind as CliKind])),
+          hint: CLI_INSTALL_HINTS[kind as CliKind],
         })),
       );
       res.json({
