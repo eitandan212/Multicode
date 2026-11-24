@@ -4,14 +4,17 @@ import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promise
 import path from "node:path";
 import type { ConfigStore, Connection } from "./config.js";
 import { HttpError } from "./config.js";
-import { assignRoles, hashText, runCrew, type Checkpoint, type ResolvedMember } from "./crew/orchestrator.js";
+import { rm } from "node:fs/promises";
+import { assignRoles, DESIGN_DIRECTIONS, hashText, runCrew, runDesign, type Checkpoint, type ResolvedMember } from "./crew/orchestrator.js";
+import { copyToSandbox, makeProtector } from "./guard.js";
+import { CLI_BINARIES, findBinary } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import type { CrewMember, RunEvent, RunSummary } from "./shared.js";
 import type { HarnessSync, ProjectMemory, SyncExtras } from "./sync.js";
 import { memoryGraphFile, pluginContributions, enabledPlugins } from "./plugins.js";
 import { inlineSkills, selectPacks, type ActivePack } from "./skills.js";
 import { recordRun } from "./graph.js";
-import { HARNESS_NAMES, type McpServer } from "./shared.js";
+import { connectionName, HARNESS_NAMES, type McpServer, type RunMode } from "./shared.js";
 import { Workspace } from "./workspace.js";
 
 type Listener = (e: RunEvent) => void;
@@ -28,7 +31,7 @@ const MAX_EVENTS = 20_000;
 const MAX_CACHED_EVENT_LOGS = 12;
 const RUN_ID = /^[0-9a-f-]{36}$/;
 
-const summaryOf = ({ id, project, prompt, status, startedAt, endedAt, undoneAt, canUndo }: Run): RunSummary => ({
+const summaryOf = ({ id, project, prompt, status, startedAt, endedAt, undoneAt, canUndo, pending, mode, resolution }: Run): RunSummary => ({
   id,
   project,
   prompt,
@@ -37,6 +40,9 @@ const summaryOf = ({ id, project, prompt, status, startedAt, endedAt, undoneAt, 
   endedAt,
   undoneAt,
   canUndo,
+  pending,
+  mode,
+  resolution,
 });
 
 export interface UndoResult {
@@ -54,6 +60,9 @@ export class RunManager {
   private cached: string[] = [];
   /** Checkpoints of runs when no runsDir is configured (tests, in-memory mode). */
   private checkpoints = new Map<string, Checkpoint>();
+  private pendingData = new Map<string, { variants: string[] }>();
+  /** connectionId -> when its usage limit resets. */
+  private limited = new Map<string, number>();
 
   constructor(
     private config: ConfigStore,
@@ -227,13 +236,46 @@ export class RunManager {
     if (run.status === "running") run.controller?.abort();
   }
 
-  async start(project: string, prompt: string): Promise<RunSummary> {
+  /** The free model that takes over when an account hits its limit (needs OpenCode). */
+  private async freeFallback(): Promise<ResolvedMember | undefined> {
+    const f = this.config.settings.freeFallback;
+    if (!f.enabled || !(await findBinary(CLI_BINARIES["opencode-cli"]))) return undefined;
+    const connection: Connection = { id: "free-fallback", kind: "opencode-cli", label: `${connectionName("opencode-cli", undefined, f.model)}`, defaultModel: f.model };
+    return { id: "free-fallback", name: `${connection.label} · fallback`, role: "builder", connectionId: connection.id, connection, provider: this.providerFactory(connection), agents: 1 };
+  }
+
+  /** Accounts currently out of quota: connectionId -> reset time. */
+  limitsView(): Record<string, number> {
+    const now = Date.now();
+    return Object.fromEntries([...this.limited.entries()].filter(([, until]) => until > now));
+  }
+
+  clearLimit(connectionId: string): void {
+    this.limited.delete(connectionId);
+  }
+
+  private sandboxDir(runId: string, name = "main"): string {
+    if (!this.sync) throw new HttpError(500, "sandboxes need a data folder");
+    return path.join(this.sync.dataDir, "sandboxes", runId, name);
+  }
+
+  /** Where a sandbox or design variant can be previewed from. */
+  sandboxRoot(runId: string, name: string): string {
+    if (!RUN_ID.test(runId) || !/^[a-z0-9-]{1,40}$/.test(name)) throw new HttpError(404, "not found");
+    return this.sandboxDir(runId, name);
+  }
+
+  async start(project: string, prompt: string, mode: RunMode = "build"): Promise<RunSummary> {
     if (typeof prompt !== "string" || !prompt.trim()) throw new HttpError(400, "prompt is required");
     if (prompt.length > 20_000) throw new HttpError(400, "prompt is too long");
-    if ([...this.runs.values()].some((r) => r.project === project && r.status === "running"))
-      throw new HttpError(409, "a crew is already working on this project");
+    if (mode !== "build" && mode !== "design") throw new HttpError(400, "mode must be build or design");
+    if ([...this.runs.values()].some((r) => r.project === project && (r.status === "running" || r.pending)))
+      throw new HttpError(409, "this project has a crew at work or changes waiting for your review");
 
-    const workspace = await Workspace.open(this.projectsDir, project);
+    const settings = this.config.settings;
+    const sandboxed = mode === "design" || settings.safety === "sandbox";
+    if (sandboxed && !this.sync) throw new HttpError(400, "sandboxes need a data folder");
+    const projectWs = await Workspace.open(this.projectsDir, project);
     const members: ResolvedMember[] = this.effectiveCrew().flatMap((m) => {
       const connection = this.config.connection(m.connectionId);
       return connection ? [{ ...m, connection, provider: this.providerFactory(connection) }] : [];
@@ -245,15 +287,17 @@ export class RunManager {
         throw new HttpError(400, (err as Error).message);
       }
     })();
+    const fallback = await this.freeFallback();
+    const isProtected = makeProtector(settings.protectedPaths);
 
     const history = this.list(project)
-      .filter((r) => r.status === "done")
+      .filter((r) => r.status === "done" && !r.pending)
       .slice(0, 5)
       .reverse()
       .map((r) => r.prompt.slice(0, 500));
 
     // Every harness sees the same instructions, memory, tools and skills before the crew starts.
-    const ctx = await this.extras(project, prompt);
+    const ctx = await this.extras(project, mode === "design" ? `${prompt} design ui web` : prompt);
     if (this.sync)
       await this.sync.harness
         .apply(project, ctx.ws, this.config.sync, ctx.extras)
@@ -265,6 +309,7 @@ export class RunManager {
       prompt: prompt.trim(),
       status: "running",
       startedAt: Date.now(),
+      mode,
       events: [],
       listeners: new Set(),
       controller: new AbortController(),
@@ -283,7 +328,14 @@ export class RunManager {
       for (const l of run.listeners) l(e);
     };
     emit({ type: "run.started", runId: run.id, project, prompt: run.prompt, at: run.startedAt });
-    emit({ type: "context", skills: ctx.packs.flatMap((p) => p.pack.skills.map((s) => s.name)), plugins: ctx.pluginNames });
+    emit({
+      type: "context",
+      skills: ctx.packs.flatMap((p) => p.pack.skills.map((s) => s.name)),
+      plugins: ctx.pluginNames,
+      fallback: fallback ? { id: fallback.id, name: fallback.name } : undefined,
+      safety: settings.safety,
+      economy: settings.economy,
+    });
 
     // Who wrote which file, for the memory graph.
     const wrote = new Map<string, Set<string>>();
@@ -301,51 +353,186 @@ export class RunManager {
       await this.saveSummary(run).catch((err: Error) => console.error(`Could not save run ${run.id}:`, err.message));
     };
 
-    runCrew({
+    const common = {
       prompt: run.prompt,
       history,
-      workspace,
       roles,
-      settings: this.config.settings,
+      settings,
       mcpServers: ctx.servers,
       env: ctx.env,
       skillText: inlineSkills(ctx.packs),
-      emit: (e) => {
+      fallback,
+      limited: this.limited,
+      isProtected,
+      emit: (e: RunEvent) => {
         track(e);
+        if (e.type === "member.limit") void this.saveLimits();
         emit(e);
       },
       signal: run.controller!.signal,
-    })
-      .then(async ({ summary, changedFiles, checkpoint }) => {
-        if (checkpoint.files.length) {
-          await this.saveCheckpoint(run.id, checkpoint).catch((err: Error) => console.error("Could not save checkpoint:", err.message));
-          run.canUndo = true;
-        }
-        if (this.sync) {
-          await this.sync.memory.add(project, { at: Date.now(), prompt: run.prompt, summary });
-          if (ctx.pluginNames.length && enabledPlugins({ enabled: this.config.extensions.pluginsEnabled, disabled: this.config.extensions.pluginsDisabled }).some((p) => p.id === "memory-graph")) {
-            const agents = [...wrote.entries()].map(([id, files]) => {
-              const m = members.find((x) => x.id === id);
-              return { name: m?.name ?? id, harness: m ? HARNESS_NAMES[m.connection.kind] : "agent", files: [...files] };
-            });
-            await recordRun(memoryGraphFile(this.sync.dataDir, project), {
-              project,
-              prompt: run.prompt,
-              summary,
-              files: changedFiles,
-              agents,
-              at: Date.now(),
-            }).catch((err: Error) => console.error("Could not update the memory graph:", err.message));
-          }
-          await this.sync.harness.apply(project, ctx.ws, this.config.sync, ctx.extras).catch(() => {});
-        }
-        await finish("done", { type: "run.done", summary, changedFiles, at: Date.now() });
-      })
-      .catch((err: Error) => {
-        const aborted = run.controller!.signal.aborted;
-        return finish(aborted ? "cancelled" : "error", { type: "run.error", error: aborted ? "Cancelled" : err.message, at: Date.now() });
-      });
+    };
+
+    const work = async () => {
+      if (mode === "design") {
+        // One sandbox per variant, one variant per builder (at least two, at most four).
+        const count = Math.min(4, Math.max(2, roles.builders.length));
+        const variants = await Promise.all(
+          DESIGN_DIRECTIONS.slice(0, count).map(async (d, i) => {
+            const id = `v${i + 1}`;
+            const dir = this.sandboxDir(run.id, id);
+            await copyToSandbox(projectWs.root, dir, isProtected);
+            const member = roles.builders[i % roles.builders.length]!;
+            return { variant: { id, title: d.title, direction: d.direction, memberId: member.id }, member, workspace: new Workspace(dir) };
+          }),
+        );
+        const { summary, done } = await runDesign({ ...common, variants });
+        run.pending = "design";
+        await this.savePending(run.id, { variants: done });
+        emit({ type: "approval", kind: "design" });
+        await finish("done", { type: "run.done", summary, changedFiles: [], at: Date.now() });
+        return;
+      }
+
+      let ws = projectWs;
+      if (sandboxed) {
+        await copyToSandbox(projectWs.root, this.sandboxDir(run.id), isProtected);
+        ws = new Workspace(this.sandboxDir(run.id));
+      }
+      const { summary, changedFiles, checkpoint } = await runCrew({ ...common, workspace: ws });
+      if (checkpoint.files.length) {
+        await this.saveCheckpoint(run.id, checkpoint).catch((err: Error) => console.error("Could not save checkpoint:", err.message));
+        if (!sandboxed) run.canUndo = true;
+      }
+      if (sandboxed && changedFiles.length) {
+        run.pending = "sandbox";
+        emit({ type: "approval", kind: "sandbox" });
+      } else if (sandboxed) await rm(path.dirname(this.sandboxDir(run.id)), { recursive: true, force: true });
+      if (this.sync && settings.safety !== "readonly") await this.remember(project, run, summary, changedFiles, wrote, members, ctx);
+      await finish("done", { type: "run.done", summary, changedFiles, at: Date.now() });
+    };
+
+    work().catch(async (err: Error) => {
+      const aborted = run.controller!.signal.aborted;
+      if (sandboxed) await rm(path.dirname(this.sandboxDir(run.id)), { recursive: true, force: true }).catch(() => {});
+      return finish(aborted ? "cancelled" : "error", { type: "run.error", error: aborted ? "Cancelled" : err.message, at: Date.now() });
+    });
 
     return summaryOf(run);
+  }
+
+  /** Project memory + memory graph + a fresh harness sync after a finished run. */
+  private async remember(
+    project: string,
+    run: Run,
+    summary: string,
+    changedFiles: string[],
+    wrote: Map<string, Set<string>>,
+    members: ResolvedMember[],
+    ctx: Awaited<ReturnType<RunManager["extras"]>>,
+  ) {
+    if (!this.sync) return;
+    await this.sync.memory.add(project, { at: Date.now(), prompt: run.prompt, summary });
+    const ext = this.config.extensions;
+    if (enabledPlugins({ enabled: ext.pluginsEnabled, disabled: ext.pluginsDisabled }).some((p) => p.id === "memory-graph")) {
+      const agents = [...wrote.entries()].map(([id, files]) => {
+        const m = members.find((x) => x.id === id);
+        return { name: m?.name ?? id, harness: m ? HARNESS_NAMES[m.connection.kind] : "OpenCode", files: [...files] };
+      });
+      await recordRun(memoryGraphFile(this.sync.dataDir, project), { project, prompt: run.prompt, summary, files: changedFiles, agents, at: Date.now() }).catch(
+        (err: Error) => console.error("Could not update the memory graph:", err.message),
+      );
+    }
+    await this.sync.harness.apply(project, ctx.ws, this.config.sync, ctx.extras).catch(() => {});
+  }
+
+  private async savePending(id: string, data: { variants: string[] }) {
+    if (this.runsDir) await writeFile(path.join(this.runsDir, `${id}.pending.json`), JSON.stringify(data));
+    this.pendingData.set(id, data);
+  }
+
+  private async loadPending(id: string): Promise<{ variants: string[] } | undefined> {
+    if (this.pendingData.has(id)) return this.pendingData.get(id);
+    if (!this.runsDir) return undefined;
+    try {
+      return JSON.parse(await readFile(path.join(this.runsDir, `${id}.pending.json`), "utf8"));
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Applies a sandbox run (or the chosen design variant) to the real project. Files you edited
+   * since the run started are reported as conflicts and left alone unless `force` is set.
+   */
+  async apply(id: string, variant?: string, force = false): Promise<UndoResult & { applied: string[] }> {
+    const run = this.get(id);
+    if (!run.pending) throw new HttpError(409, "nothing is waiting to be applied for this thread");
+    const project = await Workspace.open(this.projectsDir, run.project);
+    const isProtected = makeProtector(this.config.settings.protectedPaths);
+    let files: { path: string; before: string | null | undefined; content: string | undefined }[] = [];
+
+    if (run.pending === "sandbox") {
+      const cp = await this.loadCheckpoint(id);
+      if (!cp) throw new HttpError(404, "this sandbox has no recorded changes");
+      const sandbox = new Workspace(this.sandboxDir(id));
+      files = await Promise.all(cp.files.map(async (f) => ({ path: f.path, before: f.before, content: await sandbox.tryRead(f.path) })));
+    } else {
+      const pending = await this.loadPending(id);
+      if (!variant || !pending?.variants.includes(variant)) throw new HttpError(400, "pick one of the finished designs");
+      const sandbox = new Workspace(this.sandboxRoot(id, variant));
+      const all = new Set([...(await sandbox.list()), ...(await project.list())]);
+      for (const p of all) {
+        if (isProtected(p)) continue;
+        const [mine, theirs] = [await project.tryRead(p), await sandbox.tryRead(p)];
+        if (mine !== theirs) files.push({ path: p, before: undefined, content: theirs });
+      }
+    }
+
+    const conflicts: string[] = [];
+    if (run.pending === "sandbox")
+      for (const f of files) if (hashText(await project.tryRead(f.path)) !== hashText(f.before ?? null)) conflicts.push(f.path);
+    if (conflicts.length && !force) return { applied: [], restored: [], conflicts, skipped: [] };
+
+    // Checkpoint of the real project first, so applying can be undone like any other run.
+    const checkpoint: Checkpoint = { files: [], skipped: [] };
+    const applied: string[] = [];
+    for (const f of files) {
+      if (isProtected(f.path)) continue;
+      checkpoint.files.push({ path: f.path, before: (await project.tryRead(f.path)) ?? null, afterHash: hashText(f.content ?? null) });
+      if (f.content === undefined) await project.remove(f.path);
+      else await project.write(f.path, f.content);
+      applied.push(f.path);
+    }
+    await this.saveCheckpoint(id, checkpoint);
+    run.canUndo = applied.length > 0;
+    run.pending = undefined;
+    run.resolution = "applied";
+    await rm(path.dirname(this.sandboxDir(id)), { recursive: true, force: true });
+    await this.saveSummary(run);
+    return { applied, restored: [], conflicts: [], skipped: [] };
+  }
+
+  async discard(id: string): Promise<void> {
+    const run = this.get(id);
+    if (!run.pending) throw new HttpError(409, "nothing is waiting for review in this thread");
+    run.pending = undefined;
+    run.resolution = "discarded";
+    await rm(path.dirname(this.sandboxDir(id)), { recursive: true, force: true });
+    await this.saveSummary(run);
+  }
+
+  private async saveLimits(): Promise<void> {
+    if (!this.sync) return;
+    await writeFile(path.join(this.sync.dataDir, "limits.json"), JSON.stringify(this.limitsView())).catch(() => {});
+  }
+
+  async loadLimits(): Promise<void> {
+    if (!this.sync) return;
+    try {
+      const data = JSON.parse(await readFile(path.join(this.sync.dataDir, "limits.json"), "utf8")) as Record<string, number>;
+      for (const [k, v] of Object.entries(data)) if (typeof v === "number" && v > Date.now()) this.limited.set(k, v);
+    } catch {
+      /* none saved */
+    }
   }
 }

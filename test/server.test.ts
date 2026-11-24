@@ -9,14 +9,16 @@ import { captureBaseline, diffChanges } from "../server/crew/diff.js";
 import { assignRoles, runCrew, scheduleTasks, type ResolvedMember } from "../server/crew/orchestrator.js";
 import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/crew/parse.js";
 import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
-import type { GenerateRequest, Provider } from "../server/providers/types.js";
+import { isLimitError, limitCooldownMs, type GenerateRequest, type Provider } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
 import { selectPacks, SKILL_PACKS } from "../server/skills.js";
 import { recordRun } from "../server/graph.js";
 import { connectionName } from "../server/shared.js";
 import { codexMcpArgs, HarnessSync, ProjectMemory, renderBlock, upsertBlock } from "../server/sync.js";
-import type { PlanTask, RunEvent } from "../server/shared.js";
+import type { PlanTask, RunEvent, Settings } from "../server/shared.js";
+import { makeProtector } from "../server/guard.js";
+import { autoCrew } from "../server/autocrew.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
 
 describe("parsers", () => {
@@ -585,5 +587,231 @@ describe("memory graph", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("free fallback", () => {
+  it("moves work to the free model when an account hits its limit, and keeps it there", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-fb-"));
+    try {
+      const ws = await Workspace.open(dir, "f");
+      const plan = JSON.stringify({ summary: "s", tasks: [{ title: "A", description: "", files: ["a.js"] }, { title: "B", description: "", files: ["b.js"] }] });
+      let paidCalls = 0;
+      const paid: Provider = {
+        editsFiles: false,
+        async generate(req) {
+          paidCalls++;
+          if (req.system.includes("ARCHITECT")) return plan;
+          throw new Error("Claude AI usage limit reached. Try again in 2h");
+        },
+      };
+      const free: Provider = {
+        editsFiles: false,
+        async generate(req) {
+          req.onUsage?.({ input: 100, output: 50 });
+          const f = req.prompt.includes("YOUR TASK: A") ? "a.js" : "b.js";
+          return `<file path="${f}">\nok\n</file>`;
+        },
+      };
+      const fallback = { ...member("free-fallback", "builder", free), name: "Free", connection: { id: "free-fallback", kind: "openai-compatible" as const, label: "Free", baseUrl: "http://localhost:11434/v1" } };
+      const events: RunEvent[] = [];
+      const limited = new Map<string, number>();
+      await runCrew({
+        prompt: "p",
+        history: [],
+        workspace: ws,
+        roles: assignRoles([member("paid", "builder", paid)]),
+        settings: { maxReviewRounds: 0, dispatch: "smart", safety: "direct", protectedPaths: [], economy: false, freeFallback: { enabled: true, model: "x" } },
+        emit: (e) => events.push(e),
+        signal: new AbortController().signal,
+        fallback,
+        limited,
+      });
+      expect(await ws.read("a.js")).toBe("ok\n");
+      expect(await ws.read("b.js")).toBe("ok\n");
+      const limit = events.find((e) => e.type === "member.limit");
+      expect(limit).toMatchObject({ memberId: "paid", fallback: "Free" });
+      expect((limit as { until: number }).until - Date.now()).toBeGreaterThan(1.9 * 3600_000);
+      // Planning (1) + the first build attempt (1); the second task goes straight to the fallback.
+      expect(paidCalls).toBe(2);
+      expect(events.filter((e) => e.type === "usage" && e.free)).toHaveLength(2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("classifies limit errors and their cooldowns", () => {
+    expect(isLimitError("You've hit your usage limit")).toBe(true);
+    expect(isLimitError("429 Too Many Requests")).toBe(true);
+    expect(isLimitError("SyntaxError: unexpected token")).toBe(false);
+    expect(limitCooldownMs("try again in 37 minutes")).toBe(37 * 60_000);
+    expect(limitCooldownMs("insufficient_quota")).toBe(3600_000);
+    expect(limitCooldownMs("overloaded")).toBe(120_000);
+  });
+});
+
+describe("file safety", () => {
+  const settings = (over: Partial<Settings> = {}): Settings => ({
+    maxReviewRounds: 0,
+    dispatch: "smart",
+    safety: "direct",
+    protectedPaths: [".env", "*.pem"],
+    economy: false,
+    freeFallback: { enabled: false, model: "" },
+    ...over,
+  });
+
+  it("never sends or lets agents change protected files", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-prot-"));
+    try {
+      const ws = await Workspace.open(dir, "p");
+      await ws.write(".env", "SECRET=1\n");
+      let sawSecret = false;
+      const sneaky: Provider = {
+        editsFiles: false,
+        async generate(req) {
+          if (req.prompt.includes("SECRET=1")) sawSecret = true;
+          if (req.system.includes("ARCHITECT")) return JSON.stringify({ summary: "s", tasks: [{ title: "T", description: "", files: ["app.js"] }] });
+          return '<file path="app.js">\nx\n</file><file path=".env">\nSECRET=stolen\n</file><file path="cert.pem">\nk\n</file>';
+        },
+      };
+      const events: RunEvent[] = [];
+      const result = await runCrew({
+        prompt: "p",
+        history: [],
+        workspace: ws,
+        roles: assignRoles([member("b", "builder", sneaky)]),
+        settings: settings(),
+        emit: (e) => events.push(e),
+        signal: new AbortController().signal,
+        isProtected: makeProtector([".env", "*.pem"]),
+      });
+      expect(sawSecret).toBe(false);
+      expect(await ws.read(".env")).toBe("SECRET=1\n");
+      expect(await ws.tryRead("cert.pem")).toBeUndefined();
+      expect(result.changedFiles).toEqual(["app.js"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("matches globs on paths and file names", () => {
+    const p = makeProtector([".env.*", "secrets/**", "**/id_rsa*"]);
+    expect(p(".env.local")).toBe(true);
+    expect(p("secrets/a/b.txt")).toBe(true);
+    expect(p("home/.ssh/id_rsa.pub")).toBe(true);
+    expect(p("src/env.ts")).toBe(false);
+  });
+
+  it("plans without touching files in read-only mode", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-ro-"));
+    try {
+      const ws = await Workspace.open(dir, "r");
+      const p = fakeProvider({ review: [] });
+      const result = await runCrew({
+        prompt: "make a page",
+        history: [],
+        workspace: ws,
+        roles: assignRoles([member("b", "builder", p)]),
+        settings: settings({ safety: "readonly" }),
+        emit: () => {},
+        signal: new AbortController().signal,
+      });
+      expect(result.changedFiles).toEqual([]);
+      expect(result.summary).toMatch(/1\. Page/);
+      expect(await ws.list()).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("sandbox and MultiDesign", () => {
+  const setup = async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-sb-"));
+    const config = new ConfigStore(dir);
+    await config.load();
+    const c1 = await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+    const c2 = await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://y", defaultModel: "m" });
+    await config.setSettings({ maxReviewRounds: 0 });
+    await config.setSettings({ freeFallback: { enabled: false } });
+    const memory = new ProjectMemory(path.join(dir, "memory"));
+    const runs = new RunManager(config, path.join(dir, "projects"), () => fakeProvider({ review: [] }), path.join(dir, "runs"), {
+      harness: new HarnessSync(path.join(dir, "sync"), memory),
+      memory,
+      dataDir: dir,
+      previewOrigin: "http://localhost:1",
+    });
+    const finished = async (prompt: string, mode: "build" | "design" = "build") => {
+      const r = await runs.start("site", prompt, mode);
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      return runs.get(r.id);
+    };
+    return { dir, config, runs, finished, ws: await Workspace.open(path.join(dir, "projects"), "site"), ids: [c1.id, c2.id] };
+  };
+
+  it("keeps the project untouched until you apply a sandbox run", async () => {
+    const { dir, config, runs, finished, ws } = await setup();
+    try {
+      await config.setSettings({ safety: "sandbox" });
+      await ws.write(".env", "S=1\n");
+      const run = await finished("make a page");
+      expect(run.pending).toBe("sandbox");
+      expect(await ws.tryRead("index.html")).toBeUndefined();
+      const result = await runs.apply(run.id);
+      expect(result.applied.sort()).toEqual(["app.js", "index.html"]);
+      expect(await ws.read("index.html")).toContain("app.js");
+      expect(await ws.read(".env")).toBe("S=1\n");
+      expect(runs.get(run.id).canUndo).toBe(true);
+      await runs.undo(run.id);
+      expect(await ws.tryRead("index.html")).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("builds design variants side by side and applies the one you pick", async () => {
+    const { dir, runs, finished, ws } = await setup();
+    try {
+      const run = await finished("a timer", "design");
+      expect(run.pending).toBe("design");
+      const events = await runs.events(run.id);
+      const variants = events.find((e) => e.type === "variants");
+      expect((variants as { variants: unknown[] }).variants).toHaveLength(2);
+      await expect(runs.apply(run.id, "nope")).rejects.toThrow(/pick one/);
+      await runs.apply(run.id, "v2");
+      expect(await ws.tryRead("app.js")).toBeDefined();
+      expect(runs.get(run.id)).toMatchObject({ resolution: "applied" });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("auto crew from one key", () => {
+  it("uses free models to plan and review and the Auto Router to build", async () => {
+    const fakeFetch = (async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: "anthropic/claude-x", context_length: 200000, pricing: { prompt: "0.000003", completion: "0.000015" } },
+            { id: "deepseek/deepseek-chat:free", context_length: 160000, pricing: { prompt: "0", completion: "0" } },
+            { id: "qwen/qwen-coder:free", context_length: 260000, pricing: { prompt: "0", completion: "0" } },
+          ],
+        }),
+      )) as typeof fetch;
+    const crew = await autoCrew({ id: "c", kind: "openai-compatible", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", apiKey: "k" }, fakeFetch);
+    expect(crew.map((m) => [m.role, m.model])).toEqual([
+      ["architect", "qwen/qwen-coder:free"],
+      ["builder", "openrouter/auto"],
+      ["reviewer", "deepseek/deepseek-chat:free"],
+    ]);
   });
 });

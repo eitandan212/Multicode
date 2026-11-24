@@ -22,6 +22,8 @@ interface Props {
   onOpenConnections: () => void;
   onOpenSync: () => void;
   onOpenExtensions: () => void;
+  onOpenSafety: () => void;
+  limits: Record<string, number>;
 }
 
 export function SidePanel(p: Props) {
@@ -86,6 +88,11 @@ export function SidePanel(p: Props) {
                   {m.role === "builder" && (m.agents ?? 1) > 1 ? ` · ${m.agents} agents` : ""} · {c ? VENDOR[c.kind] : "missing"}
                 </span>
                 {p.busy.has(m.id) && <Spinner size={11} />}
+                {(p.limits[m.connectionId] ?? 0) > Date.now() && (
+                  <span className="limit-badge" title={`Usage limit reached. A free model fills in until ${new Date(p.limits[m.connectionId]!).toLocaleTimeString()}.`}>
+                    limit · free until {new Date(p.limits[m.connectionId]!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
               </div>
             );
           })
@@ -100,6 +107,11 @@ export function SidePanel(p: Props) {
           <Icon name="plug" />
           <span>Connections</span>
           <span className="muted push-right">{p.connections.length}</span>
+        </button>
+        <button className="card-row" onClick={p.onOpenSafety}>
+          <Icon name="shield" />
+          <span>Savings & safety</span>
+          <Icon name="chevron" size={14} className="push-right" />
         </button>
         <button className="card-row" onClick={p.onOpenExtensions}>
           <Icon name="puzzle" />

@@ -127,6 +127,7 @@ export interface ParsedLine {
   text?: string;
   result?: string;
   error?: string;
+  usage?: { input: number; output: number; costUsd?: number };
 }
 
 /** Extracts assistant text from one line of Claude Code `stream-json` output. */
@@ -147,7 +148,19 @@ export function parseClaudeStreamLine(line: string): ParsedLine {
   }
   if (ev.type === "result") {
     if (ev.is_error) return { error: String(ev.result ?? ev.subtype ?? "Claude Code failed") };
-    return { result: typeof ev.result === "string" ? ev.result : "" };
+    const u = ev.usage as { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number } | undefined;
+    return {
+      result: typeof ev.result === "string" ? ev.result : "",
+      ...(u
+        ? {
+            usage: {
+              input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
+              output: u.output_tokens ?? 0,
+              costUsd: typeof ev.total_cost_usd === "number" ? ev.total_cost_usd : undefined,
+            },
+          }
+        : {}),
+    };
   }
   return {};
 }
@@ -167,6 +180,17 @@ export function parseOpenCodeLine(line: string): ParsedLine {
     return { text: `▸ ${String(ev.part.tool ?? "tool")} ${target}`.trimEnd() };
   }
   if (ev.type === "error") return { error: ev.error?.data?.message ?? ev.error?.name ?? "OpenCode failed" };
+  if (ev.type === "step_finish" && ev.part) {
+    const t = ev.part.tokens as { input?: number; output?: number; reasoning?: number; cache?: { read?: number } } | undefined;
+    if (t)
+      return {
+        usage: {
+          input: (t.input ?? 0) + (t.cache?.read ?? 0),
+          output: (t.output ?? 0) + (t.reasoning ?? 0),
+          costUsd: typeof ev.part.cost === "number" ? ev.part.cost : undefined,
+        },
+      };
+  }
   return {};
 }
 
@@ -248,6 +272,7 @@ export class CliProvider implements Provider {
             onDelta(parsed.text + "\n");
           }
           if (parsed.result !== undefined) finalResult = parsed.result;
+          if (parsed.usage) req.onUsage?.(parsed.usage);
           if (parsed.error) cliError = parsed.error;
         }
       });

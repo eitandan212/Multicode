@@ -6,6 +6,7 @@ import { DEFAULT_MODELS } from "./providers/api.js";
 import { CLI_BINARIES, CLI_INSTALL_HINTS, findBinary, type CliKind } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import { RunManager } from "./runs.js";
+import { autoCrew } from "./autocrew.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
 import { enabledPlugins, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
@@ -82,6 +83,7 @@ export function createApp(opts: AppOptions) {
         effectiveCrew: runs.effectiveCrew(),
         settings: config.settings,
         projects: await listProjects(projectsDir),
+        limits: runs.limitsView(),
         clis,
         defaultModels: DEFAULT_MODELS,
       });
@@ -213,7 +215,40 @@ export function createApp(opts: AppOptions) {
   api.get("/projects/:name/runs", (req, res) => res.json(runs.list(validateProjectName(param(req, "name")))));
   api.post(
     "/projects/:name/runs",
-    wrap(async (req, res) => res.status(201).json(await runs.start(validateProjectName(param(req, "name")), req.body?.prompt))),
+    wrap(async (req, res) =>
+      res.status(201).json(await runs.start(validateProjectName(param(req, "name")), req.body?.prompt, req.body?.mode ?? "build")),
+    ),
+  );
+  api.post(
+    "/runs/:id/apply",
+    wrap(async (req, res) =>
+      res.json(await runs.apply(param(req, "id"), typeof req.body?.variant === "string" ? req.body.variant : undefined, req.body?.force === true)),
+    ),
+  );
+  api.post(
+    "/runs/:id/discard",
+    wrap(async (req, res) => {
+      await runs.discard(param(req, "id"));
+      res.json({ ok: true });
+    }),
+  );
+  api.post("/connections/:id/limit-reset", (req, res) => {
+    runs.clearLimit(param(req, "id"));
+    res.json({ ok: true });
+  });
+  api.post(
+    "/connections/:id/auto-crew",
+    wrap(async (req, res) => {
+      const conn = config.connection(param(req, "id"));
+      if (!conn) throw new HttpError(404, "connection not found");
+      if (conn.kind !== "openai-compatible") throw new HttpError(400, "Auto crew works with a multi-model key such as OpenRouter.");
+      try {
+        const crew = await config.setCrew(await autoCrew(conn));
+        res.json(crew);
+      } catch (err) {
+        throw err instanceof HttpError ? err : new HttpError(502, (err as Error).message);
+      }
+    }),
   );
 
   api.get(
@@ -257,6 +292,19 @@ export function createApp(opts: AppOptions) {
     res.setHeader("Content-Security-Policy", "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads");
     res.setHeader("Cache-Control", "no-store");
     express.static(path.join(projectsDir, name), { dotfiles: "deny", index: ["index.html"] })(req, res, next);
+  });
+
+  // Sandboxes and design variants, served like the project preview (opaque, sandboxed origin).
+  app.use("/preview-sandbox/:run/:name", (req, res, next) => {
+    let root: string;
+    try {
+      root = runs.sandboxRoot(param(req, "run"), param(req, "name"));
+    } catch {
+      return void res.status(404).end();
+    }
+    res.setHeader("Content-Security-Policy", "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads");
+    res.setHeader("Cache-Control", "no-store");
+    express.static(root, { dotfiles: "deny", index: ["index.html"] })(req, res, next);
   });
 
   if (opts.webDir && existsSync(opts.webDir)) {

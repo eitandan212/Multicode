@@ -5,7 +5,7 @@ const TEAM = `You are part of MultiCode, a crew of AI engineers from different v
 Write production-quality, complete code — never placeholders or "TODO: implement".
 Default to a self-contained web app (index.html + CSS + JS, no build step) unless the user or the existing project says otherwise.`;
 
-export function architectSystem(dispatch = false): string {
+export function architectSystem(dispatch = false, economy = false): string {
   const assign = dispatch
     ? `
 You are also the DISPATCHER. For every task pick the crew member that fits best:
@@ -13,8 +13,14 @@ You are also the DISPATCHER. For every task pick the crew member that fits best:
 - cost matters: give simple or mechanical work to free or subscription members, and keep
   pay-per-token members for the hardest work;
 - spread the work so members run in parallel (a member with N agents can take N tasks at once).
-Add "assignee" (the member id) and "why" (under 12 words) to every task.`
-    : "";
+Add "assignee" (the member id) and "why" (under 12 words) to every task.${
+        economy
+          ? "\nECONOMY MODE: the user is saving tokens. Give every task you reasonably can to free members, use as few tasks as possible, and use pay-per-token members only when a task clearly needs them."
+          : ""
+      }`
+    : economy
+      ? "\nECONOMY MODE: use as few tasks as possible."
+      : "";
   return `${TEAM}
 Your role: ARCHITECT. You do not write code. You split the request into 1-6 tasks for parallel builders.
 Rules:
@@ -125,4 +131,24 @@ export function fixTasks(issues: ReviewIssue[], round: number): PlanTask[] {
     description: list.map((i, k) => `${k + 1}. Problem: ${i.problem}\n   Fix: ${i.fix}`).join("\n"),
     files: file === "(general)" ? [] : [file],
   }));
+}
+
+export function designerSystem(editsFiles: boolean, specialty?: string): string {
+  return `${builderSystem(editsFiles, specialty)}
+
+You are a DESIGNER in a design competition: several models each design their own version and the
+user picks one. Make yours distinctive, polished and complete. Keep every feature working; the
+difference between versions is the visual design, layout, typography, colour and motion.`;
+}
+
+export function designerPrompt(request: string, direction: string, tree: string, files: string): string {
+  return [
+    `Design request:\n${request}`,
+    `YOUR DIRECTION: ${direction}`,
+    "Deliver a complete, working result (at least index.html) that a user can open and use.",
+    `Project files:\n${tree}`,
+    files ? `Current contents:\n${files}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }

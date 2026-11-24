@@ -1,4 +1,4 @@
-import type { FileDiff, Plan, Review, RunEvent, TaskStatus } from "../../server/shared";
+import type { DesignVariant, FileDiff, Plan, Review, RunEvent, SafetyMode, TaskStatus } from "../../server/shared";
 
 export interface StreamState {
   id: string;
@@ -37,13 +37,30 @@ export interface RunView {
   endedAt?: number;
   diff?: FileDiff[];
   /** Skills and plugins active for this thread. */
-  context?: { skills: string[]; plugins: string[] };
+  context?: { skills: string[]; plugins: string[]; fallback?: { id: string; name: string }; safety?: SafetyMode; economy?: boolean };
+  usage: { input: number; output: number; costUsd: number; freeTokens: number };
+  limits: { memberId: string; until: number; reason: string; fallback: string }[];
+  protectedHits: string[];
+  variants?: DesignVariant[];
+  approval?: "sandbox" | "design";
 }
 
 const MAX_STREAM_CHARS = 200_000;
 
 export function emptyRun(id: string, prompt = ""): RunView {
-  return { id, prompt, phase: "starting", tasks: [], streams: [], reviews: [], changed: [], status: "running" };
+  return {
+    id,
+    prompt,
+    phase: "starting",
+    tasks: [],
+    streams: [],
+    reviews: [],
+    changed: [],
+    status: "running",
+    usage: { input: 0, output: 0, costUsd: 0, freeTokens: 0 },
+    limits: [],
+    protectedHits: [],
+  };
 }
 
 export function reduceRun(s: RunView, e: RunEvent): RunView {
@@ -51,7 +68,29 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
     case "run.started":
       return { ...s, prompt: e.prompt, startedAt: e.at };
     case "context":
-      return { ...s, context: { skills: e.skills, plugins: e.plugins } };
+      return { ...s, context: { skills: e.skills, plugins: e.plugins, fallback: e.fallback, safety: e.safety, economy: e.economy } };
+    case "usage":
+      return {
+        ...s,
+        usage: {
+          input: s.usage.input + e.input,
+          output: s.usage.output + e.output,
+          costUsd: s.usage.costUsd + e.costUsd,
+          freeTokens: s.usage.freeTokens + (e.free ? e.input + e.output : 0),
+        },
+      };
+    case "member.limit":
+      return { ...s, limits: [...s.limits, { memberId: e.memberId, until: e.until, reason: e.reason, fallback: e.fallback }] };
+    case "protected":
+      return { ...s, protectedHits: [...new Set([...s.protectedHits, ...e.paths])] };
+    case "variants":
+      return {
+        ...s,
+        variants: e.variants,
+        tasks: e.variants.map((v): TaskState => ({ id: v.id, title: v.title, files: [], status: "queued", memberId: v.memberId, why: v.direction })),
+      };
+    case "approval":
+      return { ...s, approval: e.kind };
     case "phase":
       return { ...s, phase: e.phase };
     case "plan":

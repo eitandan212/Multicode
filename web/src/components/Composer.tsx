@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CrewMember, Settings } from "../../../server/shared";
+import type { CrewMember, RunMode, Settings } from "../../../server/shared";
 import { colorFor } from "../crewColors";
 import { Icon } from "./Icon";
 
@@ -12,7 +12,8 @@ interface Props {
   /** Finished / total tasks of the running thread, for the progress bar. */
   progress?: { done: number; total: number };
   placeholder: string;
-  onSubmit: (prompt: string) => Promise<void>;
+  onSubmit: (prompt: string, mode: RunMode) => Promise<void>;
+  onOpenSafety: () => void;
   onStop: () => void;
   onOpenCrew: () => void;
   onReviewRounds: (n: number) => void;
@@ -21,6 +22,7 @@ interface Props {
 export function Composer(p: Props) {
   const [prompt, setPrompt] = useState("");
   const [sending, setSending] = useState(false);
+  const [mode, setMode] = useState<RunMode>("build");
   const [error, setError] = useState("");
 
   const submit = async () => {
@@ -28,7 +30,7 @@ export function Composer(p: Props) {
     setSending(true);
     setError("");
     try {
-      await p.onSubmit(prompt.trim());
+      await p.onSubmit(prompt.trim(), mode);
       setPrompt("");
     } catch (e) {
       setError((e as Error).message);
@@ -64,7 +66,22 @@ export function Composer(p: Props) {
           aria-label="Message the crew"
         />
         <div className="composer-bar">
-          <button type="button" className="chip crew-chip" onClick={p.onOpenCrew} title="Edit crew">
+          <div className="seg mini mode-switch" role="radiogroup" aria-label="What the crew should do">
+            <button type="button" role="radio" aria-checked={mode === "build"} className={mode === "build" ? "is-active" : ""} onClick={() => setMode("build")}>
+              Build
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "design"}
+              className={mode === "design" ? "is-active" : ""}
+              onClick={() => setMode("design")}
+              title="Several models each design their own version; you pick one"
+            >
+              <Icon name="palette" size={13} /> MultiDesign
+            </button>
+          </div>
+          <button type="button" className="chip crew-chip push-right" onClick={p.onOpenCrew} title="Edit crew">
             <span className="crew-dots" aria-hidden>
               {p.crew.slice(0, 4).map((m) => (
                 <span key={m.id} style={{ background: colorFor(p.crew, m.id) }} />
@@ -87,6 +104,11 @@ export function Composer(p: Props) {
         <span className="meta-item">
           <Icon name="folder" size={13} /> {p.project}
         </span>
+        <button type="button" className="meta-item meta-btn" onClick={p.onOpenSafety} title="Savings & safety">
+          <Icon name="shield" size={13} />
+          {p.settings.safety === "sandbox" ? "Sandbox" : p.settings.safety === "readonly" ? "Plan only" : "Direct + undo"}
+          {p.settings.economy && <span className="free-tag">Economy</span>}
+        </button>
         {p.running && p.progress && p.progress.total > 0 && (
           <span className="meta-item progress" aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}>
             <span className="progress-track">

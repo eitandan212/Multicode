@@ -251,6 +251,8 @@ code {
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--card);
+  color: var(--text);
+  text-decoration: none;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -1771,6 +1773,225 @@ kbd {
   background: var(--bad);
   color: #fff;
   border-color: transparent;
+}
+
+/* Savings, safety, MultiDesign */
+.usage {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.free-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+.notice > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.notice.warn {
+  background: color-mix(in srgb, var(--warn) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--line));
+}
+.notice.warn > svg {
+  color: var(--warn);
+}
+.notice code {
+  margin-right: 4px;
+}
+.ctx-chip.safety {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+}
+.limit-badge {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+.apply-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 12px;
+  background: var(--card);
+  max-width: 560px;
+}
+.apply-bar > svg {
+  color: var(--accent);
+}
+.apply-bar > span {
+  flex: 1;
+  font-size: 13px;
+}
+.apply-bar .full {
+  flex-basis: 100%;
+  border-top: 0;
+  padding: 0;
+}
+.msg-agent.wide {
+  max-width: none;
+}
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
+}
+.variant {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+  transition:
+    transform 260ms var(--ease),
+    box-shadow 260ms var(--ease);
+}
+.variant:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.variant.is-failed {
+  opacity: 0.6;
+}
+.variant-frame {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.variant-frame iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 400%;
+  height: 400%;
+  border: 0;
+  transform: scale(0.25);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.variant figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 12px;
+}
+.variant-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.variant-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.variant-actions .btn {
+  flex: 1;
+}
+.align-start {
+  align-self: flex-start;
+}
+.mode-switch button {
+  gap: 5px;
+}
+.meta-btn {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin-left: auto;
+  margin-right: 14px;
+}
+.meta-btn:hover {
+  color: var(--text);
+}
+.safety-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+.safety-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+  cursor: pointer;
+}
+.safety-card > svg {
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.safety-card.is-on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.safety-card.is-on > svg {
+  color: var(--accent);
+}
+.limits {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.limit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: color-mix(in srgb, var(--warn) 10%, var(--card));
+}
+.inline-input {
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--card);
+}
+.area.mono {
+  font: 12.5px/1.6 var(--mono);
+}
+.warn-text {
+  color: var(--warn);
 }
 
 /* Opening animation */

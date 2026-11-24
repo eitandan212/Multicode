@@ -8,6 +8,7 @@ import type {
   ProjectInfo,
   ProviderKind,
   RunEvent,
+  RunMode,
   RunSummary,
   Settings,
 } from "../../server/shared";
@@ -27,6 +28,8 @@ export interface AppState {
   projects: ProjectInfo[];
   clis: CliStatus[];
   defaultModels: Partial<Record<ProviderKind, string>>;
+  /** connectionId -> when its usage limit resets. */
+  limits: Record<string, number>;
 }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -66,7 +69,13 @@ export const api = {
     request<{ content: string }>("GET", `/api/projects/${project}/file?path=${encodeURIComponent(path)}`),
   allRuns: () => request<RunSummary[]>("GET", "/api/runs"),
   runs: (project: string) => request<RunSummary[]>("GET", `/api/projects/${project}/runs`),
-  startRun: (project: string, prompt: string) => request<RunSummary>("POST", `/api/projects/${project}/runs`, { prompt }),
+  startRun: (project: string, prompt: string, mode: RunMode = "build") =>
+    request<RunSummary>("POST", `/api/projects/${project}/runs`, { prompt, mode }),
+  apply: (id: string, variant?: string, force = false) =>
+    request<{ applied: string[]; conflicts: string[] }>("POST", `/api/runs/${id}/apply`, { variant, force }),
+  discard: (id: string) => request<{ ok: boolean }>("POST", `/api/runs/${id}/discard`),
+  resetLimit: (connectionId: string) => request<{ ok: boolean }>("POST", `/api/connections/${connectionId}/limit-reset`),
+  autoCrew: (connectionId: string) => request<CrewMember[]>("POST", `/api/connections/${connectionId}/auto-crew`),
   cancelRun: (id: string) => request<void>("POST", `/api/runs/${id}/cancel`),
   events(id: string, onEvent: (e: RunEvent) => void): () => void {
     const source = new EventSource(`/api/runs/${id}/events`);

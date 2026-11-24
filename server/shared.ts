@@ -98,8 +98,21 @@ export interface CrewMember {
 
 export type DispatchMode = "smart" | "balanced";
 
+/** How agents may touch your files. */
+export type SafetyMode = "direct" | "sandbox" | "readonly";
+/** Request kind chosen in the composer. */
+export type RunMode = "build" | "design";
+
 export interface Settings {
   maxReviewRounds: number;
+  /** direct: edit the project (with undo). sandbox: work on a copy, you apply. readonly: plan only. */
+  safety: SafetyMode;
+  /** Files agents may never read or change (glob patterns, relative to the project). */
+  protectedPaths: string[];
+  /** Spend fewer tokens: cheaper routing, one review round, smaller context. */
+  economy: boolean;
+  /** When an account hits its usage limit, continue the work on this free model. */
+  freeFallback: { enabled: boolean; model: string };
   /** smart: the dispatcher assigns each task to the best-fitting agent. balanced: first free agent. */
   dispatch: DispatchMode;
 }
@@ -210,11 +223,33 @@ export interface FileDiff {
 
 export type TaskStatus = "queued" | "running" | "done" | "failed";
 
+export interface UsageTotals {
+  input: number;
+  output: number;
+  costUsd: number;
+  /** Tokens served by free models. */
+  freeTokens: number;
+}
+
+export interface DesignVariant {
+  id: string;
+  title: string;
+  direction: string;
+  memberId: string;
+}
+
 export type RunEvent =
   | { type: "run.started"; runId: string; project: string; prompt: string; at: number }
   | { type: "phase"; phase: "planning" | "building" | "reviewing" | "fixing"; round: number }
   | { type: "plan"; plan: Plan }
-  | { type: "context"; skills: string[]; plugins: string[] }
+  | {
+      type: "context";
+      skills: string[];
+      plugins: string[];
+      fallback?: { id: string; name: string };
+      safety?: SafetyMode;
+      economy?: boolean;
+    }
   | { type: "tasks.added"; tasks: PlanTask[]; round: number }
   | { type: "task.status"; taskId: string; status: TaskStatus; memberId?: string; error?: string }
   | { type: "agent.start"; streamId: string; memberId: string; title: string }
@@ -223,6 +258,11 @@ export type RunEvent =
   | { type: "file.changed"; path: string; change: "write" | "delete"; memberId: string }
   | { type: "review"; review: Review; round: number }
   | { type: "run.diff"; files: FileDiff[] }
+  | { type: "usage"; streamId: string; memberId: string; input: number; output: number; costUsd: number; free: boolean }
+  | { type: "member.limit"; memberId: string; until: number; reason: string; fallback: string }
+  | { type: "protected"; paths: string[] }
+  | { type: "variants"; variants: DesignVariant[] }
+  | { type: "approval"; kind: "sandbox" | "design" }
   | { type: "run.done"; summary: string; changedFiles: string[]; at: number }
   | { type: "run.error"; error: string; at: number };
 
@@ -231,6 +271,11 @@ export interface RunSummary {
   project: string;
   prompt: string;
   status: "running" | "done" | "error" | "cancelled";
+  /** The crew finished in a sandbox or as design variants and waits for you to apply. */
+  pending?: "sandbox" | "design";
+  mode?: RunMode;
+  /** What you decided about pending changes. */
+  resolution?: "applied" | "discarded";
   startedAt: number;
   endedAt?: number;
   /** Set when the run's file changes have been undone. */

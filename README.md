@@ -80,6 +80,32 @@ the opening animation. Saved in your browser and applied before the first paint.
 | `Ctrl K` / `⌘K` | Command palette: jump to any thread or project, open crew, connections, preview, files, changes |
 | `Enter` / `Shift Enter` | Send to the crew / new line |
 
+## Save credits, never stall
+
+* **Free fallback:** when a subscription or API key hits its usage limit (429, quota, "usage limit
+  reached"…), a free OpenCode model takes over that agent's work immediately. The account is skipped
+  until its limit resets (parsed from the error, else 1 h; 2 min for short rate limits).
+* **Economy mode:** free and flat-rate members get the work first, the cheapest member reviews
+  (one round), and agents receive smaller context.
+* **Token meter:** every thread shows tokens used, how many came from free models, and cost where
+  the provider reports it.
+* **Auto crew from one key:** connect one multi-model key (e.g. OpenRouter) and press *Auto crew*:
+  free models dispatch and review, OpenRouter's Auto Router builds with 3 parallel agents.
+
+## Safety modes
+
+* **Direct, with undo** (default): agents edit the project; every thread can be undone.
+* **Sandbox:** agents work on a copy without your secrets; you review and *Apply* or *Discard*.
+* **Plan only:** agents read and plan, nothing changes.
+* **Protected files** (`.env`, keys, `secrets/**`, your own patterns) are never sent to models,
+  are left out of sandboxes, and any change to them is rolled back immediately.
+
+## MultiDesign
+
+Switch the composer to **MultiDesign**: up to four models each design their own take (calm minimal,
+bold expressive, warm editorial, dark technical) in separate sandboxes, at the same time. Compare
+the live previews side by side and click *Use this design*.
+
 ## Sync across harnesses
 
 | Harness | Instructions + memory | MCP servers |

@@ -24,6 +24,7 @@ const { app, runs } = createApp({
 });
 
 await runs.load();
+await runs.loadLimits();
 
 app.listen(port, host, () => {
   const url = `http://localhost:${port}`;

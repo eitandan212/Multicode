@@ -129,8 +129,8 @@ export class Workspace {
   }
 
   /** A compact, size-bounded view of the project for prompts. */
-  async contextDigest(maxChars = 60_000, focus: string[] = []): Promise<{ tree: string; files: string }> {
-    const all = await this.list();
+  async contextDigest(maxChars = 60_000, focus: string[] = [], exclude?: (rel: string) => boolean): Promise<{ tree: string; files: string }> {
+    const all = (await this.list()).filter((f) => !exclude?.(f));
     const tree = all.join("\n") || "(empty project)";
     const ordered = [...new Set([...focus.filter((f) => all.includes(f)), ...all])];
     let budget = maxChars;

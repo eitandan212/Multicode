@@ -43,6 +43,10 @@ export class AnthropicProvider implements Provider {
     );
     stream.on("text", (t) => onDelta(t));
     const message = await stream.finalMessage();
+    req.onUsage?.({
+      input: message.usage.input_tokens + (message.usage.cache_read_input_tokens ?? 0) + (message.usage.cache_creation_input_tokens ?? 0),
+      output: message.usage.output_tokens,
+    });
     if (message.stop_reason === "refusal") throw new ProviderError("The model declined this request.");
     const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
     if (message.stop_reason === "max_tokens") return `${text}\n<!-- output truncated: max_tokens -->`;
@@ -72,6 +76,7 @@ export class OpenAIProvider implements Provider {
       {
         model: requireModel(req, this.conn),
         stream: true,
+        stream_options: { include_usage: true },
         messages: [
           { role: "system", content: req.system },
           { role: "user", content: req.prompt },
@@ -81,6 +86,7 @@ export class OpenAIProvider implements Provider {
     );
     let text = "";
     for await (const chunk of stream) {
+      if (chunk.usage) req.onUsage?.({ input: chunk.usage.prompt_tokens, output: chunk.usage.completion_tokens });
       const delta = chunk.choices[0]?.delta?.content;
       if (delta) {
         text += delta;
@@ -112,13 +118,17 @@ export class GeminiProvider implements Provider {
       config: { systemInstruction: req.system, abortSignal: signal },
     });
     let text = "";
+    let usage: { input: number; output: number } | undefined;
     for await (const chunk of stream) {
+      const u = chunk.usageMetadata;
+      if (u) usage = { input: u.promptTokenCount ?? 0, output: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0) };
       const delta = chunk.text;
       if (delta) {
         text += delta;
         onDelta(delta);
       }
     }
+    if (usage) req.onUsage?.(usage);
     return text;
   }
 

@@ -80,7 +80,7 @@ function ConnectionRow({ conn, onChanged }: { conn: ConnectionView; onChanged: (
     setTest({ busy: true });
     try {
       const r = await api.testConnection(conn.id);
-      setTest({ busy: false, ok: r.ok, message: r.message });
+      setTest({ busy: false, ok: r.ok, message: r.ok ? `Connected: ${r.message}` : r.message });
     } catch (e) {
       setTest({ busy: false, ok: false, message: (e as Error).message });
     }
@@ -99,7 +99,7 @@ function ConnectionRow({ conn, onChanged }: { conn: ConnectionView; onChanged: (
         </span>
         {test.message && (
           <span className={`small ${test.ok ? "ok-text" : "err-text"}`} role="status">
-            {test.ok ? "Connected: " : "Failed: "}
+            {test.ok ? "" : "Failed: "}
             {test.message}
           </span>
         )}
@@ -108,6 +108,25 @@ function ConnectionRow({ conn, onChanged }: { conn: ConnectionView; onChanged: (
         <button className="btn small" onClick={runTest} disabled={test.busy}>
           {test.busy ? "Testing…" : "Test"}
         </button>
+        {conn.kind === "openai-compatible" && (
+          <button
+            className="btn small"
+            disabled={test.busy}
+            title="Build a whole crew from this one key: free models plan and review, the best model builds"
+            onClick={async () => {
+              setTest({ busy: true });
+              try {
+                const crew = await api.autoCrew(conn.id);
+                await onChanged();
+                setTest({ busy: false, ok: true, message: `Crew ready: ${crew.map((m) => m.name).join(", ")}` });
+              } catch (e) {
+                setTest({ busy: false, ok: false, message: (e as Error).message });
+              }
+            }}
+          >
+            Auto crew
+          </button>
+        )}
         {confirming ? (
           <button
             className="btn small danger"

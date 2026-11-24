@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import type { RunEvent, RunSummary } from "../../server/shared";
+import type { RunEvent, RunMode, RunSummary } from "../../server/shared";
 import { api, type AppState } from "./api";
 import { CommandPalette, type Command } from "./components/CommandPalette";
 import { applyAppearance, loadAppearance, motionReduced, saveAppearance, type Appearance } from "./appearance";
 import { AppearanceDialog } from "./components/AppearanceDialog";
 import { Composer } from "./components/Composer";
+import { SafetyDialog } from "./components/SafetyDialog";
 import { Splash } from "./components/Splash";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
@@ -49,7 +50,7 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | "sync" | "extensions" | "appearance" | null>(null);
+  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | "sync" | "extensions" | "appearance" | "safety" | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("preview");
   const [appearance, setAppearanceState] = useState<Appearance>(loadAppearance);
   // The intro plays once per browser session (and never with reduced motion).
@@ -170,9 +171,9 @@ export function App() {
     if (!narrow()) store.set("sidebar", open ? "1" : "0");
   };
 
-  const startRun = async (prompt: string) => {
+  const startRun = async (prompt: string, mode: RunMode = "build") => {
     if (!project) return;
-    const summary = await api.startRun(project, prompt);
+    const summary = await api.startRun(project, prompt, mode);
     setRuns((rs) => [summary, ...rs]);
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
   };
@@ -195,6 +196,7 @@ export function App() {
       { id: "new-thread", label: "New thread", icon: "compose", group: "Actions", run: () => dispatch({ kind: "reset", run: null }) },
       { id: "new-project", label: "New project", icon: "folderPlus", group: "Actions", run: () => void newProject() },
       { id: "crew", label: "Edit crew", icon: "users", group: "Actions", run: () => setDialog("crew") },
+      { id: "safety", label: "Savings & safety", hint: "economy, free fallback, sandbox, protected files", icon: "shield", group: "Actions", run: () => setDialog("safety") },
       { id: "appearance", label: "Appearance", hint: "theme, accent colour, font, size, motion", icon: "palette", group: "View", run: () => setDialog("appearance") },
       { id: "extensions", label: "Plugins & skills", hint: "memory graph, AI browser, computer control, skill packs", icon: "puzzle", group: "Actions", run: () => setDialog("extensions") },
       { id: "sync", label: "Sync across harnesses", hint: "instructions, MCP servers, memory", icon: "sync", group: "Actions", run: () => setDialog("sync") },
@@ -246,6 +248,7 @@ export function App() {
       onSubmit={startRun}
       onStop={() => run && void api.cancelRun(run.id)}
       onOpenCrew={() => setDialog("crew")}
+      onOpenSafety={() => setDialog("safety")}
       onReviewRounds={async (n) => {
         await api.saveSettings({ maxReviewRounds: n });
         await reload();
@@ -318,6 +321,22 @@ export function App() {
                   can: Boolean(runs.find((r) => r.id === run.id)?.canUndo),
                   undoneAt: runs.find((r) => r.id === run.id)?.undoneAt,
                 }}
+                review={{
+                  pending: runs.find((r) => r.id === run.id)?.pending,
+                  resolution: runs.find((r) => r.id === run.id)?.resolution,
+                }}
+                onApply={async (variant, force) => {
+                  const r = await api.apply(run.id, variant, force);
+                  if (!r.conflicts.length) {
+                    await reload();
+                    setRefreshKey((k) => k + 1);
+                  }
+                  return r;
+                }}
+                onDiscard={async () => {
+                  await api.discard(run.id);
+                  await reload();
+                }}
                 onShowChanges={showChanges}
                 onUndo={async (force) => {
                   const r = await api.undo(run.id, force);
@@ -367,6 +386,8 @@ export function App() {
             onOpenConnections={() => setDialog("connections")}
             onOpenSync={() => setDialog("sync")}
             onOpenExtensions={() => setDialog("extensions")}
+            onOpenSafety={() => setDialog("safety")}
+            limits={state.limits}
           />
           <button className="panel-close icon-btn" onClick={() => togglePanel(false)} aria-label="Close panel">
             <Icon name="x" />
@@ -376,6 +397,7 @@ export function App() {
 
       {dialog === "palette" && <CommandPalette commands={commands()} onClose={() => setDialog(null)} />}
       {dialog === "extensions" && <ExtensionsDialog onClose={() => setDialog(null)} />}
+      {dialog === "safety" && <SafetyDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
       {dialog === "appearance" && (
         <AppearanceDialog
           value={appearance}

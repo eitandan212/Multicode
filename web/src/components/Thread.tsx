@@ -19,11 +19,17 @@ interface ThreadProps {
   crew: CrewMember[];
   connections: ConnectionView[];
   undo: { can: boolean; undoneAt?: number };
+  /** Still waiting for apply/discard, or what you decided. */
+  review: { pending?: "sandbox" | "design"; resolution?: "applied" | "discarded" };
   onShowChanges: () => void;
   onUndo: (force: boolean) => Promise<{ conflicts: string[]; skipped: string[] }>;
+  onApply: (variant?: string, force?: boolean) => Promise<{ conflicts: string[] }>;
+  onDiscard: () => Promise<void>;
 }
 
-export function Thread({ run, crew, connections, undo, onShowChanges, onUndo }: ThreadProps) {
+const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n));
+
+export function Thread({ run, crew, connections, undo, review, onShowChanges, onUndo, onApply, onDiscard }: ThreadProps) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
   const end = useRef<HTMLDivElement>(null);
@@ -47,8 +53,9 @@ export function Thread({ run, crew, connections, undo, onShowChanges, onUndo }: 
     wasRunning.current = running;
   }, [running, run.diff]);
 
-  const name = (id?: string) => crew.find((m) => m.id === id)?.name ?? "Agent";
+  const name = (id?: string) => crew.find((m) => m.id === id)?.name ?? (id === run.context?.fallback?.id ? run.context!.fallback!.name : "Agent");
   const logo = (id?: string) => {
+    if (id === run.context?.fallback?.id) return <ProviderLogo kind="opencode-cli" size={14} />;
     const m = crew.find((x) => x.id === id);
     const c = m && connections.find((x) => x.id === m.connectionId);
     return c ? <ProviderLogo kind={c.kind} baseUrl={c.baseUrl} model={m.model || c.defaultModel} size={14} /> : null;
@@ -69,10 +76,45 @@ export function Thread({ run, crew, connections, undo, onShowChanges, onUndo }: 
         ) : (
           <>Worked for {took}</>
         )}
+        {run.usage.input + run.usage.output > 0 && (
+          <span className="usage" title={`${run.usage.input.toLocaleString()} in · ${run.usage.output.toLocaleString()} out`}>
+            {fmt(run.usage.input + run.usage.output)} tokens
+            {run.usage.freeTokens > 0 && <span className="free-tag">{fmt(run.usage.freeTokens)} free</span>}
+            {run.usage.costUsd > 0 && <span>· ${run.usage.costUsd.toFixed(run.usage.costUsd < 0.1 ? 3 : 2)}</span>}
+          </span>
+        )}
       </div>
+
+      {run.limits.map((l, i) => (
+        <div key={i} className="notice enter">
+          <Icon name="spark" size={14} />
+          <span>
+            <b>{name(l.memberId)}</b> reached its usage limit. <b>{l.fallback}</b> took over so the work keeps going, until{" "}
+            {new Date(l.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+          </span>
+        </div>
+      ))}
+      {run.protectedHits.length > 0 && (
+        <div className="notice warn enter">
+          <Icon name="shield" size={14} />
+          <span>
+            Blocked changes to protected files and restored them: {run.protectedHits.map((p) => <code key={p}>{p}</code>)}
+          </span>
+        </div>
+      )}
 
       {run.context && (run.context.skills.length > 0 || run.context.plugins.length > 0) && (
         <div className="context-row enter">
+          {run.context.safety && run.context.safety !== "direct" && (
+            <span className="ctx-chip safety">
+              <Icon name="shield" size={12} /> {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
+            </span>
+          )}
+          {run.context.economy && (
+            <span className="ctx-chip plugin">
+              <Icon name="spark" size={12} /> Economy
+            </span>
+          )}
           {run.context.plugins.map((p) => (
             <span key={p} className="ctx-chip plugin" title="Plugin">
               <Icon name="puzzle" size={12} /> {p}
@@ -140,9 +182,23 @@ export function Thread({ run, crew, connections, undo, onShowChanges, onUndo }: 
         </div>
       ))}
 
-      {run.status === "done" && (
+      {run.status === "done" && run.variants && (
+        <DesignGallery run={run} name={name} logo={logo} review={review} onApply={onApply} onDiscard={onDiscard} />
+      )}
+
+      {run.status === "done" && !run.variants && (
         <div className="msg-agent enter">
-          <p>Done. {run.changed.length === 0 ? "No files changed." : "The crew finished and reviewed the work."}</p>
+          <p>
+            {run.context?.safety === "readonly"
+              ? "Here's the plan. Nothing was changed (plan-only mode)."
+              : run.changed.length === 0
+                ? "Done. No files changed."
+                : review.pending === "sandbox"
+                  ? "Done in the sandbox. Review the changes, then apply them to your project."
+                  : "Done. The crew finished and reviewed the work."}
+          </p>
+          {review.pending === "sandbox" && <ApplyBar onApply={(force) => onApply(undefined, force)} onDiscard={onDiscard} />}
+          {review.resolution === "discarded" && <p className="muted small">You discarded these changes.</p>}
           {run.diff && run.diff.length > 0 && <EditedCard files={run.diff} undo={undo} onReview={onShowChanges} onUndo={onUndo} />}
         </div>
       )}
@@ -272,6 +328,122 @@ function EditedCard({
         <button className="edited-more" onClick={() => setAll(!all)} aria-expanded={all}>
           {all ? "Show fewer files" : `Show ${files.length - SHOWN_FILES} more file${files.length - SHOWN_FILES === 1 ? "" : "s"}`}
           <Icon name={all ? "chevronDown" : "chevron"} size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Apply / Discard for work done in a sandbox. */
+function ApplyBar({ onApply, onDiscard }: { onApply: (force?: boolean) => Promise<{ conflicts: string[] }>; onDiscard: () => Promise<void> }) {
+  const [state, setState] = useState<{ busy?: boolean; conflicts?: string[]; error?: string }>({});
+  const go = async (force = false) => {
+    setState({ busy: true });
+    try {
+      const r = await onApply(force);
+      setState(r.conflicts.length ? { conflicts: r.conflicts } : {});
+    } catch (e) {
+      setState({ error: (e as Error).message });
+    }
+  };
+  return (
+    <div className="apply-bar">
+      <Icon name="shield" size={16} />
+      <span>Your project is untouched until you apply.</span>
+      <button className="btn small ghost" disabled={state.busy} onClick={() => onDiscard()}>
+        Discard
+      </button>
+      <button className="btn small primary" disabled={state.busy} onClick={() => go(false)}>
+        Apply to project
+      </button>
+      {state.conflicts && (
+        <div className="edited-warn full">
+          <span>{state.conflicts.join(", ")} changed in your project meanwhile.</span>
+          <button className="btn small danger" onClick={() => go(true)}>
+            Apply anyway
+          </button>
+        </div>
+      )}
+      {state.error && <p className="err-text small full">{state.error}</p>}
+    </div>
+  );
+}
+
+/** MultiDesign: the variants side by side, each a live preview. */
+function DesignGallery({
+  run,
+  name,
+  logo,
+  review,
+  onApply,
+  onDiscard,
+}: {
+  run: RunView;
+  name: (id?: string) => string;
+  logo: (id?: string) => React.ReactNode;
+  review: ThreadProps["review"];
+  onApply: ThreadProps["onApply"];
+  onDiscard: ThreadProps["onDiscard"];
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const ready = (id: string) => run.tasks.find((t) => t.id === id)?.status === "done";
+  return (
+    <div className="msg-agent wide enter">
+      <p>
+        {review.pending === "design"
+          ? "Your designs are ready. Try each one, then use the one you like."
+          : review.resolution === "applied"
+            ? "You applied one of these designs."
+            : "You discarded these designs."}
+      </p>
+      <div className="gallery">
+        {run.variants!.map((v) => (
+          <figure key={v.id} className={`variant ${ready(v.id) ? "" : "is-failed"}`}>
+            <div className="variant-frame">
+              {ready(v.id) && review.pending === "design" ? (
+                <iframe title={v.title} src={`/preview-sandbox/${run.id}/${v.id}/`} sandbox="allow-scripts allow-forms" loading="lazy" />
+              ) : (
+                <span className="muted small">{ready(v.id) ? "Closed" : "No design"}</span>
+              )}
+            </div>
+            <figcaption>
+              <span className="variant-title">
+                {logo(v.memberId)} <b>{v.title}</b>
+              </span>
+              <span className="muted small">{name(v.memberId)}</span>
+              {review.pending === "design" && ready(v.id) && (
+                <div className="variant-actions">
+                  <a className="btn small ghost" href={`/preview-sandbox/${run.id}/${v.id}/`} target="_blank" rel="noreferrer">
+                    Open
+                  </a>
+                  <button
+                    className="btn small primary"
+                    disabled={busy !== null}
+                    onClick={async () => {
+                      setBusy(v.id);
+                      setError("");
+                      try {
+                        await onApply(v.id);
+                      } catch (e) {
+                        setError((e as Error).message);
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    {busy === v.id ? "Applying…" : "Use this design"}
+                  </button>
+                </div>
+              )}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      {error && <p className="err-text small">{error}</p>}
+      {review.pending === "design" && (
+        <button className="btn small ghost align-start" onClick={() => onDiscard()}>
+          Discard all designs
         </button>
       )}
     </div>

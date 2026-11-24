@@ -9,6 +9,7 @@ import {
   type ConnectionView,
   type CrewMember,
   type DispatchMode,
+  type SafetyMode,
   type McpServer,
   type ProviderKind,
   type Role,
@@ -63,11 +64,20 @@ function emptyConfig(): ConfigData {
   return {
     connections: [],
     crew: [],
-    settings: { maxReviewRounds: 2, dispatch: "smart" },
+    settings: {
+      maxReviewRounds: 2,
+      dispatch: "smart",
+      safety: "direct",
+      protectedPaths: DEFAULT_PROTECTED,
+      economy: false,
+      freeFallback: { enabled: true, model: "opencode/big-pickle" },
+    },
     sync: { instructions: "", mcpServers: [], env: {} },
     extensions: { pluginsEnabled: [], pluginsDisabled: [], packModes: {}, browserAnyWebsite: false },
   };
 }
+
+export const DEFAULT_PROTECTED = [".env", ".env.*", "*.pem", "*.key", "**/id_rsa*", "**/*.p12", ".ssh/**", "secrets/**"];
 
 const MCP_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}$/;
 const ENV_NAME = /^[A-Z_][A-Z0-9_]{0,63}$/;
@@ -227,6 +237,20 @@ export class ConfigStore {
       const rounds = Number(input.maxReviewRounds);
       if (!Number.isInteger(rounds) || rounds < 0 || rounds > 5) throw new HttpError(400, "maxReviewRounds must be an integer 0-5");
       next.maxReviewRounds = rounds;
+    }
+    if (input.safety !== undefined) {
+      if (!["direct", "sandbox", "readonly"].includes(String(input.safety))) throw new HttpError(400, "safety must be direct, sandbox or readonly");
+      next.safety = input.safety as SafetyMode;
+    }
+    if (input.economy !== undefined) next.economy = input.economy === true;
+    if (input.protectedPaths !== undefined) {
+      if (!Array.isArray(input.protectedPaths) || input.protectedPaths.length > 50) throw new HttpError(400, "protectedPaths must be a list (max 50)");
+      next.protectedPaths = input.protectedPaths.map((p) => String(p).trim()).filter((p) => p && p.length <= 200 && !p.includes(".."));
+    }
+    if (input.freeFallback !== undefined) {
+      const f = (input.freeFallback ?? {}) as { enabled?: unknown; model?: unknown };
+      const model = str(f.model, "freeFallback.model", 200) ?? next.freeFallback.model;
+      next.freeFallback = { enabled: f.enabled !== false, model };
     }
     if (input.dispatch !== undefined) {
       if (input.dispatch !== "smart" && input.dispatch !== "balanced") throw new HttpError(400, "dispatch must be smart or balanced");
