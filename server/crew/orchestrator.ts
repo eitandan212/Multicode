@@ -9,6 +9,7 @@ import {
   AGENT_KINDS,
   type CrewMember,
   type DesignVariant,
+  type FileDiff,
   type McpServer,
   type Plan,
   type PlanTask,
@@ -337,8 +338,8 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
       known = blocked.length ? await ws.snapshot() : now;
     }));
 
-  const digest = (maxChars: number, focus: string[] = []) =>
-    ws.contextDigest(maxChars, focus, isProtected);
+  const digest = (maxChars: number, focus: string[] = [], othersMax = Infinity) =>
+    ws.contextDigest(maxChars, focus, isProtected, othersMax);
 
   // A manager call is advice: if it fails or answers nonsense, the run carries on without it.
   const ask = async (
@@ -480,7 +481,7 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     const cli = isCli(member);
     const ctx = cli
       ? { tree: (await digest(0)).tree, files: "" }
-      : await digest(buildContext, task.files);
+      : await digest(buildContext, task.files, economy ? 4_000 : 12_000);
     const reply = await call(
       member,
       ws,
@@ -631,9 +632,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
           const ctx = isCli(m)
             ? {
                 tree: (await digest(0)).tree,
-                files: "(read the files from the current directory)",
+                files: `What changed (diff):\n${diffText(await diffChanges(ws, baseline, [...changed]))}\n\nReview this change. Open a file from the current directory only when the diff is not enough to judge it.`,
               }
-            : await digest(economy ? 50_000 : 120_000, [...changed]);
+            : await digest(economy ? 40_000 : 80_000, [...changed], economy ? 4_000 : 10_000);
           const what = reviewer.instructions
             ? reviewer.instructions.split(/[:.]/)[0]!.trim()
             : "";
@@ -677,7 +678,7 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     reviewSummary = review.summary;
     emit({ type: "review", review, round });
     checkAbort();
-    if (review.approved || round === rounds) break;
+    if (review.approved || !review.issues.length) break;
 
     emit({ type: "phase", phase: "fixing", round });
     const fixes = P.fixTasks(review.issues, round).map((t) => {
@@ -688,6 +689,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     });
     emit({ type: "tasks.added", tasks: fixes, round });
     await build(fixes, { summary: plan.summary, tasks: fixes });
+    // The last review's fixes are concrete instructions: they are applied without paying for
+    // another full review session.
+    if (round === rounds) break;
   }
 
   await syncing;
@@ -712,6 +716,19 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     });
   }
   return { summary: summary || "Done.", changedFiles, checkpoint };
+}
+
+/** A compact unified diff for a reviewer, capped so a huge change can't flood the prompt. */
+function diffText(files: FileDiff[], max = 40_000): string {
+  let out = "";
+  for (const f of files) {
+    const body = f.skipped
+      ? "(binary or too large to show)"
+      : f.hunks.map((h) => [h.header, ...h.lines].join("\n")).join("\n");
+    out += `--- ${f.path} (${f.change})\n${body}\n`;
+    if (out.length > max) return out.slice(0, max) + "\n…(diff truncated)";
+  }
+  return out || "(no changes)";
 }
 
 /** The member that costs least to run: free, then flat-rate subscription, then pay-per-token. */

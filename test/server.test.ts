@@ -361,6 +361,67 @@ describe("crew orchestration", () => {
   });
 });
 
+describe("token savings", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-save-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  const recording = (inner: Provider) => {
+    const calls: { system: string; prompt: string }[] = [];
+    const p: Provider = {
+      editsFiles: inner.editsFiles,
+      generate: (req, onDelta, signal) => {
+        calls.push({ system: req.system, prompt: req.prompt });
+        return inner.generate(req, onDelta, signal);
+      },
+    };
+    return { p, calls };
+  };
+
+  it("fixes the last review's issues without paying for another review", async () => {
+    const ws = await Workspace.open(dir, "one-round");
+    const { p, calls } = recording(
+      fakeProvider({
+        review: ['{"approved":false,"summary":"bug","issues":[{"file":"app.js","problem":"p","fix":"f"}]}'],
+      }),
+    );
+    await runCrew({
+      prompt: "make a page",
+      history: [],
+      workspace: ws,
+      roles: assignRoles([member("solo", "builder", p)]),
+      settings: { maxReviewRounds: 1 },
+      emit: () => {},
+      signal: new AbortController().signal,
+    });
+    expect(calls.filter((c) => c.system.includes("REVIEWER"))).toHaveLength(1);
+    expect(await ws.read("app.js")).toBe('console.log("fixed")\n');
+  });
+
+  it("sends builders their own files, not the whole project", async () => {
+    const ws = await Workspace.open(dir, "context");
+    await ws.write("big-unrelated.js", "x".repeat(50_000));
+    const { p, calls } = recording(fakeProvider({ review: [] }));
+    await runCrew({
+      prompt: "make a page",
+      history: [],
+      workspace: ws,
+      roles: assignRoles([member("solo", "builder", p)]),
+      settings: { maxReviewRounds: 1 },
+      emit: () => {},
+      signal: new AbortController().signal,
+    });
+    const builds = calls.filter((c) => c.prompt.includes("YOUR TASK"));
+    expect(builds.length).toBeGreaterThan(0);
+    for (const b of builds) {
+      expect(b.prompt).toContain("big-unrelated.js"); // listed in the tree
+      expect(b.prompt).not.toContain('<file path="big-unrelated.js">'); // but not sent
+    }
+  });
+});
+
 describe("no build when there is nothing to build", () => {
   let dir: string;
   beforeAll(async () => {

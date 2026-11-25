@@ -159,6 +159,8 @@ export class Workspace {
     maxChars = 60_000,
     focus: string[] = [],
     exclude?: (rel: string) => boolean,
+    /** Cap for files outside `focus` (they only give context; the focus files are the work). */
+    othersMax = Infinity,
   ): Promise<{ tree: string; files: string }> {
     const all = (await this.list()).filter((f) => !exclude?.(f));
     const tree = all.join("\n") || "(empty project)";
@@ -166,9 +168,12 @@ export class Workspace {
       ...new Set([...focus.filter((f) => all.includes(f)), ...all]),
     ];
     let budget = maxChars;
+    let others = othersMax;
     const parts: string[] = [];
     for (const rel of ordered) {
       if (budget <= 0) break;
+      const isFocus = focus.includes(rel);
+      if (!isFocus && others <= 0) break;
       if (
         /\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|mp3|mp4|zip|pdf|lock)$/i.test(
           rel,
@@ -177,11 +182,13 @@ export class Workspace {
         continue;
       const text = await this.tryRead(rel);
       if (text === undefined || text.includes("\0")) continue;
-      if (text.length > budget && !focus.includes(rel)) continue;
+      if (text.length > budget && !isFocus) continue;
+      if (!isFocus && text.length > others) continue;
       const body =
         text.length > budget ? `${text.slice(0, budget)}\n…(truncated)` : text;
       parts.push(`<file path="${rel}">\n${body}\n</file>`);
       budget -= body.length;
+      if (!isFocus) others -= body.length;
     }
     return { tree, files: parts.join("\n\n") };
   }

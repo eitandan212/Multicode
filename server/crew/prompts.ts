@@ -33,6 +33,8 @@ Add "assignee" (the member id) and "why" (under 12 words) to every task.${
       : "";
   return `${TEAM}
 Your role: ARCHITECT. You do not write code. You split the request into 1-6 tasks for parallel builders.
+Plan from the file list you are given. Every step you take costs the user money: open a file only when
+the plan truly depends on its contents, and never read more than 3.
 Rules:
 - Each task owns a disjoint set of files (two tasks must never list the same file).
 - Order does not matter; tasks run in parallel, so make each self-sufficient and state the interfaces

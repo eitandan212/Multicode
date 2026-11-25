@@ -77,7 +77,8 @@ function emptyConfig(): ConfigData {
     connections: [],
     crew: [],
     settings: {
-      maxReviewRounds: 2,
+      maxReviewRounds: 1,
+      savingDefaults: 1,
       dispatch: "smart",
       safety: "direct",
       protectedPaths: DEFAULT_PROTECTED,
@@ -93,6 +94,15 @@ function emptyConfig(): ConfigData {
       browserAnyWebsite: false,
     },
   };
+}
+
+/**
+ * One-time move to the token-saving defaults: configs written before them carry the old
+ * two-round review default, which cost a full extra review session per build.
+ */
+function migrateSettings(s: Settings, stored: Partial<Settings> | undefined): Settings {
+  if (!stored || stored.savingDefaults) return s;
+  return { ...s, maxReviewRounds: s.maxReviewRounds === 2 ? 1 : s.maxReviewRounds, savingDefaults: 1 };
 }
 
 export const DEFAULT_PROTECTED = [
@@ -153,7 +163,7 @@ export class ConfigStore {
       this.data = {
         connections: Array.isArray(raw.connections) ? raw.connections : [],
         crew: Array.isArray(raw.crew) ? raw.crew : [],
-        settings: { ...emptyConfig().settings, ...(raw.settings ?? {}) },
+        settings: migrateSettings({ ...emptyConfig().settings, ...(raw.settings ?? {}) }, raw.settings),
         sync: { ...emptyConfig().sync, ...(raw.sync ?? {}) },
         extensions: { ...emptyConfig().extensions, ...(raw.extensions ?? {}) },
       };

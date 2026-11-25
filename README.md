@@ -125,7 +125,7 @@ the opening animation. Saved in your browser and applied before the first paint.
 
 **Download:** [`downloads/MultiCode-Setup-0.1.0.exe`](downloads/MultiCode-Setup-0.1.0.exe)
 (open it on GitHub and press *Download raw file*), run it, and MultiCode opens from the Start menu.
-SHA-256 `60de49c85a6c4aa8ea30efa0cb42808cfcc93a1ca37fd2fd9c91e3c6fe7f8084`. Windows SmartScreen may
+SHA-256 `9af118d5386c0ba01ff67ba50a92eddf160241fa9158b5a33eaa5257d026791b`. Windows SmartScreen may
 warn because the installer isn't signed yet: choose *More info → Run anyway*. To build the installer yourself:
 
 ```bash

@@ -227,6 +227,8 @@ export type RunMode = "build" | "design";
 
 export interface Settings {
   maxReviewRounds: number;
+  /** Set once the 2026-11 token-saving defaults were applied to an older config. */
+  savingDefaults?: number;
   /** direct: edit the project (with undo). sandbox: work on a copy, you apply. readonly: plan only. */
   safety: SafetyMode;
   /** Files agents may never read or change (glob patterns, relative to the project). */
