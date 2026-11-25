@@ -32,6 +32,20 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05);
   --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px rgb(11 12 15 / 0.1);
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* A gentle spring (slight overshoot) for things that pop in. */
+  --spring: linear(
+    0,
+    0.25 9%,
+    0.56 18%,
+    0.82 28%,
+    0.98 38%,
+    1.05 46%,
+    1.06 52%,
+    1.04 60%,
+    1.01 72%,
+    0.998 84%,
+    1
+  );
   --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --radius: 8px;
   --topbar-h: 52px;
@@ -4620,4 +4634,154 @@ pre,
 .preset-chip.is-active {
   border-color: var(--focus);
   background: var(--accent-soft);
+}
+
+/* ---- Smooth & playful motion -------------------------------------------- */
+
+/* Segmented controls: the highlight slides to the chosen option (see installSegPills). */
+.seg[data-pill] {
+  position: relative;
+  isolation: isolate;
+}
+.seg[data-pill]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  width: var(--pill-w);
+  height: var(--pill-h);
+  transform: translate(var(--pill-x), var(--pill-y));
+  border-radius: 7px;
+  background: var(--hover);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  transition:
+    transform 420ms var(--spring),
+    width 420ms var(--spring);
+}
+.seg[data-pill-still]::before {
+  transition: none;
+}
+.seg[data-pill] > button.is-active {
+  background: transparent;
+}
+
+/* Menus, popovers and dialogs arrive with a small spring. */
+.menu-pop {
+  animation: menu-pop-in 300ms var(--spring) both;
+}
+@keyframes menu-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+.dialog[open],
+.settings-page[open] {
+  animation: dialog-pop-in 380ms var(--spring) both;
+}
+@keyframes dialog-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+}
+
+/* Your message pops into the thread. */
+.msg-user {
+  transform-origin: 100% 100%;
+  animation: bubble-in 420ms var(--spring) both;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+}
+
+/* Send: the arrow nudges up on hover and launches on click. */
+.send svg {
+  transition: transform 260ms var(--spring);
+}
+.send:not(:disabled):hover svg {
+  transform: translateY(-2px);
+}
+.send:not(:disabled):active svg {
+  transform: translateY(-6px) scale(0.9);
+  transition-duration: 120ms;
+}
+
+/* Settings gear turns, plugin piece wiggles, crew waves on hover. */
+.sb-foot .icon-btn svg,
+.topbar-tools .icon-btn svg {
+  transition: transform 420ms var(--spring);
+}
+.sb-foot .icon-btn[aria-label="Settings"]:hover svg {
+  transform: rotate(90deg);
+}
+.sb-foot .icon-btn:not([aria-label="Settings"]):hover svg,
+.topbar-tools .icon-btn:hover svg {
+  transform: translateY(-1.5px) scale(1.08);
+}
+
+/* Thread cards lift a touch under the pointer. */
+.sb-card {
+  transition:
+    background-color 140ms var(--ease-soft),
+    border-color 140ms var(--ease-soft),
+    transform 260ms var(--spring),
+    box-shadow 260ms var(--ease-soft);
+}
+.sb-card:hover {
+  transform: translateY(-1px);
+}
+
+/* Agent cards, examples and presets lift and tilt their icon. */
+.agent-card:hover .agent-icon,
+.tut-example:hover {
+  transition: transform 300ms var(--spring);
+}
+.agent-card:hover .agent-icon {
+  transform: rotate(-8deg) scale(1.1);
+}
+
+/* Done ticks and new logos bounce instead of just appearing. */
+.s-done .check-mark,
+.crew-logo,
+.team-check {
+  animation-timing-function: var(--spring);
+}
+
+/* Token counts roll; keep digits from jiggling while they change. */
+.count-up {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The celebration canvas sits above everything and never takes clicks. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg[data-pill]::before,
+  .send svg,
+  .sb-card,
+  .sb-foot .icon-btn svg,
+  .topbar-tools .icon-btn svg {
+    transition: none;
+  }
+  .msg-user,
+  .menu-pop {
+    animation: none;
+  }
+}
+/* Exits win over the spring entrances above. */
+.dialog[data-closing],
+.settings-page[data-closing] {
+  animation: dialog-out 200ms var(--ease-soft) forwards;
 }

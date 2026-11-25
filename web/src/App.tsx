@@ -34,7 +34,7 @@ import { LogoLoader, LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
 import { SettingsPage } from "./components/SettingsPage";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
-import { usePresence } from "./motion";
+import { celebrate, usePresence } from "./motion";
 import { ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
@@ -260,6 +260,15 @@ export function App() {
         bumpPreview();
       if (event.type === "run.done" || event.type === "run.error")
         void reload();
+      // A run that just finished (not one replayed from history) gets a little celebration.
+      if (event.type === "run.done" && Date.now() - event.at < 5000) {
+        const send = document
+          .querySelector(".composer .send")
+          ?.getBoundingClientRect();
+        celebrate(
+          send ? { x: send.left + send.width / 2, y: send.top } : undefined,
+        );
+      }
     });
   }, [runId, bumpPreview, reload]);
 

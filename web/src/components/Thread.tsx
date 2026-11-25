@@ -5,6 +5,7 @@ import type {
   FileDiff,
 } from "../../../server/shared";
 import { LogoLoader } from "./Logo";
+import { useCountUp } from "../motion";
 import { ProviderLogo } from "./ProviderLogo";
 import { colorFor } from "../crewColors";
 import type { RunView, StreamState } from "../runState";
@@ -157,7 +158,8 @@ export function Thread({
             className="usage"
             title={`${run.usage.input.toLocaleString()} in · ${run.usage.output.toLocaleString()} out`}
           >
-            {fmt(run.usage.input + run.usage.output)} tokens
+            <CountUp value={run.usage.input + run.usage.output} format={fmt} />{" "}
+            tokens
             {run.usage.freeTokens > 0 && (
               <span className="free-tag">{fmt(run.usage.freeTokens)} free</span>
             )}
@@ -699,4 +701,15 @@ function DesignGallery({
       )}
     </div>
   );
+}
+
+/** A number that rolls up to its value. */
+function CountUp({
+  value,
+  format,
+}: {
+  value: number;
+  format: (n: number) => string;
+}) {
+  return <span className="count-up">{format(useCountUp(value))}</span>;
 }
