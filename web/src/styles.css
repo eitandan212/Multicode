@@ -5052,3 +5052,65 @@ pre,
 }
 .prefs .ap-control{ flex-direction: column; align-items: flex-start; gap: 8px; }
 .prefs .ap-control > p{ margin: 0; }
+
+/* Earlier turns of a thread: the same conversation, a little quieter. */
+.turn-earlier{ display: grid; gap: 14px; opacity: 0.88; }
+.turn-earlier .msg-user-wrap{ display: flex; justify-content: flex-end; }
+.turn-earlier .msg-user{ animation: none; }
+.turn-earlier .msg-agent p{ white-space: pre-wrap; }
+.turn-earlier .msg-agent.is-failed{ color: var(--muted); }
+.turn-files{ display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.sb-turns{
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+/* "/" commands and "@" mentions above the message box. */
+.composer{ position: relative; }
+.suggest{
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  max-width: 460px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel, var(--bg));
+  box-shadow: 0 12px 36px rgb(0 0 0 / 0.18);
+}
+.suggest-title{
+  display: block;
+  padding: 4px 8px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.suggest ul{ list-style: none; margin: 0; padding: 0; max-height: 264px; overflow-y: auto; }
+.suggest li{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms var(--ease-soft);
+}
+.suggest li.is-active{ background: var(--hover); }
+.suggest li.is-active svg{ color: var(--brand); }
+.suggest-label{ font-weight: 550; white-space: nowrap; }
+.suggest-hint{ color: var(--muted); font-size: 12.5px; min-width: 0; }

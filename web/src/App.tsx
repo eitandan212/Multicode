@@ -356,8 +356,8 @@ export function App() {
     if (!narrow()) store.set("sidebar", open ? "1" : "0");
   };
 
-  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean) => {
-    const summary = await api.startRun(proj, prompt, mode, team, asleep);
+  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean, parentId?: string) => {
+    const summary = await api.startRun(proj, prompt, mode, team, asleep, parentId);
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
@@ -369,7 +369,11 @@ export function App() {
       setQueue((q) => [...q, { id: crypto.randomUUID(), project, prompt, mode }]);
       return;
     }
-    await launch(project, prompt, mode, sleep);
+    // A message in an open, finished thread continues it: the crew remembers the conversation.
+    const open = run ? runs.find((r) => r.id === run.id) : undefined;
+    const parentId =
+      open && open.project === project && open.status !== "running" && !open.pending ? open.id : undefined;
+    await launch(project, prompt, mode, sleep, parentId);
   };
 
   const focusComposer = () =>
@@ -695,12 +699,23 @@ export function App() {
           ? "Add more work: it starts by itself when this one finishes."
           : canRun
           ? run
-            ? "Ask for a change. The crew plans, builds and reviews it."
+            ? "Reply in this thread. The crew remembers the conversation."
             : "Ask anything. The crew plans, builds and reviews it."
           : "Connect an AI to start"
       }
       draft={draft}
       onSubmit={startRun}
+      onCommand={(id) => {
+        if (id === "new") newThread();
+        else if (id === "usage" || id === "connections" || id === "crew") setDialog(id);
+        else if (id === "settings") setDialog("general");
+        else if (id === "help") setDialog("keybindings");
+        else if (id === "ide") setView(view === "ide" ? "chat" : "ide");
+        else if (id === "changes" || id === "memory") {
+          setPanelTab(id);
+          togglePanel(true);
+        }
+      }}
       onStop={() => run && void api.cancelRun(run.id)}
       onOpenCrew={() => setDialog("crew")}
       onOpenSafety={() => setDialog("safety")}
@@ -712,6 +727,15 @@ export function App() {
     </>
   );
 
+  // Earlier turns of the open thread, oldest first.
+  const openSummary = run ? runs.find((r) => r.id === run.id) : undefined;
+  const threadKey = openSummary ? (openSummary.threadId ?? openSummary.id) : undefined;
+  const earlierTurns = openSummary
+    ? runs
+        .filter((r) => r.id !== openSummary.id && (r.threadId ?? r.id) === threadKey && r.startedAt < openSummary.startedAt)
+        .sort((a, b) => a.startedAt - b.startedAt)
+    : [];
+
   // The conversation with the crew: full width in Chat view, docked beside the editor in IDE view.
   const chatView =
     run && project ? (
@@ -721,6 +745,7 @@ export function App() {
           setFarFromEnd(el.scrollHeight - el.scrollTop - el.clientHeight > 400);
         }}>
           <Thread
+            earlier={earlierTurns}
             onAnswer={async (id, allow, always) => {
               await api.approve(run.id, id, allow, always);
             }}

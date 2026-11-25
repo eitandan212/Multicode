@@ -81,6 +81,10 @@ const summaryOf = ({
   resolution,
   team,
   sleep,
+  threadId,
+  parentId,
+  reply,
+  changedFiles,
 }: Run): RunSummary => ({
   id,
   project,
@@ -95,7 +99,31 @@ const summaryOf = ({
   resolution,
   team,
   ...(sleep ? { sleep } : {}),
+  ...(threadId ? { threadId, parentId } : {}),
+  ...(reply ? { reply } : {}),
+  ...(changedFiles?.length ? { changedFiles } : {}),
 });
+
+/** "@path" names in a request, read so the architect sees them (at most 6 files, ~16k characters). */
+export async function readMentions(
+  ws: Workspace,
+  prompt: string,
+  isProtected: (p: string) => boolean,
+): Promise<string> {
+  const names = [...new Set([...prompt.matchAll(/(?:^|\s)@([^\s@]+)/g)].map((m) => m[1]!.replace(/[.,;:!?)]+$/, "")))];
+  const out: string[] = [];
+  let budget = 16_000;
+  for (const name of names.slice(0, 6)) {
+    // Secrets never go to a model, even when named (and even with protection turned off).
+    if (budget <= 0 || isProtected(name) || /(^|\/)(\.env(\..*)?|id_[a-z0-9]+|.*\.(pem|key|p12|pfx))$/i.test(name)) continue;
+    const text = await ws.tryRead(name).catch(() => undefined);
+    if (text === undefined) continue;
+    const body = text.length > Math.min(6000, budget) ? `${text.slice(0, Math.min(6000, budget))}\n…(trimmed)` : text;
+    budget -= body.length;
+    out.push(`<file path="${name}">\n${body}\n</file>`);
+  }
+  return out.join("\n");
+}
 
 export interface UndoResult {
   restored: string[];
@@ -485,6 +513,8 @@ export class RunManager {
     team: TeamChoice = { kind: "crew" },
     /** Sleep mode: you're away, so the crew approves its own actions and never waits on you. */
     sleep = false,
+    /** A follow-up: the run whose conversation this continues. */
+    parentId?: string,
   ): Promise<RunSummary> {
     if (typeof prompt !== "string" || !prompt.trim())
       throw new HttpError(400, "prompt is required");
@@ -528,11 +558,34 @@ export class RunManager {
     const manager = await this.manager(settings, fallback);
     const isProtected = makeProtector(settings.protectedPaths);
 
-    const history = this.list(project)
-      .filter((r) => r.status === "done" && !r.pending)
-      .slice(0, 5)
-      .reverse()
-      .map((r) => r.prompt.slice(0, 500));
+    let threadId: string | undefined;
+    if (parentId !== undefined) {
+      const parent = typeof parentId === "string" ? this.runs.get(parentId) : undefined;
+      if (!parent || parent.project !== project)
+        throw new HttpError(400, "that thread no longer exists");
+      threadId = parent.threadId ?? parent.id;
+    }
+    // What the crew remembers: the whole thread for a follow-up (its last turns, with the answers),
+    // else the project's last few requests. Only the architect reads it, so it stays cheap.
+    const turn = (r: RunSummary, answer: number) =>
+      [
+        `Request: ${r.prompt.slice(0, 600)}`,
+        r.reply ? `Answer: ${r.reply.slice(0, answer)}` : r.status !== "done" ? `(${r.status})` : "",
+        r.changedFiles?.length ? `Files changed: ${r.changedFiles.slice(0, 12).join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    const history = threadId
+      ? this.list(project)
+          .filter((r) => (r.threadId ?? r.id) === threadId && r.status !== "running")
+          .sort((a, b) => a.startedAt - b.startedAt)
+          .slice(-4)
+          .map((r) => turn(r, 900))
+      : this.list(project)
+          .filter((r) => r.status === "done" && !r.pending)
+          .slice(0, 4)
+          .reverse()
+          .map((r) => turn(r, 200));
 
     // Every harness sees the same instructions, memory, tools and skills before the crew starts.
     const ctx = await this.extras(
@@ -555,6 +608,7 @@ export class RunManager {
       mode,
       team,
       ...(sleep ? { sleep: true } : {}),
+      ...(threadId ? { threadId, parentId } : {}),
       events: [],
       listeners: new Set(),
       controller: new AbortController(),
@@ -610,6 +664,10 @@ export class RunManager {
       run.approvals?.declineAll();
       run.status = status;
       run.endedAt = Date.now();
+      if (last.type === "run.done") {
+        run.reply = last.summary.trim().slice(0, 1500) || undefined;
+        run.changedFiles = last.changedFiles.slice(0, 30);
+      } else if (last.type === "run.error") run.reply = `Failed: ${last.error.slice(0, 300)}`;
       emit(last);
       run.log?.end();
       run.log = undefined;
@@ -619,9 +677,11 @@ export class RunManager {
       );
     };
 
+    const mentions = await readMentions(projectWs, run.prompt, isProtected);
     const common = {
       prompt: run.prompt,
       history,
+      ...(mentions ? { mentions } : {}),
       roles,
       settings,
       mcpServers: ctx.servers,

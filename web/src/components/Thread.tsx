@@ -1,3 +1,4 @@
+import type { RunSummary } from "../../../server/shared";
 import { useEffect, useRef, useState } from "react";
 import { SignInDialog } from "./AgentSetup";
 import type {
@@ -23,6 +24,8 @@ const PHASE_TEXT: Record<string, string> = {
 
 interface ThreadProps {
   run: RunView;
+  /** Earlier turns of this thread, oldest first. */
+  earlier?: RunSummary[];
   crew: CrewMember[];
   connections: ConnectionView[];
   undo: { can: boolean; undoneAt?: number };
@@ -57,6 +60,7 @@ const fmt = (n: number) =>
 
 export function Thread({
   run,
+  earlier = [],
   crew,
   connections,
   undo,
@@ -153,6 +157,28 @@ export function Thread({
 
   return (
     <div className="thread">
+      {earlier.map((t) => (
+        <div key={t.id} className="turn-earlier">
+          <div className="msg-user-wrap">
+            <div className="msg-user">
+              <p>{t.prompt}</p>
+            </div>
+          </div>
+          <div className={`msg-agent ${t.status === "error" ? "is-failed" : ""}`}>
+            <p>
+              {t.reply ??
+                (t.status === "cancelled" ? "Stopped." : t.status === "error" ? "This turn failed." : "Done.")}
+            </p>
+            {t.changedFiles && t.changedFiles.length > 0 && (
+              <p className="turn-files muted small">
+                <Icon name="file" size={12} /> {t.changedFiles.length} file{t.changedFiles.length === 1 ? "" : "s"} changed:{" "}
+                {t.changedFiles.slice(0, 6).join(", ")}
+                {t.changedFiles.length > 6 ? "…" : ""}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
       <div className="msg-user-wrap enter">
         <div className="msg-user">
           <p>{run.prompt}</p>

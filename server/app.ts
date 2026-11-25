@@ -523,6 +523,7 @@ export function createApp(opts: AppOptions) {
           req.body?.mode ?? "build",
           parseTeam(req.body?.team, (id) => config.connection(id)),
           req.body?.sleep === true,
+          req.body?.parentId,
         ),
       ),
     ),

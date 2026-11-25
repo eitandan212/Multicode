@@ -123,17 +123,36 @@ export function Sidebar(p: Props) {
       return n;
     });
 
+  // One card per thread: its latest turn, titled by the first message, with the number of turns.
+  const threads = useMemo(() => {
+    const byKey = new Map<string, { latest: RunSummary; first: RunSummary; turns: number }>();
+    for (const r of p.runs) {
+      const key = r.threadId ?? r.id;
+      const t = byKey.get(key);
+      if (!t) byKey.set(key, { latest: r, first: r, turns: 1 });
+      else {
+        t.turns++;
+        if (r.startedAt > t.latest.startedAt) t.latest = r;
+        if (r.startedAt < t.first.startedAt) t.first = r;
+      }
+    }
+    return byKey;
+  }, [p.runs]);
+  const threadOf = (r: RunSummary) => threads.get(r.threadId ?? r.id);
+
   const matching = useMemo(
     () =>
-      [...p.runs]
+      [...threads.values()]
+        .map((t) => t.latest)
         .sort((a, b) => b.startedAt - a.startedAt)
         .filter(
           (r) =>
             !q ||
             r.prompt.toLowerCase().includes(q) ||
+            (threads.get(r.threadId ?? r.id)?.first.prompt ?? "").toLowerCase().includes(q) ||
             r.project.toLowerCase().includes(q),
         ),
-    [p.runs, q],
+    [threads, q],
   );
   // Running threads and threads waiting for you never fold away.
   const isSettled = (r: RunSummary) =>
@@ -172,7 +191,7 @@ export function Sidebar(p: Props) {
       <button
         className="sb-card-main"
         onClick={() => p.onSelectRun(r)}
-        title={r.prompt}
+        title={threadOf(r)?.first.prompt ?? r.prompt}
       >
         <span className="sb-card-top">
           <ProjectBadge name={r.project} size={16} />
@@ -183,7 +202,14 @@ export function Sidebar(p: Props) {
               : ago(r.endedAt ?? r.startedAt, now)}
           </span>
         </span>
-        <span className="sb-card-title truncate">{r.prompt}</span>
+        <span className="sb-card-title truncate">
+          {threadOf(r)?.first.prompt ?? r.prompt}
+          {(threadOf(r)?.turns ?? 1) > 1 && (
+            <span className="sb-turns" title={`${threadOf(r)!.turns} messages in this thread`}>
+              {threadOf(r)!.turns}
+            </span>
+          )}
+        </span>
         <span className="sb-card-meta muted">
           {r.status === "running" ? (
             <span className="working-tag">

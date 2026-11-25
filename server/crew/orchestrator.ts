@@ -118,6 +118,8 @@ export function scheduleTasks<W>(
 export interface RunOptions {
   prompt: string;
   history: string[];
+  /** Files the request names with @path, read for the architect (trimmed). */
+  mentions?: string;
   workspace: Workspace;
   roles: CrewRoles;
   settings: Settings;
@@ -461,6 +463,7 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         archCtx.tree,
         o.history,
         architectDispatches ? P.roster(roles.builders) : "",
+        o.mentions,
       ),
       "text",
     ),

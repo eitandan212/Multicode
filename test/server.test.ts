@@ -34,7 +34,7 @@ import {
   type GenerateRequest,
   type Provider,
 } from "../server/providers/types.js";
-import { RunManager } from "../server/runs.js";
+import { readMentions, RunManager } from "../server/runs.js";
 import { Approvals } from "../server/approvals.js";
 import { linkProject, listProjects, setProjectEmoji, unlinkProject, validateEmoji } from "../server/workspace.js";
 import { homedir } from "node:os";
@@ -2100,5 +2100,79 @@ describe("auto crew from one key", () => {
       ["builder", "openrouter/auto"],
       ["reviewer", "deepseek/deepseek-chat:free"],
     ]);
+  });
+});
+
+describe("threads (follow-ups remember the conversation)", () => {
+  it("passes earlier turns and their answers to the architect, and groups them in one thread", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-thread-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const architectPrompts: string[] = [];
+      const base = fakeProvider({ review: [] });
+      const provider: Provider = {
+        ...base,
+        async generate(req, onDelta) {
+          if (req.system.includes("ARCHITECT")) architectPrompts.push(req.prompt);
+          return base.generate(req, onDelta);
+        },
+      };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"));
+      const finished = async (prompt: string, parentId?: string) => {
+        const r = await runs.start("site", prompt, "build", { kind: "crew" }, false, parentId);
+        await new Promise<void>((resolve) => {
+          const off = runs.subscribe(r.id, (e) => {
+            if (e.type === "run.done" || e.type === "run.error") {
+              off();
+              resolve();
+            }
+          });
+        });
+        return runs.get(r.id)!;
+      };
+      const first = await finished("Make a todo page");
+      expect(first.reply).toBeTruthy();
+      expect(first.changedFiles?.length).toBeGreaterThan(0);
+      const second = await finished("Make it blue", first.id);
+      expect(second.threadId).toBe(first.id);
+      expect(second.parentId).toBe(first.id);
+      const third = await finished("And add a footer", second.id);
+      expect(third.threadId).toBe(first.id);
+      const last = architectPrompts.at(-1)!;
+      expect(last).toContain("Conversation so far");
+      expect(last).toContain("Request: Make a todo page");
+      expect(last).toContain("Request: Make it blue");
+      expect(last).toContain(`Answer: ${first.reply!.slice(0, 40)}`);
+      // A follow-up must name a run of the same project.
+      await expect(runs.start("other", "x", "build", { kind: "crew" }, false, first.id)).rejects.toThrow(/thread/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("@ mentions", () => {
+  it("reads mentioned project files for the architect, never protected or outside ones", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-mention-"));
+    try {
+      const ws = await Workspace.open(dir, "p");
+      await ws.write("src/app.ts", "export const a = 1;\n");
+      await ws.write(".env", "SECRET=1\n");
+      const text = await readMentions(
+        ws,
+        "Fix @src/app.ts, see @.env and @../../etc/passwd and @missing.js.",
+        makeProtector([]),
+      );
+      expect(text).toContain('<file path="src/app.ts">');
+      expect(text).toContain("export const a = 1;");
+      expect(text).not.toContain("SECRET");
+      expect(text).not.toContain("passwd");
+      expect(text).not.toContain("missing.js");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

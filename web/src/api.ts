@@ -162,12 +162,14 @@ export const api = {
     mode: RunMode = "build",
     team?: TeamChoice,
     sleep = false,
+    parentId?: string,
   ) =>
     request<RunSummary>("POST", `/api/projects/${project}/runs`, {
       prompt,
       mode,
       team,
       ...(sleep ? { sleep: true } : {}),
+      ...(parentId ? { parentId } : {}),
     }),
   apply: (id: string, variant?: string, force = false) =>
     request<{ applied: string[]; conflicts: string[] }>(

@@ -11,6 +11,7 @@ import type {
 import { Icon } from "./Icon";
 import { TeamPicker } from "./TeamPicker";
 import { usePresence } from "../motion";
+import { SuggestMenu, triggerAt, useSuggest, type SlashId, type Trigger } from "./ComposerSuggest";
 
 interface Props {
   crew: CrewMember[];
@@ -35,6 +36,8 @@ interface Props {
   /** Sleep mode: the crew works alone; while it's busy, new work is queued. */
   sleep: boolean;
   onSleep: (on: boolean) => void;
+  /** A "/" command the app handles (new thread, open a panel or a setting). */
+  onCommand?: (id: SlashId) => void;
 }
 
 export function Composer(p: Props) {
@@ -58,6 +61,41 @@ export function Composer(p: Props) {
   };
 
   const box = useRef<HTMLTextAreaElement>(null);
+  // "/" commands and "@" file mentions.
+  const [trigger, setTrigger] = useState<Trigger>(null);
+  const [active, setActive] = useState(0);
+  const items = useSuggest(p.project, trigger);
+  const track = (el: HTMLTextAreaElement) => {
+    const t = triggerAt(el.value, el.selectionStart ?? el.value.length);
+    setTrigger(t);
+    setActive(0);
+  };
+  const runCommand = (id: SlashId) => {
+    setPrompt("");
+    setTrigger(null);
+    const safety = { plan: "readonly", direct: "direct", sandbox: "sandbox" } as const;
+    const approvals = { ask: "ask", "auto-edit": "edits", "approve-all": "all" } as const;
+    if (id === "build" || id === "design") setMode(id);
+    else if (id === "sleep") p.onSleep(!p.sleep);
+    else if (id in safety) void p.onSettings({ safety: safety[id as keyof typeof safety] });
+    else if (id in approvals) void p.onSettings({ approvals: approvals[id as keyof typeof approvals] });
+    else p.onCommand?.(id);
+  };
+  const pick = (i: number) => {
+    const it = items[i];
+    if (!it || !trigger) return;
+    if (trigger.kind === "slash") return runCommand(it.key as SlashId);
+    const el = box.current;
+    const caret = el?.selectionStart ?? prompt.length;
+    const next = `${prompt.slice(0, trigger.start)}@${it.key} ${prompt.slice(caret)}`;
+    setPrompt(next);
+    setTrigger(null);
+    requestAnimationFrame(() => {
+      const pos = trigger.start + it.key.length + 2;
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  };
   useEffect(() => {
     if (!p.draft) return;
     setPrompt(p.draft.text);
@@ -85,11 +123,42 @@ export function Composer(p: Props) {
             />
           </span>
         )}
+        {trigger && (
+          <SuggestMenu
+            items={items}
+            active={Math.min(active, Math.max(0, items.length - 1))}
+            onPick={pick}
+            title={trigger.kind === "slash" ? "Commands" : "Mention a file"}
+          />
+        )}
         <textarea
           ref={box}
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            track(e.target);
+          }}
+          onClick={(e) => track(e.currentTarget)}
+          onBlur={() => setTrigger(null)}
           onKeyDown={(e) => {
+            if (items.length && trigger) {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setActive((a) => (a + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length);
+                return;
+              }
+              if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                pick(active);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                setTrigger(null);
+                return;
+              }
+            }
             if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
             const mod = e.ctrlKey || e.metaKey;
             // Settings > General: Enter sends, or Ctrl/⌘+Enter sends (then Enter is a new line).

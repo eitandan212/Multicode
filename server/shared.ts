@@ -519,6 +519,14 @@ export interface RunSummary {
   undoneAt?: number;
   /** True when a checkpoint exists, so the run can be undone. */
   canUndo?: boolean;
+  /** Follow-ups share a thread: the first run's id. Unset for a run that starts its own thread. */
+  threadId?: string;
+  /** The run this one follows up on. */
+  parentId?: string;
+  /** What the crew answered (trimmed), so later turns remember it. */
+  reply?: string;
+  /** Files the run changed (at most 30). */
+  changedFiles?: string[];
 }
 
 /** Default model strength when a connection names no model (the harness picks its own). */

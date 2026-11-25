@@ -92,13 +92,15 @@ export function architectPrompt(
   tree: string,
   history: string[],
   crew = "",
+  mentions = "",
 ): string {
   return [
     history.length
-      ? `Earlier requests in this project (oldest first):\n${history.map((h) => `- ${h}`).join("\n")}`
+      ? `Conversation so far (oldest first; the new request may refer to it):\n${history.map((h) => `---\n${h}`).join("\n")}`
       : "",
     crew ? `Your crew of builders:\n${crew}` : "",
     `Current project files:\n${tree}`,
+    mentions ? `Files the request mentions with @:\n${mentions}` : "",
     `New request:\n${request}`,
   ]
     .filter(Boolean)
