@@ -8,6 +8,7 @@ import {
   type SizeChoice,
   type ThemeMode,
 } from "../appearance";
+import { useOpenDialog } from "./embed";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -25,8 +26,9 @@ export function AppearanceDialog({
   onClose,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const openDialog = useOpenDialog();
   useEffect(() => {
-    ref.current?.showModal();
+    openDialog(ref.current);
   }, []);
   const set = (patch: Partial<Appearance>) => onChange({ ...a, ...patch });
   const customAccent =

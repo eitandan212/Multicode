@@ -9,6 +9,7 @@ import type {
 } from "../../../server/shared";
 import { Icon } from "./Icon";
 import { TeamPicker } from "./TeamPicker";
+import { usePresence } from "../motion";
 
 interface Props {
   crew: CrewMember[];
@@ -29,7 +30,7 @@ interface Props {
   onOpenSafety: () => void;
   onStop: () => void;
   onOpenCrew: () => void;
-  onReviewRounds: (n: number) => void;
+  onSettings: (patch: Partial<Settings>) => Promise<void>;
 }
 
 export function Composer(p: Props) {
@@ -59,17 +60,27 @@ export function Composer(p: Props) {
     box.current?.focus();
   }, [p.draft]);
 
-  const reviews = p.settings.maxReviewRounds;
-
   return (
     <div className="composer-wrap">
       <form
-        className="composer"
+        className={`composer ${p.running ? "is-running" : ""}`}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
+        {p.running && p.progress && p.progress.total > 0 && (
+          <span
+            className="composer-progress"
+            aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}
+          >
+            <span
+              style={{
+                width: `${(p.progress.done / p.progress.total) * 100}%`,
+              }}
+            />
+          </span>
+        )}
         <textarea
           ref={box}
           value={prompt}
@@ -124,6 +135,11 @@ export function Composer(p: Props) {
             onEditCrew={p.onOpenCrew}
             manager={p.manager}
           />
+          <MoreControls
+            settings={p.settings}
+            onSettings={p.onSettings}
+            onOpenSafety={p.onOpenSafety}
+          />
           {p.running ? (
             <button
               type="button"
@@ -146,56 +162,146 @@ export function Composer(p: Props) {
           )}
         </div>
       </form>
-      <div className="composer-meta">
-        <button
-          type="button"
-          className="meta-item meta-btn"
-          onClick={p.onOpenSafety}
-          title="Savings & safety"
+      {error && (
+        <p className="err-text composer-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const SAFETY: { id: Settings["safety"]; label: string; hint: string }[] = [
+  {
+    id: "direct",
+    label: "Direct + undo",
+    hint: "Edits the project; one click undoes a run",
+  },
+  {
+    id: "sandbox",
+    label: "Sandbox",
+    hint: "Works on a copy; you apply the result",
+  },
+  {
+    id: "readonly",
+    label: "Plan only",
+    hint: "Plans and explains; changes nothing",
+  },
+];
+
+/** The composer's "…" menu (as in T3 Code): how the crew may work, kept out of the way. */
+function MoreControls(p: {
+  settings: Settings;
+  onSettings: (patch: Partial<Settings>) => Promise<void>;
+  onOpenSafety: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const presence = usePresence(open, 160);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (
+        e instanceof KeyboardEvent
+          ? e.key === "Escape"
+          : !ref.current?.contains(e.target as Node)
+      )
+        setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  const s = p.settings;
+  return (
+    <div className="more-controls" ref={ref}>
+      {presence.mounted && (
+        <div
+          className={`menu-pop more-pop ${presence.closing ? "is-closing" : ""}`}
+          role="menu"
+          inert={!open}
         >
-          <Icon name="shield" size={13} />
-          {p.settings.safety === "sandbox"
-            ? "Sandbox"
-            : p.settings.safety === "readonly"
-              ? "Plan only"
-              : "Direct + undo"}
-          {p.settings.economy && <span className="free-tag">Economy</span>}
-        </button>
-        {p.running && p.progress && p.progress.total > 0 && (
-          <span
-            className="meta-item progress"
-            aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}
-          >
-            <span className="progress-track">
-              <span
-                className="progress-fill"
-                style={{
-                  width: `${(p.progress.done / p.progress.total) * 100}%`,
-                }}
-              />
-            </span>
-            {p.progress.done}/{p.progress.total}
-          </span>
-        )}
-        {error ? (
-          <span className="err-text">{error}</span>
-        ) : (
-          <label className="meta-item meta-select">
-            <Icon name="shield" size={13} />
-            <select
-              value={reviews}
-              onChange={(e) => p.onReviewRounds(Number(e.target.value))}
+          <div className="team-list-head">How the crew works</div>
+          {SAFETY.map((m) => (
+            <button
+              key={m.id}
+              role="menuitemradio"
+              aria-checked={s.safety === m.id}
+              className={`menu-item more-item ${s.safety === m.id ? "is-active" : ""}`}
+              onClick={() => void p.onSettings({ safety: m.id })}
+            >
+              <Icon name="shield" size={14} />
+              <span className="more-text">
+                <span>{m.label}</span>
+                <span className="muted small">{m.hint}</span>
+              </span>
+              {s.safety === m.id && (
+                <Icon name="check" size={14} className="team-check" />
+              )}
+            </button>
+          ))}
+          <div className="more-row">
+            <span>Review rounds</span>
+            <div
+              className="seg mini"
+              role="radiogroup"
               aria-label="Review rounds"
             >
-              {[0, 1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n === 0 ? "No review" : `Review × ${n}`}
-                </option>
+              {[0, 1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  role="radio"
+                  aria-checked={s.maxReviewRounds === n}
+                  className={s.maxReviewRounds === n ? "is-active" : ""}
+                  onClick={() => void p.onSettings({ maxReviewRounds: n })}
+                >
+                  {n === 0 ? "Off" : n}
+                </button>
               ))}
-            </select>
-          </label>
-        )}
-      </div>
+            </div>
+          </div>
+          <div className="more-row">
+            <span>
+              Economy{" "}
+              <span className="muted small">
+                fewer tokens, free models first
+              </span>
+            </span>
+            <button
+              role="switch"
+              aria-checked={s.economy}
+              aria-label="Economy"
+              className={`switch ${s.economy ? "on" : ""}`}
+              onClick={() => void p.onSettings({ economy: !s.economy })}
+            >
+              <span />
+            </button>
+          </div>
+          <button
+            className="menu-item"
+            onClick={() => {
+              setOpen(false);
+              p.onOpenSafety();
+            }}
+          >
+            <Icon name="settings" size={14} /> All savings & safety settings
+          </button>
+        </div>
+      )}
+      <button
+        type="button"
+        className={`icon-btn more-btn ${open ? "is-on" : ""}`}
+        onClick={() => setOpen(!open)}
+        aria-label="More composer controls"
+        aria-expanded={open}
+        title={`${SAFETY.find((m) => m.id === s.safety)?.label ?? ""}${s.economy ? " · Economy" : ""} · Review ×${s.maxReviewRounds}`}
+      >
+        <Icon name="menu" size={16} />
+        {(s.safety !== "direct" || s.economy) && <span className="more-dot" />}
+      </button>
     </div>
   );
 }

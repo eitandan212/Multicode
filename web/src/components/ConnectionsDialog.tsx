@@ -11,6 +11,7 @@ import {
   type ProviderKind,
 } from "../../../server/shared";
 import { api, type AppState } from "../api";
+import { useOpenDialog } from "./embed";
 import { Icon } from "./Icon";
 import { AgentIcon, hasBundledAgentLogo, ProviderLogo } from "./ProviderLogo";
 
@@ -35,12 +36,13 @@ const MODEL_HINT: Partial<Record<ProviderKind, string>> = {
 
 export function ConnectionsDialog({ state, onClose, onChanged }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const openDialog = useOpenDialog();
   const [adding, setAdding] = useState<ProviderKind | null>(
     state.connections.length ? null : "claude-cli",
   );
 
   useEffect(() => {
-    ref.current?.showModal();
+    openDialog(ref.current);
   }, []);
 
   return (

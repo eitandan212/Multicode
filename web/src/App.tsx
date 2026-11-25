@@ -32,6 +32,8 @@ import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
 import { LogoLoader, LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
+import { SettingsPage } from "./components/SettingsPage";
+import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { usePresence } from "./motion";
 import { ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
@@ -501,8 +503,8 @@ export function App() {
       placeholder={
         canRun
           ? run
-            ? "Ask the crew for a change"
-            : "Describe what to build"
+            ? "Ask for a change. The crew plans, builds and reviews it."
+            : "Ask anything. The crew plans, builds and reviews it."
           : "Connect an AI to start"
       }
       draft={draft}
@@ -510,8 +512,8 @@ export function App() {
       onStop={() => run && void api.cancelRun(run.id)}
       onOpenCrew={() => setDialog("crew")}
       onOpenSafety={() => setDialog("safety")}
-      onReviewRounds={async (n) => {
-        await api.saveSettings({ maxReviewRounds: n });
+      onSettings={async (patch) => {
+        await api.saveSettings(patch);
         await reload();
       }}
     />
@@ -589,23 +591,23 @@ export function App() {
         {composer}
       </div>
     ) : (
-      <div className="hero">
-        <Ribbons />
-        <LogoMark size={40} className="hero-mark" />
-        <h1>
-          What should the crew build in <b>{project}</b>?
-        </h1>
-        <p className="muted">
+      // An empty thread, as in T3 Code: a quiet line in the middle, the composer docked below.
+      <>
+        <div className="scroll empty-thread">
+          <Ribbons />
           {state.connections.length === 0 ? (
-            <button className="link" onClick={() => setDialog("connections")}>
-              Connect an AI to get started
-            </button>
+            <p className="muted">
+              <button className="link" onClick={() => setDialog("connections")}>
+                Connect an AI
+              </button>{" "}
+              to start the conversation.
+            </p>
           ) : (
-            `${crew.length} agent${crew.length === 1 ? "" : "s"} ready: they plan, build in parallel and review each other.`
+            <p className="muted">Send a message to start the conversation.</p>
           )}
-        </p>
-        {composer}
-      </div>
+        </div>
+        <div className="dock">{composer}</div>
+      </>
     );
 
   return (
@@ -621,6 +623,7 @@ export function App() {
             <Sidebar
               projects={state.projects}
               runs={runs}
+              connections={state.connections}
               project={project}
               runId={run?.id ?? null}
               onSelectProject={selectProject}
@@ -630,13 +633,7 @@ export function App() {
                 if (narrow()) setSidebarOpen(false);
               }}
               onNewProject={newProject}
-              onOpenConnections={() => setDialog("connections")}
-              onOpenCrew={() => setDialog("crew")}
-              onOpenSync={() => setDialog("sync")}
-              onOpenExtensions={() => setDialog("extensions")}
-              onOpenAppearance={() => setDialog("appearance")}
-              onOpenSafety={() => setDialog("safety")}
-              onOpenTutorial={showTutorial}
+              onOpenSettings={setDialog}
               onCollapse={() => toggleSidebar(false)}
             />
           </div>
@@ -666,7 +663,12 @@ export function App() {
           >
             {project ? (
               <>
-                <span className="muted">{project}</span>
+                <ProjectSwitcher
+                  project={project}
+                  projects={state.projects}
+                  onSelect={selectProject}
+                  onNew={newProject}
+                />
                 <span className="muted sep">/</span>
                 <span className="truncate">
                   {run ? run.prompt : "New thread"}
@@ -676,52 +678,36 @@ export function App() {
               <span>Getting started</span>
             )}
           </div>
-          {project && (
-            <div
-              className="seg mini view-switch"
-              role="radiogroup"
-              aria-label="View"
+          <div className="topbar-tools">
+            {project && (
+              <button
+                className={`icon-btn ${view === "ide" ? "is-on" : ""}`}
+                onClick={() => setView(view === "ide" ? "chat" : "ide")}
+                aria-label={
+                  view === "ide" ? "Close the editor" : "Open the editor"
+                }
+                aria-pressed={view === "ide"}
+                title={
+                  view === "ide"
+                    ? "Close the editor (IDE)"
+                    : "Open the editor (IDE)"
+                }
+              >
+                <Icon name="terminal" />
+              </button>
+            )}
+            <button
+              className={`icon-btn ${panelOpen ? "is-on" : ""}`}
+              onClick={() => togglePanel(!panelOpen)}
+              aria-label={
+                panelOpen ? "Hide crew and preview" : "Show crew and preview"
+              }
+              aria-pressed={panelOpen}
+              title="Crew and preview"
             >
-              <button
-                role="radio"
-                aria-checked={view === "chat"}
-                className={view === "chat" ? "is-active" : ""}
-                onClick={() => setView("chat")}
-              >
-                <Icon name="compose" size={13} /> Chat
-              </button>
-              <button
-                role="radio"
-                aria-checked={view === "ide"}
-                className={view === "ide" ? "is-active" : ""}
-                onClick={() => setView("ide")}
-              >
-                <Icon name="terminal" size={13} /> IDE
-              </button>
-            </div>
-          )}
-          <button
-            className="kbd-btn"
-            onClick={() => setDialog("palette")}
-            title="Command palette"
-            aria-label="Open command palette"
-          >
-            <Icon name="search" size={14} />
-            <kbd>
-              {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
-            </kbd>
-          </button>
-          <button
-            className={`icon-btn ${panelOpen ? "is-on" : ""}`}
-            onClick={() => togglePanel(!panelOpen)}
-            aria-label={
-              panelOpen ? "Hide crew and preview" : "Show crew and preview"
-            }
-            aria-pressed={panelOpen}
-            title="Crew and preview"
-          >
-            <Icon name="panelRight" />
-          </button>
+              <Icon name="panelRight" />
+            </button>
+          </div>
         </header>
 
         {view === "ide" && project ? (
@@ -736,7 +722,9 @@ export function App() {
               project={project}
               refreshKey={refreshKey}
               changed={run?.changed ?? []}
-              busy={runs.some((r) => r.project === project && r.status === "running")}
+              busy={runs.some(
+                (r) => r.project === project && r.status === "running",
+              )}
               chat={chatView}
             />
           </Suspense>
@@ -782,46 +770,69 @@ export function App() {
       {dialog === "palette" && (
         <CommandPalette commands={commands()} onClose={() => setDialog(null)} />
       )}
-      {dialog === "extensions" && (
-        <ExtensionsDialog onClose={() => setDialog(null)} />
-      )}
-      {dialog === "safety" && (
-        <SafetyDialog
-          state={state}
+      {dialog && dialog !== "palette" && (
+        <SettingsPage
+          section={dialog}
+          onSection={setDialog}
           onClose={() => setDialog(null)}
-          onChanged={reload}
-        />
-      )}
-      {dialog === "appearance" && (
-        <AppearanceDialog
-          value={appearance}
-          onChange={setAppearance}
-          onReplayIntro={() => {
+          onTutorial={() => {
             setDialog(null);
-            setIntro(true);
+            showTutorial();
           }}
-          onClose={() => setDialog(null)}
+          render={(section, done) => {
+            switch (section) {
+              case "extensions":
+                return <ExtensionsDialog onClose={done} />;
+              case "safety":
+                return (
+                  <SafetyDialog
+                    state={state}
+                    onClose={done}
+                    onChanged={reload}
+                  />
+                );
+              case "appearance":
+                return (
+                  <AppearanceDialog
+                    value={appearance}
+                    onChange={setAppearance}
+                    onReplayIntro={() => {
+                      setDialog(null);
+                      setIntro(true);
+                    }}
+                    onClose={done}
+                  />
+                );
+              case "sync":
+                return project ? (
+                  <SyncDialog project={project} onClose={done} />
+                ) : (
+                  <p className="muted settings-empty">
+                    Create a project first: sync writes into a project's folder.
+                  </p>
+                );
+              case "connections":
+                return (
+                  <ConnectionsDialog
+                    state={state}
+                    onClose={done}
+                    onChanged={reload}
+                  />
+                );
+              case "crew":
+                return (
+                  <CrewDialog
+                    state={state}
+                    onClose={done}
+                    onChanged={reload}
+                    onOpenConnections={() => setDialog("connections")}
+                  />
+                );
+            }
+          }}
         />
       )}
       {splash}
-      {dialog === "sync" && project && (
-        <SyncDialog project={project} onClose={() => setDialog(null)} />
-      )}
-      {dialog === "connections" && (
-        <ConnectionsDialog
-          state={state}
-          onClose={() => setDialog(null)}
-          onChanged={reload}
-        />
-      )}
-      {dialog === "crew" && (
-        <CrewDialog
-          state={state}
-          onClose={() => setDialog(null)}
-          onChanged={reload}
-          onOpenConnections={() => setDialog("connections")}
-        />
-      )}
     </div>
   );
 }

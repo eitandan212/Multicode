@@ -7,6 +7,7 @@ import {
 } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { colorFor, ROLE_HINT, ROLE_LABEL } from "../crewColors";
+import { useOpenDialog } from "./embed";
 import { Icon, type IconName } from "./Icon";
 import { AGENT_PRESETS, type AgentPreset } from "../../../server/agents";
 import { ProviderLogo } from "./ProviderLogo";
@@ -30,6 +31,7 @@ export function CrewDialog({
   onOpenConnections,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const openDialog = useOpenDialog();
   const [crew, setCrew] = useState<CrewMember[]>(() =>
     state.effectiveCrew.map((m) => ({
       ...m,
@@ -68,7 +70,7 @@ export function CrewDialog({
   const conn = (id: string) => state.connections.find((c) => c.id === id);
 
   useEffect(() => {
-    ref.current?.showModal();
+    openDialog(ref.current);
   }, []);
 
   const update = (i: number, patch: Partial<CrewMember>) =>

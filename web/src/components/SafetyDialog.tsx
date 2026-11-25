@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SafetyMode, Settings } from "../../../server/shared";
 import { api, type AppState } from "../api";
+import { useOpenDialog } from "./embed";
 import { Icon, type IconName } from "./Icon";
 import { ProviderLogo } from "./ProviderLogo";
 
@@ -37,13 +38,14 @@ export function SafetyDialog({
   onChanged: () => Promise<void>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const openDialog = useOpenDialog();
   const [s, setS] = useState<Settings>(state.settings);
   const [paths, setPaths] = useState(state.settings.protectedPaths.join("\n"));
   const [error, setError] = useState("");
   const opencode = state.clis.find((c) => c.kind === "opencode-cli");
 
   useEffect(() => {
-    ref.current?.showModal();
+    openDialog(ref.current);
   }, []);
 
   const save = async (patch: Partial<Settings>) => {

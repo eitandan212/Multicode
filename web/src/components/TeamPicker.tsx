@@ -3,10 +3,11 @@ import {
   connectionName,
   serviceName,
   type ConnectionView,
-  type ManagerView,
   type CrewMember,
+  type ManagerView,
   type TeamChoice,
 } from "../../../server/shared";
+import { api } from "../api";
 import { usePresence } from "../motion";
 import { Icon } from "./Icon";
 import { MemberLogo, ProviderLogo } from "./ProviderLogo";
@@ -20,51 +21,36 @@ interface Props {
   manager?: ManagerView | null;
 }
 
-interface SoloOption {
-  key: string;
-  connectionId: string;
-  model?: string;
-  name: string;
-  via: string;
-  conn: ConnectionView;
+const modelLists = new Map<string, Promise<string[]>>();
+function modelsOf(id: string): Promise<string[]> {
+  if (!modelLists.has(id))
+    modelLists.set(
+      id,
+      api.models(id).then(
+        (r) => r.models,
+        () => [],
+      ),
+    );
+  return modelLists.get(id)!;
 }
 
-/** Every model you can run alone: each connection's default, plus models your crew uses. */
-export function soloOptions(
-  connections: ConnectionView[],
-  crew: CrewMember[],
-): SoloOption[] {
-  const out = new Map<string, SoloOption>();
-  const add = (conn: ConnectionView, model?: string) => {
-    const m = model || conn.defaultModel;
-    const key = `${conn.id}|${m ?? ""}`;
-    if (out.has(key)) return;
-    out.set(key, {
-      key,
-      connectionId: conn.id,
-      model: model || undefined,
-      name: m ? connectionName(conn.kind, conn.baseUrl, m) : conn.label,
-      via: conn.acp?.agentName ?? serviceName(conn.kind, conn.baseUrl),
-      conn,
-    });
-  };
-  connections.forEach((c) => add(c));
-  crew.forEach((m) => {
-    const c = connections.find((x) => x.id === m.connectionId);
-    if (c && m.model) add(c, m.model);
-  });
-  return [...out.values()];
-}
-
-/** Choose who works: Auto (MultiCode builds the team), your crew, or one model alone. */
+/**
+ * Who works, picked the way T3 Code picks a model: a rail of providers on the left (plus the
+ * team), searchable models on the right. A model runs alone; Auto and My crew run together.
+ */
 export function TeamPicker(p: Props) {
   const [open, setOpen] = useState(false);
   const presence = usePresence(open, 160);
   const ref = useRef<HTMLDivElement>(null);
-  const solos = soloOptions(p.connections, p.crew);
+  const [rail, setRail] = useState<string>("team");
+  const [query, setQuery] = useState("");
+  const [models, setModels] = useState<string[] | null>(null);
+  const conn = p.connections.find((c) => c.id === rail);
 
   useEffect(() => {
     if (!open) return;
+    setRail(p.team.kind === "solo" ? p.team.connectionId : "team");
+    setQuery("");
     const close = (e: Event) => {
       if (
         e instanceof KeyboardEvent
@@ -79,22 +65,33 @@ export function TeamPicker(p: Props) {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", close);
     };
+    // Only when the popover opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (!conn) return;
+    let live = true;
+    setModels(null);
+    void modelsOf(conn.id).then((m) => live && setModels(m));
+    return () => {
+      live = false;
+    };
+  }, [conn]);
 
   const pick = (t: TeamChoice) => {
     p.onTeam(t);
     setOpen(false);
   };
-  const solo =
+
+  const soloConn =
     p.team.kind === "solo"
-      ? solos.find(
-          (s) =>
-            s.connectionId ===
-              (p.team as { connectionId: string }).connectionId &&
-            s.model === (p.team as { model?: string }).model,
+      ? p.connections.find(
+          (c) => c.id === (p.team as { connectionId: string }).connectionId,
         )
       : undefined;
-
+  const soloModel =
+    p.team.kind === "solo" ? p.team.model || soloConn?.defaultModel : undefined;
   const autoLogos = p.connections.map((c) => (
     <ProviderLogo
       key={c.id}
@@ -102,38 +99,48 @@ export function TeamPicker(p: Props) {
       acp={c.acp}
       baseUrl={c.baseUrl}
       model={c.defaultModel}
-      size={12}
+      size={13}
     />
   ));
   const crewLogos = p.crew.map((m) => (
-    <MemberLogo key={m.id} member={m} connections={p.connections} size={12} />
+    <MemberLogo key={m.id} member={m} connections={p.connections} size={13} />
   ));
-  const current =
-    p.team.kind === "auto"
-      ? { logos: autoLogos, label: "Auto" }
-      : p.team.kind === "solo" && solo
+  const chip =
+    p.team.kind === "solo" && soloConn
+      ? {
+          logos: [
+            <ProviderLogo
+              key="s"
+              kind={soloConn.kind}
+              acp={soloConn.acp}
+              baseUrl={soloConn.baseUrl}
+              model={soloModel}
+              size={14}
+            />,
+          ],
+          label: soloModel
+            ? connectionName(soloConn.kind, soloConn.baseUrl, soloModel)
+            : soloConn.label,
+        }
+      : p.team.kind === "crew"
         ? {
-            logos: [
-              <ProviderLogo
-                key="s"
-                kind={solo.conn.kind}
-                acp={solo.conn.acp}
-                baseUrl={solo.conn.baseUrl}
-                model={solo.model || solo.conn.defaultModel}
-                size={12}
-              />,
-            ],
-            label: solo.name,
-          }
-        : {
             logos: crewLogos,
             label:
-              p.crew.length === 0
-                ? "No crew yet"
-                : p.crew.length === 1
-                  ? p.crew[0]!.name
-                  : `Crew of ${p.crew.length}`,
-          };
+              p.crew.length === 1
+                ? p.crew[0]!.name
+                : `Crew of ${p.crew.length}`,
+          }
+        : { logos: autoLogos, label: "Auto" };
+
+  const q = query.trim().toLowerCase();
+  const list = conn
+    ? [...new Set([conn.defaultModel ?? "", ...(models ?? [])])].filter(
+        (m) =>
+          !q ||
+          (m || "default").toLowerCase().includes(q) ||
+          connectionName(conn.kind, conn.baseUrl, m).toLowerCase().includes(q),
+      )
+    : [];
 
   return (
     <div className="team-picker push-right" ref={ref}>
@@ -143,88 +150,169 @@ export function TeamPicker(p: Props) {
           role="menu"
           inert={!open}
         >
-          <div className="team-head">Who works on this</div>
-          {p.manager && (
-            <div className="team-manager small">
-              <ProviderLogo
-                kind={p.manager.kind}
-                baseUrl={p.manager.baseUrl}
-                model={p.manager.model}
-                size={13}
-              />
-              <span className="truncate">
-                Managed by <b>{p.manager.name}</b>
-                {p.manager.free && !/\(free\)/.test(p.manager.name)
-                  ? " (free)"
-                  : ""}{" "}
-                · assigns the tasks
-              </span>
+          <div className="team-body">
+            <div className="team-rail" role="tablist" aria-label="Providers">
+              <button
+                role="tab"
+                aria-selected={rail === "team"}
+                className={`team-rail-btn ${rail === "team" ? "is-active" : ""}`}
+                onClick={() => setRail("team")}
+                title="Models working together"
+              >
+                <Icon name="users" size={16} />
+              </button>
+              {p.connections.map((c) => (
+                <button
+                  key={c.id}
+                  role="tab"
+                  aria-selected={rail === c.id}
+                  className={`team-rail-btn ${rail === c.id ? "is-active" : ""}`}
+                  onClick={() => setRail(c.id)}
+                  title={c.label}
+                >
+                  <ProviderLogo
+                    kind={c.kind}
+                    acp={c.acp}
+                    baseUrl={c.baseUrl}
+                    model={c.defaultModel}
+                    size={17}
+                  />
+                </button>
+              ))}
             </div>
-          )}
-          <TeamItem
-            active={p.team.kind === "auto"}
-            title="Auto"
-            text={`MultiCode builds the team from all ${p.connections.length} connection${p.connections.length === 1 ? "" : "s"}: the strongest model plans, the next reviews, the rest build.`}
-            logos={autoLogos}
-            onClick={() => pick({ kind: "auto" })}
-          />
-          <TeamItem
-            active={p.team.kind === "crew"}
-            title="My crew"
-            text={
-              p.crew.length
-                ? `${p.crew.length} agent${p.crew.length === 1 ? "" : "s"} with the roles you set.`
-                : "Set up who plans, builds and reviews."
-            }
-            logos={crewLogos}
-            onClick={() => pick({ kind: "crew" })}
-            extra={
-              <button
-                type="button"
-                className="link small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpen(false);
-                  p.onEditCrew();
-                }}
-              >
-                Edit
-              </button>
-            }
-          />
-          <div className="team-sep">Single model</div>
-          <div className="team-solos">
-            {solos.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                role="menuitemradio"
-                aria-checked={solo?.key === s.key}
-                className={`menu-item team-solo ${solo?.key === s.key ? "is-active" : ""}`}
-                onClick={() =>
-                  pick({
-                    kind: "solo",
-                    connectionId: s.connectionId,
-                    ...(s.model ? { model: s.model } : {}),
-                  })
-                }
-              >
+            <div className="team-list">
+              {rail === "team" ? (
+                <>
+                  <div className="team-list-head">Together</div>
+                  <TeamItem
+                    active={p.team.kind === "auto"}
+                    title="Auto"
+                    text={`MultiCode builds the team from your ${p.connections.length} connection${p.connections.length === 1 ? "" : "s"}.`}
+                    logos={autoLogos}
+                    onClick={() => pick({ kind: "auto" })}
+                  />
+                  <TeamItem
+                    active={p.team.kind === "crew"}
+                    title="My crew"
+                    text={
+                      p.crew.length
+                        ? `${p.crew.length} agent${p.crew.length === 1 ? "" : "s"}: planner, builders and reviewers.`
+                        : "Set up who plans, builds and reviews."
+                    }
+                    logos={crewLogos}
+                    onClick={() => pick({ kind: "crew" })}
+                    extra={
+                      <button
+                        type="button"
+                        className="link small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpen(false);
+                          p.onEditCrew();
+                        }}
+                      >
+                        Edit
+                      </button>
+                    }
+                  />
+                  <p className="muted small team-hint">
+                    Or pick one model on the left to work alone.
+                  </p>
+                </>
+              ) : conn ? (
+                <>
+                  <label className="team-search">
+                    <Icon name="search" size={14} />
+                    <input
+                      autoFocus
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Search models..."
+                      aria-label="Search models"
+                    />
+                  </label>
+                  <div className="team-models">
+                    {models === null && (
+                      <p className="muted small team-empty">Loading models…</p>
+                    )}
+                    {models !== null && list.length === 0 && (
+                      <p className="muted small team-empty">No models found</p>
+                    )}
+                    {list.map((m) => {
+                      const active =
+                        p.team.kind === "solo" &&
+                        p.team.connectionId === conn.id &&
+                        (p.team.model || conn.defaultModel || "") === m;
+                      return (
+                        <button
+                          key={m || "default"}
+                          role="menuitemradio"
+                          aria-checked={active}
+                          className={`menu-item team-solo ${active ? "is-active" : ""}`}
+                          onClick={() =>
+                            pick({
+                              kind: "solo",
+                              connectionId: conn.id,
+                              ...(m && m !== conn.defaultModel
+                                ? { model: m }
+                                : {}),
+                            })
+                          }
+                        >
+                          <ProviderLogo
+                            kind={conn.kind}
+                            acp={conn.acp}
+                            baseUrl={conn.baseUrl}
+                            model={m || conn.defaultModel}
+                            size={15}
+                          />
+                          <span className="truncate">
+                            {m
+                              ? connectionName(conn.kind, conn.baseUrl, m)
+                              : `${conn.label} default`}
+                          </span>
+                          {m && (
+                            <span className="muted small truncate team-via">
+                              {m}
+                            </span>
+                          )}
+                          {active && (
+                            <Icon
+                              name="check"
+                              size={14}
+                              className="team-check"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+          <div className="team-foot small">
+            {p.manager ? (
+              <>
                 <ProviderLogo
-                  kind={s.conn.kind}
-                  acp={s.conn.acp}
-                  baseUrl={s.conn.baseUrl}
-                  model={s.model || s.conn.defaultModel}
-                  size={15}
+                  kind={p.manager.kind}
+                  baseUrl={p.manager.baseUrl}
+                  model={p.manager.model}
+                  size={13}
                 />
-                <span className="truncate">{s.name}</span>
-                <span className="muted small truncate team-via">{s.via}</span>
-                {solo?.key === s.key && (
-                  <Icon name="check" size={14} className="team-check" />
-                )}
-              </button>
-            ))}
-            {solos.length === 0 && (
-              <p className="muted small team-empty">Connect an AI first.</p>
+                <span className="truncate">
+                  Managed by <b>{p.manager.name}</b>
+                </span>
+              </>
+            ) : (
+              <span className="muted">
+                No manager: the planner assigns the tasks
+              </span>
+            )}
+            {conn && (
+              <span className="muted push-right truncate">
+                {conn.acp?.agentName ?? serviceName(conn.kind, conn.baseUrl)}
+              </span>
             )}
           </div>
         </div>
@@ -237,24 +325,19 @@ export function TeamPicker(p: Props) {
         aria-expanded={open}
         title="Choose who works: Auto, your crew or one model"
       >
-        <span
-          className="crew-logos"
-          aria-hidden
-          key={p.team.kind + current.label}
-        >
-          {current.logos.slice(0, 4).map((l, i) => (
+        <span className="crew-logos" aria-hidden key={p.team.kind + chip.label}>
+          {chip.logos.slice(0, 4).map((l, i) => (
             <span key={i} className="crew-logo">
               {l}
             </span>
           ))}
-          {current.logos.length > 4 && (
+          {chip.logos.length > 4 && (
             <span className="crew-logo crew-more">
-              +{current.logos.length - 4}
+              +{chip.logos.length - 4}
             </span>
           )}
         </span>
-        <span className="truncate team-label">{current.label}</span>
-        <Icon name="chevronDown" size={13} className="team-chevron" />
+        <span className="truncate team-label">{chip.label}</span>
       </button>
     </div>
   );

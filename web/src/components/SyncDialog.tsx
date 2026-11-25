@@ -5,6 +5,7 @@ import type {
   ProviderKind,
 } from "../../../server/shared";
 import { api } from "../api";
+import { useOpenDialog } from "./embed";
 import { Icon } from "./Icon";
 import { ProviderLogo } from "./ProviderLogo";
 
@@ -39,6 +40,7 @@ export function SyncDialog({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const openDialog = useOpenDialog();
   const [instructions, setInstructions] = useState("");
   const [servers, setServers] = useState<Draft[]>([]);
   const [envSet, setEnvSet] = useState<string[]>([]);
@@ -48,7 +50,7 @@ export function SyncDialog({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    ref.current?.showModal();
+    openDialog(ref.current);
     api.sync().then(
       (v) => {
         setInstructions(v.instructions);

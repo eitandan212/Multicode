@@ -1,6 +1,13 @@
 import type { CrewMember, ProviderKind, Role } from "../../server/shared";
 
-const PALETTE = ["#8EA4FF", "#FF8A7A", "#6FD6B0", "#C59CFF", "#5CC8E8", "#F2B544"];
+const PALETTE = [
+  "#8EA4FF",
+  "#FF8A7A",
+  "#6FD6B0",
+  "#C59CFF",
+  "#5CC8E8",
+  "#F2B544",
+];
 
 export function colorFor(crew: CrewMember[], memberId?: string): string {
   const i = crew.findIndex((m) => m.id === memberId);
@@ -33,6 +40,12 @@ export const VENDOR: Record<ProviderKind, string> = {
 };
 
 export function initials(name: string): string {
-  const parts = name.replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
+  const parts = name
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (
+    (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")
+  ).toUpperCase();
 }

@@ -115,7 +115,6 @@ function endpointBrand(baseUrl = ""): string | undefined {
   return undefined;
 }
 
-
 // The logos are decorative (the name is always shown next to them), so drop their <title>.
 const clean = new Map<string, string>();
 const strip = (svg: string) => {

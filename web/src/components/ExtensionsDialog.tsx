@@ -5,6 +5,7 @@ import type {
   SkillMode,
 } from "../../../server/shared";
 import { api } from "../api";
+import { useOpenDialog } from "./embed";
 import { Icon, type IconName } from "./Icon";
 
 const CATEGORY_ICON: Record<PluginInfo["category"], IconName> = {
@@ -28,6 +29,7 @@ const RISK_TEXT: Record<PluginInfo["risk"], string> = {
  */
 export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const openDialog = useOpenDialog();
   const [view, setView] = useState<ExtensionsView | null>(null);
   const [confirming, setConfirming] = useState<PluginInfo | null>(null);
   const [understood, setUnderstood] = useState(false);
@@ -35,7 +37,7 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    ref.current?.showModal();
+    openDialog(ref.current);
     api.extensions().then(setView, (e: Error) => setError(e.message));
   }, []);
 
