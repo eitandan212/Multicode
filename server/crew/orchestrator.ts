@@ -1,4 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
+import path from "node:path";
+import { createTwoFilesPatch } from "diff";
+
+/** A unified diff without the "Index:" / "====" header lines. */
+const patchOf = (...args: Parameters<typeof createTwoFilesPatch>) =>
+  createTwoFilesPatch(...args).split("\n").slice(2).join("\n");
+import type { Approvals } from "../approvals.js";
 import type { Connection } from "../config.js";
 import {
   isLimitError,
@@ -9,6 +16,7 @@ import {
   AGENT_KINDS,
   type CrewMember,
   type DesignVariant,
+  type ApprovalAsk,
   type FileDiff,
   type McpServer,
   type Plan,
@@ -134,7 +142,12 @@ export interface RunOptions {
    */
   manager?: ResolvedMember;
   managerPicksTeam?: boolean;
+  /** Your approvals for agent actions (Claude Code style). Absent: nothing asks. */
+  approvals?: Approvals;
 }
+
+/** An action the user declined: not retried by another agent, not counted as a failure. */
+class DeclinedError extends Error {}
 
 /** What the run changed, so it can be undone later. */
 export interface Checkpoint {
@@ -166,7 +179,7 @@ const DEFAULT_LIMITS = {
  */
 type KitOptions = Pick<
   RunOptions,
-  "emit" | "signal" | "limits" | "limited" | "fallback" | "mcpServers" | "env"
+  "emit" | "signal" | "limits" | "limited" | "fallback" | "mcpServers" | "env" | "approvals"
 >;
 
 function agentKit(o: KitOptions) {
@@ -181,6 +194,8 @@ function agentKit(o: KitOptions) {
     system: string,
     prompt: string,
     mode: "text" | "edit",
+    /** Collects what the user approved (project files) or declined during this call. */
+    track?: { approved: Set<string>; declined: boolean },
   ) => {
     const streamId = randomUUID();
     emit({ type: "agent.start", streamId, memberId: member.id, title });
@@ -197,13 +212,37 @@ function agentKit(o: KitOptions) {
         `${member.name} went silent for ${Math.round(limits.idleMs / 60_000)} min`,
       );
     let idle = setTimeout(silent, limits.idleMs);
-    const hard = setTimeout(
-      () =>
-        stop(
-          `${member.name} ran past ${Math.round(limits.maxMs / 60_000)} min`,
-        ),
-      limits.maxMs,
-    );
+    // Time spent waiting for your approval doesn't count against the agent.
+    let waitingOnYou = 0;
+    const tooLong = () => {
+      if (waitingOnYou) hard = setTimeout(tooLong, limits.idleMs);
+      else stop(`${member.name} ran past ${Math.round(limits.maxMs / 60_000)} min`);
+    };
+    let hard = setTimeout(tooLong, limits.maxMs);
+    const rel = (f: string) =>
+      path.relative(ws.root, path.resolve(ws.root, f)).split(path.sep).join("/");
+    const approvals = o.approvals;
+    const approve =
+      approvals && !(approvals.free("edit") && approvals.free("tool"))
+        ? async (a: ApprovalAsk) => {
+            const files = a.files?.map(rel);
+            let ok: boolean;
+            if (approvals.free(a.kind)) ok = true;
+            else {
+              clearTimeout(idle);
+              waitingOnYou++;
+              try {
+                ok = await approvals.ask(member.id, { ...a, ...(files ? { files } : {}) });
+              } finally {
+                waitingOnYou--;
+                idle = setTimeout(silent, limits.idleMs);
+              }
+            }
+            if (ok) files?.forEach((f) => track?.approved.add(f));
+            else if (track) track.declined = true;
+            return ok;
+          }
+        : undefined;
     const free = P.costTier(member) === "free";
     try {
       const text = await member.provider.generate(
@@ -215,6 +254,7 @@ function agentKit(o: KitOptions) {
           mode,
           mcpServers: o.mcpServers,
           env: o.env,
+          ...(approve ? { approve } : {}),
           onUsage: (u) =>
             emit({
               type: "usage",
@@ -464,6 +504,8 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
 
   // 2. Build (and later fix) in parallel
   let failures = 0;
+  /** Tasks whose change you declined. */
+  let declined = 0;
   /** Who last wrote each file: review fixes go back to the agent that knows the file. */
   const owner = new Map<string, string>();
   // Each member contributes as many workers as it has parallel agents.
@@ -482,6 +524,15 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     const ctx = cli
       ? { tree: (await digest(0)).tree, files: "" }
       : await digest(buildContext, task.files, economy ? 4_000 : 12_000);
+    const track = { approved: new Set<string>(), declined: false };
+    // Agents that edit on their own and can't all pause first: remember the folder so a change
+    // you didn't approve beforehand can be shown to you after, and reverted if you decline.
+    const checkAfter = cli && o.approvals && !o.approvals.free("review");
+    const before = checkAfter
+      ? { text: await captureBaseline(ws), snap: await ws.snapshot() }
+      : undefined;
+    inFlight.set(task.id, new Set(task.files));
+    try {
     const reply = await call(
       member,
       ws,
@@ -496,15 +547,102 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         files: ctx.files,
       }),
       "edit",
+      track,
     );
+    if (track.declined)
+      throw new DeclinedError(`You declined ${member.name}'s change.`);
     if (!cli) {
       const ops = parseFileOps(reply).filter((op) => !isProtected(op.path));
       if (!ops.length) throw new Error("Builder returned no file changes.");
+      if (o.approvals && !o.approvals.free("edit")) {
+        const ok = await o.approvals.ask(member.id, {
+          kind: "edit",
+          title: `${member.name} · ${task.title}`,
+          files: ops.map((op) => op.path),
+          detail: await previewOps(ops),
+        });
+        if (!ok) throw new DeclinedError(`You declined ${member.name}'s change.`);
+      }
       for (const op of ops) {
         if (op.change === "write") await ws.write(op.path, op.content ?? "");
         else await ws.remove(op.path);
       }
+    } else if (before) await checkChanges(member, task, before, track.approved);
+    } finally {
+      inFlight.delete(task.id);
     }
+  };
+
+  /** Tasks building right now and the files each owns (parallel tasks never review each other's). */
+  const inFlight = new Map<string, Set<string>>();
+
+  const previewOps = async (ops: ReturnType<typeof parseFileOps>) => {
+    let out = "";
+    for (const op of ops) {
+      if (out.length > 20_000) break;
+      const prev = await ws.tryRead(op.path);
+      out +=
+        op.change === "write"
+          ? patchOf(op.path, op.path, prev ?? "", op.content ?? "", prev === undefined ? "(new)" : "", "", { context: 2 })
+          : `--- ${op.path} (delete)\n`;
+    }
+    return out;
+  };
+
+  /**
+   * After an agent that edits on its own: shows you what it changed that you hadn't approved
+   * beforehand. Declining puts every one of those files back as it was before the task.
+   */
+  const checkChanges = async (
+    member: ResolvedMember,
+    task: PlanTask,
+    before: { text: Map<string, string | null>; snap: FileSnapshot },
+    approved: Set<string>,
+  ) => {
+    const now = await ws.snapshot();
+    const others = [...inFlight].filter(([id]) => id !== task.id).flatMap(([, f]) => [...f]);
+    const files = [...new Set([...Object.keys(before.snap), ...Object.keys(now)])].filter(
+      (f) =>
+        before.snap[f] !== now[f] &&
+        !approved.has(f) &&
+        !isProtected(f) &&
+        !others.includes(f),
+    );
+    if (!files.length) return;
+    let detail = "";
+    for (const f of files) {
+      if (detail.length > 20_000) break;
+      const prev = before.text.get(f);
+      const cur = await ws.tryRead(f);
+      detail +=
+        prev === null || (cur !== undefined && cur.includes("\0"))
+          ? `--- ${f} (binary or large file changed)\n`
+          : patchOf(f, f, prev ?? "", cur ?? "", prev === undefined ? "(new)" : "", cur === undefined ? "(deleted)" : "", { context: 2 });
+    }
+    const ok = await o.approvals!.ask(member.id, {
+      kind: "review",
+      title: `${member.name} changed ${files.length} file${files.length === 1 ? "" : "s"} · ${task.title}`,
+      files,
+      detail,
+    });
+    if (ok) return;
+    const kept: string[] = [];
+    for (const f of files) {
+      const prev = before.text.get(f);
+      if (prev === undefined) await ws.remove(f).catch(() => {});
+      else if (prev === null) kept.push(f);
+      else await ws.write(f, prev);
+    }
+    // Reverted files are back as they were: don't report them as changed later.
+    const after = await ws.snapshot();
+    for (const f of files) {
+      if (kept.includes(f)) continue;
+      if (after[f] === undefined) delete known[f];
+      else known[f] = after[f]!;
+    }
+    throw new DeclinedError(
+      `You declined ${member.name}'s change; it was reverted${kept.length ? ` (except ${kept.join(", ")}, too large to restore)` : ""}.`,
+    );
   };
 
   const build = async (
@@ -563,6 +701,17 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         } catch (err) {
           await syncChanges(member.id);
           if (signal.aborted) return;
+          if (err instanceof DeclinedError) {
+            declined++;
+            emit({
+              type: "task.status",
+              taskId: task.id,
+              status: "failed",
+              memberId: member.id,
+              error: err.message,
+            });
+            return;
+          }
           failed.push({ task, by: member.id });
           emit({
             type: "task.status",
@@ -605,9 +754,15 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
 
   emit({ type: "phase", phase: "building", round: 0 });
   await build(plan.tasks, plan);
+  await syncing;
+  if (declined && !changed.size)
+    return {
+      summary: "You declined the crew's changes, so nothing in the project was changed.",
+      changedFiles: [],
+      checkpoint: { files: [], skipped: [] },
+    };
   if (failures >= plan.tasks.length)
     throw new Error("Every build task failed — check the agent errors above.");
-  await syncing;
   if (!changed.size)
     throw new Error(
       "The builders finished without changing any files in the project.",

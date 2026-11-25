@@ -155,7 +155,7 @@ export class AcpProvider implements Provider {
   /** Starts the agent with T3 Code's ACP client and MultiCode's handlers for its requests. */
   private async open(
     cwd: string,
-    req: Pick<GenerateRequest, "env" | "mode" | "cwd">,
+    req: Pick<GenerateRequest, "env" | "mode" | "cwd" | "approve">,
     onDelta: DeltaHandler,
     tools: { blocked: string[] },
     onUpdate: (update: Record<string, unknown>) => void = () => {},
@@ -165,6 +165,8 @@ export class AcpProvider implements Provider {
     await mkdir(cwd, { recursive: true });
     const root = path.resolve(req.cwd);
     const ended = await Effect.runPromise(Deferred.make<string>());
+    /** Edits the user already approved through a permission request (their write needn't ask again). */
+    let approvedEdits = 0;
     const fail = (err: unknown) =>
       AcpError.AcpRequestError.invalidParams((err as Error).message ?? String(err));
     const session = await openSession(launch, cwd, req.env ?? {}, (child) =>
@@ -201,14 +203,33 @@ export class AcpProvider implements Provider {
           Effect.provide(context),
         );
         yield* client.handleRequestPermission((params) =>
-          Effect.sync(() => {
-            const call = (params.toolCall ?? {}) as { kind?: ToolKind | null; title?: string | null };
+          Effect.promise(async () => {
+            const call = (params.toolCall ?? {}) as {
+              kind?: ToolKind | null;
+              title?: string | null;
+              locations?: { path?: string }[] | null;
+              rawInput?: unknown;
+            };
             const options = params.options as readonly { optionId: string; kind: string }[];
-            const ok = allowTool(call.kind ?? undefined, req.mode);
+            let ok = allowTool(call.kind ?? undefined, req.mode);
+            // As in Claude Code: allowed actions still wait for the user (reads never ask).
+            const kind = call.kind ?? "other";
+            if (ok && req.approve && !["read", "search", "think"].includes(kind)) {
+              const edit = kind === "edit" || kind === "move" || kind === "delete";
+              const files = (call.locations ?? []).map((l) => l.path).filter((p): p is string => Boolean(p));
+              ok = await req.approve({
+                kind: edit ? "edit" : "tool",
+                title: call.title ?? kind,
+                ...(files.length ? { files } : {}),
+                ...(call.rawInput ? { detail: JSON.stringify(call.rawInput, null, 2).slice(0, 12_000) } : {}),
+              });
+              if (!ok) onDelta(`▸ You declined: ${call.title ?? kind}\n`);
+              else if (edit) approvedEdits++;
+            }
             const pick =
               options.find((o) => o.kind === (ok ? "allow_once" : "reject_once")) ??
               options.find((o) => o.kind.startsWith(ok ? "allow" : "reject"));
-            if (!ok) {
+            if (!ok && !req.approve) {
               tools.blocked.push(call.title ?? call.kind ?? "tool");
               onDelta(`▸ Blocked by MultiCode: ${call.title ?? call.kind ?? "tool"}\n`);
             }
@@ -242,6 +263,20 @@ export class AcpProvider implements Provider {
             try: async () => {
               if (req.mode !== "edit") throw new Error("this task is read-only");
               const file = insideRoot(root, String(params.path ?? ""));
+              // A write the user hasn't approved through a permission request asks now.
+              if (req.approve) {
+                if (approvedEdits > 0) approvedEdits--;
+                else {
+                  const prev = await readFile(file, "utf8").catch(() => undefined);
+                  const ok = await req.approve({
+                    kind: "edit",
+                    title: `${prev === undefined ? "Create" : "Write"} ${path.relative(root, file)}`,
+                    files: [file],
+                    detail: String(params.content ?? "").slice(0, 12_000),
+                  });
+                  if (!ok) throw new Error("The user declined this change.");
+                }
+              }
               await mkdir(path.dirname(file), { recursive: true });
               await writeFile(file, String(params.content ?? ""));
               onDelta(`▸ Wrote ${path.relative(root, file)}\n`);

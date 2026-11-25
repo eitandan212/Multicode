@@ -553,6 +553,9 @@ export function App() {
           setFarFromEnd(el.scrollHeight - el.scrollTop - el.clientHeight > 400);
         }}>
           <Thread
+            onAnswer={async (id, allow, always) => {
+              await api.approve(run.id, id, allow, always);
+            }}
             onReuse={(text) => {
               setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }));
             }}

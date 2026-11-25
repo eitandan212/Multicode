@@ -81,6 +81,7 @@ function emptyConfig(): ConfigData {
       savingDefaults: 1,
       dispatch: "smart",
       safety: "direct",
+      approvals: "ask",
       protectedPaths: DEFAULT_PROTECTED,
       economy: false,
       freeFallback: { enabled: true, model: "opencode/big-pickle" },
@@ -340,6 +341,11 @@ export class ConfigStore {
       if (!["direct", "sandbox", "readonly"].includes(String(input.safety)))
         throw new HttpError(400, "safety must be direct, sandbox or readonly");
       next.safety = input.safety as SafetyMode;
+    }
+    if (input.approvals !== undefined) {
+      if (!["ask", "edits", "all"].includes(String(input.approvals)))
+        throw new HttpError(400, "approvals must be ask, edits or all");
+      next.approvals = input.approvals as Settings["approvals"];
     }
     if (input.economy !== undefined) next.economy = input.economy === true;
     if (input.protectedPaths !== undefined) {

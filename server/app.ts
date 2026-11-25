@@ -477,6 +477,18 @@ export function createApp(opts: AppOptions) {
       });
     }),
   );
+  api.post(
+    "/runs/:id/approvals/:approval",
+    wrap(async (req, res) => {
+      runs.approve(
+        param(req, "id"),
+        param(req, "approval"),
+        req.body?.allow === true,
+        req.body?.always === true,
+      );
+      res.status(204).end();
+    }),
+  );
   api.post("/runs/:id/cancel", (req, res) => {
     runs.cancel(param(req, "id"));
     res.status(202).json({ ok: true });

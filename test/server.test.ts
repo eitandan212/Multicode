@@ -34,6 +34,7 @@ import {
   type Provider,
 } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
+import { Approvals } from "../server/approvals.js";
 import { linkProject, listProjects, unlinkProject } from "../server/workspace.js";
 import { homedir } from "node:os";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
@@ -360,6 +361,107 @@ describe("crew orchestration", () => {
       "app.js",
       "index.html",
     ]);
+  });
+});
+
+describe("approvals (as in Claude Code)", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-approve-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  /** A run whose approvals are answered by `answer` as they come in. */
+  const runWith = async (
+    project: string,
+    mode: "ask" | "edits" | "all",
+    answer: (e: Extract<RunEvent, { type: "approval.request" }>) => boolean,
+    builder: ResolvedMember,
+  ) => {
+    const ws = await Workspace.open(dir, project);
+    const asked: Extract<RunEvent, { type: "approval.request" }>[] = [];
+    let approvals!: Approvals;
+    const emit = (e: RunEvent) => {
+      if (e.type === "approval.request") {
+        asked.push(e);
+        queueMicrotask(() => approvals.resolve(e.id, answer(e)));
+      }
+    };
+    approvals = new Approvals(mode, emit);
+    const result = await runCrew({
+      prompt: "make a page",
+      history: [],
+      workspace: ws,
+      roles: assignRoles([builder]),
+      settings: { maxReviewRounds: 0 },
+      emit,
+      signal: new AbortController().signal,
+      approvals,
+    });
+    return { ws, asked, result };
+  };
+
+  it("asks before an API model's files are written, and writes nothing on no", async () => {
+    const no = await runWith("api-no", "ask", () => false, member("m", "builder", fakeProvider({ review: [] })));
+    expect(no.asked.map((a) => a.kind)).toEqual(["edit", "edit"]);
+    expect(no.asked[0]!.files?.length).toBe(1);
+    expect(no.asked[0]!.detail).toContain("+");
+    expect(no.result.changedFiles).toEqual([]);
+    expect(no.result.summary).toMatch(/declined/);
+    expect(await no.ws.tryRead("index.html")).toBeUndefined();
+
+    const yes = await runWith("api-yes", "ask", () => true, member("m", "builder", fakeProvider({ review: [] })));
+    expect(yes.result.changedFiles).toEqual(["app.js", "index.html"]);
+  });
+
+  it("doesn't ask for edits in auto-accept or approve-all mode", async () => {
+    for (const mode of ["edits", "all"] as const) {
+      const r = await runWith(`api-${mode}`, mode, () => false, member("m", "builder", fakeProvider({ review: [] })));
+      expect(r.asked).toEqual([]);
+      expect(r.result.changedFiles.length).toBe(2);
+    }
+  });
+
+  it("shows an agent's own edits after the fact and reverts them on no", async () => {
+    // An agent that edits files itself (like OpenCode's CLI) and can't be paused first.
+    const agent: Provider = {
+      editsFiles: true,
+      async generate(req) {
+        if (req.system.includes("ARCHITECT"))
+          return '{"summary":"s","tasks":[{"title":"Page","description":"d","files":["index.html"]}]}';
+        await writeFile(path.join(req.cwd, "index.html"), "<h1>new</h1>");
+        return "done";
+      },
+    };
+    const cliMember = (): ResolvedMember => ({
+      ...member("cli", "builder", agent),
+      connection: { id: "cli", kind: "opencode-cli", label: "OpenCode" },
+    });
+    const ws0 = await Workspace.open(dir, "cli-no");
+    await ws0.write("index.html", "<h1>old</h1>");
+    const no = await runWith("cli-no", "ask", () => false, cliMember());
+    expect(no.asked.map((a) => a.kind)).toEqual(["review"]);
+    expect(no.asked[0]!.detail).toContain("+<h1>new</h1>");
+    expect(await no.ws.read("index.html")).toBe("<h1>old</h1>");
+    expect(no.result.summary).toMatch(/declined/);
+
+    const yes = await runWith("cli-yes", "ask", () => true, cliMember());
+    expect(await yes.ws.read("index.html")).toBe("<h1>new</h1>");
+  });
+
+  it("allow-all for a kind stops asking for it in this run", async () => {
+    const events: RunEvent[] = [];
+    const a = new Approvals("ask", (e) => events.push(e));
+    const first = a.ask("m", { kind: "edit", title: "one" });
+    const second = a.ask("m", { kind: "edit", title: "two" });
+    const tool = a.ask("m", { kind: "tool", title: "mcp" });
+    const ids = events.filter((e) => e.type === "approval.request").map((e) => (e as { id: string }).id);
+    a.resolve(ids[0]!, true, true);
+    expect(await first).toBe(true);
+    expect(await second).toBe(true); // already waiting, same kind
+    expect(await a.ask("m", { kind: "edit", title: "three" })).toBe(true); // no longer asks
+    a.declineAll();
+    expect(await tool).toBe(false); // other kinds still needed an answer
   });
 });
 
@@ -910,6 +1012,7 @@ describe("http guards", () => {
     dir = await mkdtemp(path.join(tmpdir(), "mc-http-"));
     const config = new ConfigStore(dir);
     await config.load();
+    await config.setSettings({ approvals: "all" });
     const { app } = createApp({
       config,
       projectsDir: path.join(dir, "projects"),
@@ -1050,6 +1153,7 @@ describe("run history", () => {
     try {
       const config = new ConfigStore(dir);
       await config.load();
+      await config.setSettings({ approvals: "all" });
       await config.upsertConnection({
         kind: "openai-compatible",
         baseUrl: "http://x",
@@ -1236,6 +1340,7 @@ describe("undo", () => {
     try {
       const config = new ConfigStore(dir);
       await config.load();
+      await config.setSettings({ approvals: "all" });
       await config.upsertConnection({
         kind: "openai-compatible",
         baseUrl: "http://x",
@@ -1441,6 +1546,7 @@ describe("plugins", () => {
     try {
       const config = new ConfigStore(dir);
       await config.load();
+      await config.setSettings({ approvals: "all" });
       const ids = () =>
         enabledPlugins({
           enabled: config.extensions.pluginsEnabled,
@@ -1744,6 +1850,7 @@ describe("sandbox and MultiDesign", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mc-sb-"));
     const config = new ConfigStore(dir);
     await config.load();
+    await config.setSettings({ approvals: "all" });
     const c1 = await config.upsertConnection({
       kind: "openai-compatible",
       baseUrl: "http://x",

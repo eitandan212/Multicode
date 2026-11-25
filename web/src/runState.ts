@@ -68,7 +68,13 @@ export interface RunView {
   protectedHits: string[];
   variants?: DesignVariant[];
   approval?: "sandbox" | "design";
+  /** Agent actions waiting for your yes, oldest first. */
+  asks: AskView[];
+  /** What you answered, for the history of the thread. */
+  answered: { title: string; memberId: string; allow: boolean }[];
 }
+
+export type AskView = Extract<RunEvent, { type: "approval.request" }>;
 
 const MAX_STREAM_CHARS = 200_000;
 
@@ -85,6 +91,8 @@ export function emptyRun(id: string, prompt = ""): RunView {
     usage: { input: 0, output: 0, cached: 0, costUsd: 0, freeTokens: 0 },
     limits: [],
     protectedHits: [],
+    asks: [],
+    answered: [],
   };
 }
 
@@ -92,6 +100,18 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
   switch (e.type) {
     case "run.started":
       return { ...s, prompt: e.prompt, startedAt: e.at };
+    case "approval.request":
+      return { ...s, asks: [...s.asks, e] };
+    case "approval.resolved": {
+      const ask = s.asks.find((a) => a.id === e.id);
+      return {
+        ...s,
+        asks: s.asks.filter((a) => a.id !== e.id),
+        answered: ask
+          ? [...s.answered, { title: ask.title, memberId: ask.memberId, allow: e.allow }]
+          : s.answered,
+      };
+    }
     case "context":
       return {
         ...s,

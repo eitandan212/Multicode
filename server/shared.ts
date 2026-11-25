@@ -222,6 +222,22 @@ export type DispatchMode = "smart" | "balanced";
 
 /** How agents may touch your files. */
 export type SafetyMode = "direct" | "sandbox" | "readonly";
+/**
+ * As in Claude Code. ask: you approve every file change and tool call. edits: file changes go
+ * through, other tools ask. all: nothing asks (reads never ask).
+ */
+export type ApprovalMode = "ask" | "edits" | "all";
+
+/** Something an agent wants to do that needs your yes. */
+export interface ApprovalAsk {
+  /** edit: a change before it happens. tool: a tool call. review: a change that already
+   *  happened (agents that can't be stopped mid-way); declining reverts it. */
+  kind: "edit" | "tool" | "review";
+  title: string;
+  /** What exactly: the new content or a diff, trimmed. */
+  detail?: string;
+  files?: string[];
+}
 /** Request kind chosen in the composer. */
 export type RunMode = "build" | "design";
 
@@ -231,6 +247,8 @@ export interface Settings {
   savingDefaults?: number;
   /** direct: edit the project (with undo). sandbox: work on a copy, you apply. readonly: plan only. */
   safety: SafetyMode;
+  /** Which agent actions wait for your approval (default: all of them). */
+  approvals: ApprovalMode;
   /** Files agents may never read or change (glob patterns, relative to the project). */
   protectedPaths: string[];
   /** Spend fewer tokens: cheaper routing, one review round, smaller context. */
@@ -390,6 +408,8 @@ export interface DesignVariant {
 }
 
 export type RunEvent =
+  | ({ type: "approval.request"; id: string; memberId: string } & ApprovalAsk)
+  | { type: "approval.resolved"; id: string; allow: boolean; always?: boolean }
   | {
       type: "run.started";
       runId: string;

@@ -1,4 +1,4 @@
-import type { McpServer } from "../shared.js";
+import type { ApprovalAsk, McpServer } from "../shared.js";
 
 export interface GenerateRequest {
   system: string;
@@ -17,6 +17,11 @@ export interface GenerateRequest {
   env?: Record<string, string>;
   /** Called with token usage when the provider reports it. */
   onUsage?: (u: Usage) => void;
+  /**
+   * Set when actions need the user's approval: agents that can pause before an action
+   * (Claude Agent SDK, ACP) ask here and only act on a yes. Absent: nothing asks.
+   */
+  approve?: (a: ApprovalAsk) => Promise<boolean>;
 }
 
 export interface Usage {

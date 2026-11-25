@@ -4967,3 +4967,31 @@ pre,
 @media (min-width: 3200px) {
   html { zoom: 1.5; }
 }
+
+/* ---- Approvals (as in Claude Code) ---- */
+.asks { position: sticky; bottom: 8px; z-index: 4; margin-top: 12px; }
+.ask-card {
+  display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 14px;
+  background: var(--card); box-shadow: var(--shadow-pop);
+}
+.ask-card.is-edit { border-color: color-mix(in srgb, var(--brand) 45%, var(--line-strong)); }
+.ask-card.is-review { border-color: color-mix(in srgb, var(--amber) 55%, var(--line-strong)); }
+.ask-card header { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ask-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.ask-title { margin: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.ask-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.ask-files code { padding: 2px 8px; border-radius: 6px; background: var(--hover); font-size: 12px; }
+.ask-detail summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.ask-detail pre {
+  margin: 8px 0 0; max-height: min(320px, 40vh); overflow: auto; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--line); font: 12px/1.5 var(--mono); white-space: pre;
+}
+.ask-card > * { min-width: 0; }
+.ask-detail pre > span { display: block; width: max-content; min-width: 100%; }
+.ask-detail .add { color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, transparent); }
+.ask-detail .del { color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.ask-detail .hunk { color: var(--muted); }
+.ask-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn.danger-ghost { color: var(--bad); }
+.btn.danger-ghost:hover { background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.answered-line { margin: 8px 0 0; }

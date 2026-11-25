@@ -87,6 +87,20 @@ export function claudeMcpServers(
   return out;
 }
 
+/** What a tool call will do, for the approval card: the new content or the edit. */
+export function claudeToolDetail(tool: string, input: Record<string, unknown>): string {
+  const s = (v: unknown) => String(v ?? "");
+  if (tool === "Write") return s(input.content).slice(0, 12_000);
+  if (tool === "Edit")
+    return `- ${s(input.old_string).split("\n").join("\n- ")}\n+ ${s(input.new_string).split("\n").join("\n+ ")}`.slice(0, 12_000);
+  if (tool === "MultiEdit" && Array.isArray(input.edits))
+    return (input.edits as { old_string?: string; new_string?: string }[])
+      .map((e) => `- ${s(e.old_string)}\n+ ${s(e.new_string)}`)
+      .join("\n\n")
+      .slice(0, 12_000);
+  return JSON.stringify(input, null, 2).slice(0, 4_000);
+}
+
 /** A short label for a tool call in the live view. */
 function toolLabel(name: string, input: Record<string, unknown>): string {
   const target =
@@ -126,10 +140,30 @@ export class ClaudeSdkProvider implements Provider {
     const blocked: string[] = [];
     const canUseTool: CanUseTool = async (tool, input) => {
       const d = claudeToolDecision(tool, input, req.mode, req.cwd);
-      if (d.allow) return { behavior: "allow", updatedInput: input };
-      blocked.push(tool);
-      onDelta(`▸ Blocked by MultiCode: ${toolLabel(tool, input)}\n`);
-      return { behavior: "deny", message: d.message };
+      if (!d.allow) {
+        blocked.push(tool);
+        onDelta(`▸ Blocked by MultiCode: ${toolLabel(tool, input)}\n`);
+        return { behavior: "deny", message: d.message };
+      }
+      // As in Claude Code: the user approves every change and tool call (reads never ask).
+      if (req.approve && !READ_TOOLS.has(tool)) {
+        const edit = EDIT_TOOLS.has(tool);
+        const target = String(input.file_path ?? input.notebook_path ?? "");
+        const ok = await req.approve({
+          kind: edit ? "edit" : "tool",
+          title: toolLabel(tool, input),
+          ...(edit && target ? { files: [target] } : {}),
+          detail: claudeToolDetail(tool, input),
+        });
+        if (!ok) {
+          onDelta(`▸ You declined: ${toolLabel(tool, input)}\n`);
+          return {
+            behavior: "deny",
+            message: "The user declined this. Do not retry it; stop and summarise what you did.",
+          };
+        }
+      }
+      return { behavior: "allow", updatedInput: input };
     };
     const model = req.model || this.conn.defaultModel;
     let answer = "";
@@ -146,7 +180,8 @@ export class ClaudeSdkProvider implements Provider {
             preset: "claude_code",
             append: req.system,
           },
-          permissionMode: req.mode === "edit" ? "acceptEdits" : "plan",
+          permissionMode:
+            req.mode !== "edit" ? "plan" : req.approve ? "default" : "acceptEdits",
           canUseTool,
           mcpServers: claudeMcpServers(req.mcpServers ?? [], req.env ?? {}),
           includePartialMessages: true,

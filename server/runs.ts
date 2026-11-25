@@ -21,6 +21,7 @@ import {
   type ResolvedMember,
 } from "./crew/orchestrator.js";
 import { copyToSandbox, makeProtector } from "./guard.js";
+import { Approvals } from "./approvals.js";
 import { CLI_BINARIES, findBinary } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import type {
@@ -58,6 +59,8 @@ interface Run extends RunSummary {
   listeners: Set<Listener>;
   controller?: AbortController;
   log?: WriteStream;
+  /** Your approvals while the run is going. */
+  approvals?: Approvals;
 }
 
 const MAX_EVENTS = 20_000;
@@ -347,7 +350,17 @@ export class RunManager {
 
   cancel(id: string): void {
     const run = this.get(id);
-    if (run.status === "running") run.controller?.abort();
+    if (run.status === "running") {
+      run.approvals?.declineAll();
+      run.controller?.abort();
+    }
+  }
+
+  /** Your answer to an action waiting for approval. */
+  approve(id: string, approvalId: string, allow: boolean, always = false): void {
+    const run = this.get(id);
+    if (!run.approvals?.resolve(approvalId, allow, always))
+      throw new HttpError(409, "That request was already answered or has expired");
   }
 
   /** The free model that takes over when an account hits its limit (needs OpenCode). */
@@ -587,6 +600,7 @@ export class RunManager {
     };
 
     const finish = async (status: RunSummary["status"], last: RunEvent) => {
+      run.approvals?.declineAll();
       run.status = status;
       run.endedAt = Date.now();
       emit(last);
@@ -617,6 +631,7 @@ export class RunManager {
         emit(e);
       },
       signal: run.controller!.signal,
+      approvals: (run.approvals = new Approvals(settings.approvals ?? "ask", emit)),
     };
 
     const work = async () => {

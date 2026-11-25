@@ -8,7 +8,7 @@ import { LogoLoader } from "./Logo";
 import { useCountUp } from "../motion";
 import { ProviderLogo } from "./ProviderLogo";
 import { colorFor } from "../crewColors";
-import type { RunView, StreamState } from "../runState";
+import type { AskView, RunView, StreamState } from "../runState";
 import { Icon, Pulse } from "./Icon";
 import { elapsed } from "./Sidebar";
 
@@ -41,6 +41,8 @@ interface ThreadProps {
   onDiscard: () => Promise<void>;
   /** Put a prompt back in the composer to edit and send again. */
   onReuse?: (prompt: string) => void;
+  /** Your answer to an action waiting for approval. */
+  onAnswer?: (id: string, allow: boolean, always?: boolean) => Promise<void>;
 }
 
 /** True when the thread is scrolled (nearly) to the bottom, so following new output won't yank the reader. */
@@ -63,6 +65,7 @@ export function Thread({
   onApply,
   onDiscard,
   onReuse,
+  onAnswer,
 }: ThreadProps) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
@@ -391,8 +394,109 @@ export function Thread({
           </p>
         </div>
       )}
+      {run.answered.length > 0 && (
+        <p className="muted small answered-line">
+          You allowed {run.answered.filter((a) => a.allow).length} and declined{" "}
+          {run.answered.filter((a) => !a.allow).length} action
+          {run.answered.length === 1 ? "" : "s"} in this thread.
+        </p>
+      )}
+      {run.asks.length > 0 && onAnswer && (
+        <div className="asks" aria-live="polite">
+          <ApprovalCard
+            key={run.asks[0]!.id}
+            ask={run.asks[0]!}
+            waiting={run.asks.length}
+            who={name(run.asks[0]!.memberId)}
+            logo={logo(run.asks[0]!.memberId)}
+            onAnswer={onAnswer}
+          />
+        </div>
+      )}
       <div ref={end} />
     </div>
+  );
+}
+
+const ASK_TEXT = {
+  edit: { verb: "wants to change", yes: "Allow", all: "Allow all edits", no: "Decline", icon: "pencil" },
+  tool: { verb: "wants to use a tool", yes: "Allow", all: "Allow all tools", no: "Decline", icon: "wrench" },
+  review: { verb: "already changed this", yes: "Keep", all: "Keep all", no: "Revert", icon: "eye" },
+} as const;
+
+/** One action waiting for your yes (as in Claude Code): what, who, the exact change, and answers. */
+function ApprovalCard({
+  ask,
+  waiting,
+  who,
+  logo,
+  onAnswer,
+}: {
+  ask: AskView;
+  waiting: number;
+  who: string;
+  logo: React.ReactNode;
+  onAnswer: (id: string, allow: boolean, always?: boolean) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const t = ASK_TEXT[ask.kind];
+  const answer = async (allow: boolean, always = false) => {
+    setBusy(true);
+    try {
+      await onAnswer(ask.id, allow, always);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className={`ask-card enter is-${ask.kind}`} role="alertdialog" aria-label={`${who} ${t.verb}`}>
+      <header>
+        <Icon name={t.icon} size={15} />
+        <span className="ask-who">
+          {logo} <strong>{who}</strong> <span className="muted">{t.verb}</span>
+        </span>
+        {waiting > 1 && <span className="muted small push-right">{waiting} waiting</span>}
+      </header>
+      <p className="ask-title">{ask.title}</p>
+      {ask.files && ask.files.length > 0 && (
+        <div className="ask-files">
+          {ask.files.map((f) => (
+            <code key={f}>{f}</code>
+          ))}
+        </div>
+      )}
+      {ask.detail && (
+        <details className="ask-detail" open={ask.kind !== "tool"}>
+          <summary>{ask.kind === "tool" ? "Details" : "The change"}</summary>
+          <pre>
+            {ask.detail.split("\n").map((line, i) => (
+              <span
+                key={i}
+                className={
+                  /^\+(?!\+\+)/.test(line) ? "add" : /^-(?!--)/.test(line) ? "del" : /^@@/.test(line) ? "hunk" : undefined
+                }
+              >
+                {line || " "}
+              </span>
+            ))}
+          </pre>
+        </details>
+      )}
+      {ask.kind === "review" && (
+        <p className="muted small">This agent can't pause before editing, so its change is shown now. Revert puts the files back as they were.</p>
+      )}
+      <div className="ask-actions">
+        <button className="btn primary" disabled={busy} onClick={() => void answer(true)} autoFocus>
+          {t.yes}
+        </button>
+        <button className="btn" disabled={busy} onClick={() => void answer(true, true)} title="For the rest of this thread">
+          {t.all}
+        </button>
+        <button className="btn danger-ghost push-right" disabled={busy} onClick={() => void answer(false)}>
+          {t.no}
+        </button>
+      </div>
+    </section>
   );
 }
 

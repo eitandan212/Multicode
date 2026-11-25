@@ -172,6 +172,12 @@ export function Composer(p: Props) {
   );
 }
 
+const APPROVALS: { id: Settings["approvals"]; label: string; hint: string }[] = [
+  { id: "ask", label: "Ask every time", hint: "You approve each change and tool" },
+  { id: "edits", label: "Auto-accept edits", hint: "Changes go through; tools still ask" },
+  { id: "all", label: "Approve all", hint: "Nothing asks (reads never do)" },
+];
+
 const SAFETY: { id: Settings["safety"]; label: string; hint: string }[] = [
   {
     id: "direct",
@@ -240,6 +246,25 @@ function MoreControls(p: {
                 <span className="muted small">{m.hint}</span>
               </span>
               {s.safety === m.id && (
+                <Icon name="check" size={14} className="team-check" />
+              )}
+            </button>
+          ))}
+          <div className="team-list-head">Approvals</div>
+          {APPROVALS.map((m) => (
+            <button
+              key={m.id}
+              role="menuitemradio"
+              aria-checked={(s.approvals ?? "ask") === m.id}
+              className={`menu-item more-item ${(s.approvals ?? "ask") === m.id ? "is-active" : ""}`}
+              onClick={() => void p.onSettings({ approvals: m.id })}
+            >
+              <Icon name={m.id === "ask" ? "eye" : m.id === "edits" ? "pencil" : "check"} size={14} />
+              <span className="more-text">
+                <span>{m.label}</span>
+                <span className="muted small">{m.hint}</span>
+              </span>
+              {(s.approvals ?? "ask") === m.id && (
                 <Icon name="check" size={14} className="team-check" />
               )}
             </button>

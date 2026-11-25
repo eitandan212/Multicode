@@ -112,6 +112,8 @@ export const api = {
       entities: { name: string; entityType: string; observations: string[] }[];
       relations: { from: string; to: string; relationType: string }[];
     }>("GET", `/api/projects/${project}/memory`),
+  approve: (runId: string, approvalId: string, allow: boolean, always = false) =>
+    request<void>("POST", `/api/runs/${runId}/approvals/${approvalId}`, { allow, always }),
   openFolder: (path: string) =>
     request<{ name: string }>("POST", "/api/projects/open", { path }),
   unlinkProject: (name: string) =>
