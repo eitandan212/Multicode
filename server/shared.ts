@@ -323,6 +323,8 @@ export interface ProjectInfo {
   name: string;
   fileCount: number;
   updatedAt: number;
+  /** Set for a folder opened from elsewhere on this computer (the crew works in it directly). */
+  path?: string;
 }
 
 export interface PlanTask {

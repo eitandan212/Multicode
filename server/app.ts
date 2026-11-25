@@ -27,7 +27,13 @@ import {
   type ExtensionsView,
   type ProviderKind,
 } from "./shared.js";
-import { listProjects, validateProjectName, Workspace } from "./workspace.js";
+import {
+  linkProject,
+  listProjects,
+  unlinkProject,
+  validateProjectName,
+  Workspace,
+} from "./workspace.js";
 
 const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
@@ -303,6 +309,20 @@ export function createApp(opts: AppOptions) {
     "/projects",
     wrap(async (_req, res) => res.json(await listProjects(projectsDir))),
   );
+  // Open an existing folder on this computer as a project.
+  api.post(
+    "/projects/open",
+    wrap(async (req, res) => {
+      res.status(201).json({ name: await linkProject(projectsDir, req.body?.path) });
+    }),
+  );
+  api.post(
+    "/projects/:name/unlink",
+    wrap(async (req, res) => {
+      await unlinkProject(projectsDir, validateProjectName(param(req, "name")));
+      res.status(204).end();
+    }),
+  );
   api.post(
     "/projects",
     wrap(async (req, res) => {
@@ -465,10 +485,12 @@ export function createApp(opts: AppOptions) {
       "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads",
     );
     res.setHeader("Cache-Control", "no-store");
-    express.static(path.join(projectsDir, name), {
-      dotfiles: "deny",
-      index: ["index.html"],
-    })(req, res, next);
+    void Workspace.rootOf(projectsDir, name).then((root) =>
+      express.static(root, {
+        dotfiles: "deny",
+        index: ["index.html"],
+      })(req, res, next),
+    next);
   });
 
   // Sandboxes and design variants, served like the project preview (opaque, sandboxed origin).

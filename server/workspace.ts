@@ -6,6 +6,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { HttpError } from "./config.js";
 import type { ProjectInfo } from "./shared.js";
@@ -69,9 +70,23 @@ export class Workspace {
   constructor(public readonly root: string) {}
 
   static async open(projectsDir: string, name: string): Promise<Workspace> {
-    const root = path.join(projectsDir, validateProjectName(name));
+    validateProjectName(name);
+    const linked = (await readLinks(projectsDir))[name];
+    if (linked) {
+      const s = await stat(linked).catch(() => undefined);
+      if (!s?.isDirectory())
+        throw new HttpError(404, `The folder of "${name}" is gone: ${linked}`);
+      return new Workspace(linked);
+    }
+    const root = path.join(projectsDir, name);
     await mkdir(root, { recursive: true });
     return new Workspace(root);
+  }
+
+  /** Where a project lives: its own folder, or the folder it was opened from. */
+  static async rootOf(projectsDir: string, name: string): Promise<string> {
+    validateProjectName(name);
+    return (await readLinks(projectsDir))[name] ?? path.join(projectsDir, name);
   }
 
   abs(rel: string): string {
@@ -194,6 +209,62 @@ export class Workspace {
   }
 }
 
+/** Folders opened from elsewhere: project name → absolute folder. */
+const LINKS = ".linked-projects.json";
+
+async function readLinks(projectsDir: string): Promise<Record<string, string>> {
+  try {
+    const raw = JSON.parse(await readFile(path.join(projectsDir, LINKS), "utf8"));
+    return raw && typeof raw === "object" ? (raw as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeLinks(projectsDir: string, links: Record<string, string>) {
+  await mkdir(projectsDir, { recursive: true });
+  await writeFile(path.join(projectsDir, LINKS), JSON.stringify(links, null, 2));
+}
+
+/**
+ * Opens an existing folder as a project. The crew then reads and edits files in that folder
+ * itself, so the home folder, a drive root and MultiCode's own data are refused.
+ */
+export async function linkProject(projectsDir: string, folder: unknown): Promise<string> {
+  if (typeof folder !== "string" || !folder.trim()) throw new HttpError(400, "choose a folder");
+  const abs = path.resolve(folder.trim());
+  const s = await stat(abs).catch(() => undefined);
+  if (!s?.isDirectory()) throw new HttpError(400, `not a folder: ${abs}`);
+  if (abs === path.parse(abs).root || abs === path.resolve(homedir()))
+    throw new HttpError(400, "pick a project folder, not your home folder or a whole drive");
+  const data = path.resolve(projectsDir, "..");
+  if (abs === data || abs.startsWith(data + path.sep))
+    throw new HttpError(400, "that folder belongs to MultiCode itself");
+  const links = await readLinks(projectsDir);
+  const existing = Object.entries(links).find(([, p]) => p === abs);
+  if (existing) return existing[0];
+  const base =
+    path
+      .basename(abs)
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .replace(/^[-_]+|-+$/g, "")
+      .slice(0, 40) || "project";
+  let name = base;
+  for (let i = 2; links[name] || (await stat(path.join(projectsDir, name)).catch(() => undefined)); i++)
+    name = `${base}-${i}`;
+  links[name] = abs;
+  await writeLinks(projectsDir, links);
+  return name;
+}
+
+/** Removes an opened folder from the list. Its files are never touched. */
+export async function unlinkProject(projectsDir: string, name: string): Promise<void> {
+  const links = await readLinks(projectsDir);
+  if (!links[name]) throw new HttpError(404, "only opened folders can be removed from the list");
+  delete links[name];
+  await writeLinks(projectsDir, links);
+}
+
 export async function listProjects(
   projectsDir: string,
 ): Promise<ProjectInfo[]> {
@@ -206,6 +277,12 @@ export async function listProjects(
     const files = await ws.list();
     const s = await stat(ws.root);
     out.push({ name: e.name, fileCount: files.length, updatedAt: s.mtimeMs });
+  }
+  for (const [name, folder] of Object.entries(await readLinks(projectsDir))) {
+    const s = await stat(folder).catch(() => undefined);
+    if (!s?.isDirectory()) continue;
+    const files = await new Workspace(folder).list();
+    out.push({ name, fileCount: files.length, updatedAt: s.mtimeMs, path: folder });
   }
   return out.sort((a, b) => b.updatedAt - a.updatedAt);
 }

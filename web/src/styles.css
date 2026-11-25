@@ -4699,17 +4699,6 @@ pre,
   }
 }
 
-/* Send: the arrow nudges up on hover and launches on click. */
-.send svg {
-  transition: transform 260ms var(--spring);
-}
-.send:not(:disabled):hover svg {
-  transform: translateY(-2px);
-}
-.send:not(:disabled):active svg {
-  transform: translateY(-6px) scale(0.9);
-  transition-duration: 120ms;
-}
 
 /* Settings gear turns, plugin piece wiggles, crew waves on hover. */
 .sb-foot .icon-btn svg,
@@ -4755,16 +4744,6 @@ pre,
 /* Token counts roll; keep digits from jiggling while they change. */
 .count-up {
   font-variant-numeric: tabular-nums;
-}
-
-/* The celebration canvas sits above everything and never takes clicks. */
-.confetti {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 1000;
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4908,3 +4887,20 @@ pre,
 .desktop-mac .sb-head {
   padding-left: 80px;
 }
+
+/* ---- New / open project ---- */
+.project-dialog { width: min(520px, calc(100vw - 32px)); }
+.project-dialog .dialog-body { display: grid; gap: 16px; }
+.project-form { display: grid; gap: 10px; }
+.project-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; }
+.project-form input {
+  height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--card); color: var(--text); font: inherit; min-width: 0;
+}
+.project-form input:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
+.project-form .btn.primary { justify-self: start; }
+.row-input { display: flex; gap: 8px; }
+.row-input input { flex: 1; }
+.menu-row { display: flex; align-items: center; gap: 2px; }
+.menu-row .menu-item { flex: 1; min-width: 0; }
+.linked-tag { margin-left: auto; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; }

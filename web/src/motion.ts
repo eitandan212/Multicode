@@ -133,61 +133,6 @@ export function installSegPills(): void {
   schedule();
 }
 
-/** A short burst of confetti in the logo's colours. Draws for ~1.6 s, then removes itself. */
-export function celebrate(from?: { x: number; y: number }): void {
-  if (reducedMotion()) return;
-  const canvas = document.createElement("canvas");
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = innerWidth * dpr;
-  canvas.height = innerHeight * dpr;
-  canvas.className = "confetti";
-  document.body.appendChild(canvas);
-  const ctx = canvas.getContext("2d")!;
-  ctx.scale(dpr, dpr);
-  const css = getComputedStyle(document.documentElement);
-  const colors = ["--logo-a", "--logo-b", "--logo-c"].map(
-    (v) => css.getPropertyValue(v).trim() || "#2563ff",
-  );
-  const origin = from ?? { x: innerWidth / 2, y: innerHeight * 0.75 };
-  const parts = Array.from({ length: 110 }, () => {
-    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
-    const speed = 7 + Math.random() * 9;
-    return {
-      x: origin.x,
-      y: origin.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      r: Math.random() * Math.PI,
-      vr: (Math.random() - 0.5) * 0.35,
-      w: 5 + Math.random() * 5,
-      h: 3 + Math.random() * 4,
-      color: colors[Math.floor(Math.random() * colors.length)]!,
-    };
-  });
-  const start = performance.now();
-  const frame = (now: number) => {
-    const t = now - start;
-    ctx.clearRect(0, 0, innerWidth, innerHeight);
-    for (const p of parts) {
-      p.vy += 0.32;
-      p.vx *= 0.985;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.r += p.vr;
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, 1 - t / 1600);
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.r);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-      ctx.restore();
-    }
-    if (t < 1600) requestAnimationFrame(frame);
-    else canvas.remove();
-  };
-  requestAnimationFrame(frame);
-}
-
 /** Rolls a number up to its new value (ease-out, ~600 ms); jumps straight there with less motion. */
 export function useCountUp(value: number, ms = 600): number {
   const [shown, setShown] = useState(value);

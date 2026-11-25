@@ -34,8 +34,9 @@ import { Icon } from "./components/Icon";
 import { LogoLoader, LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
 import { SettingsPage } from "./components/SettingsPage";
+import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
-import { celebrate, usePresence } from "./motion";
+import { usePresence } from "./motion";
 import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
@@ -89,6 +90,7 @@ export function App() {
     | "extensions"
     | "appearance"
     | "safety"
+    | "project"
     | null
   >(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("preview");
@@ -258,15 +260,6 @@ export function App() {
         bumpPreview();
       if (event.type === "run.done" || event.type === "run.error")
         void reload();
-      // A run that just finished (not one replayed from history) gets a little celebration.
-      if (event.type === "run.done" && Date.now() - event.at < 5000) {
-        const send = document
-          .querySelector(".composer .send")
-          ?.getBoundingClientRect();
-        celebrate(
-          send ? { x: send.left + send.width / 2, y: send.top } : undefined,
-        );
-      }
     });
   }, [runId, bumpPreview, reload]);
 
@@ -334,17 +327,8 @@ export function App() {
     }
   };
 
-  const newProject = async () => {
-    const name = window.prompt("Project name (letters, digits, - or _)");
-    if (!name) return;
-    try {
-      const p = await api.createProject(name.trim());
-      await reload();
-      selectProject(p.name);
-    } catch (e) {
-      window.alert((e as Error).message);
-    }
-  };
+  // window.prompt doesn't exist in the desktop app, so projects get a real dialog.
+  const newProject = () => setDialog("project");
 
   const commands = (): Command[] => {
     if (!state) return [];
@@ -731,6 +715,10 @@ export function App() {
                   projects={state.projects}
                   onSelect={selectProject}
                   onNew={newProject}
+                  onUnlink={async (name) => {
+                    await api.unlinkProject(name);
+                    await reload();
+                  }}
                 />
                 <span className="muted sep">/</span>
                 <span className="truncate">
@@ -830,10 +818,25 @@ export function App() {
         </>
       )}
 
+      {dialog === "project" && (
+        <ProjectDialog
+          onClose={() => setDialog(null)}
+          onCreate={async (name) => {
+            const p = await api.createProject(name);
+            await reload();
+            selectProject(p.name);
+          }}
+          onOpenFolder={async (folder) => {
+            const p = await api.openFolder(folder);
+            await reload();
+            selectProject(p.name);
+          }}
+        />
+      )}
       {dialog === "palette" && (
         <CommandPalette commands={commands()} onClose={() => setDialog(null)} />
       )}
-      {dialog && dialog !== "palette" && (
+      {dialog && dialog !== "palette" && dialog !== "project" && (
         <SettingsPage
           section={dialog}
           onSection={setDialog}

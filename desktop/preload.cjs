@@ -4,4 +4,5 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("multicodeDesktop", {
   setTheme: (theme) => ipcRenderer.send("multicode:theme", String(theme)),
+  pickFolder: () => ipcRenderer.invoke("multicode:pick-folder"),
 });

@@ -126,6 +126,13 @@ ipcMain.on("multicode:theme", (event, theme) => {
   if (theme === "system" || theme === "light" || theme === "dark") nativeTheme.themeSource = theme;
 });
 
+// "Open folder": the native folder picker.
+ipcMain.handle("multicode:pick-folder", async (event) => {
+  if (!win || event.sender !== win.webContents) return null;
+  const r = await dialog.showOpenDialog(win, { title: "Open a project folder", properties: ["openDirectory"] });
+  return r.canceled ? null : (r.filePaths[0] ?? null);
+});
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

@@ -107,6 +107,10 @@ export const api = {
     ),
   createProject: (name: string) =>
     request<{ name: string }>("POST", "/api/projects", { name }),
+  openFolder: (path: string) =>
+    request<{ name: string }>("POST", "/api/projects/open", { path }),
+  unlinkProject: (name: string) =>
+    request<void>("POST", `/api/projects/${name}/unlink`),
   saveFile: (project: string, path: string, content: string) =>
     request<{ ok: boolean }>("PUT", `/api/projects/${project}/file`, {
       path,

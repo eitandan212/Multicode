@@ -9,7 +9,11 @@ interface WindowControlsOverlay {
 
 declare global {
   interface Window {
-    multicodeDesktop?: { setTheme(theme: string): void };
+    multicodeDesktop?: {
+      setTheme(theme: string): void;
+      /** The desktop app's native folder picker (undefined in a browser). */
+      pickFolder?: () => Promise<string | null>;
+    };
   }
 }
 

@@ -10,6 +10,8 @@ export function ProjectSwitcher(p: {
   projects: ProjectInfo[];
   onSelect: (name: string) => void;
   onNew: () => void;
+  /** Removes an opened folder from the list (the folder is not touched). */
+  onUnlink?: (name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const presence = usePresence(open, 160);
@@ -51,9 +53,10 @@ export function ProjectSwitcher(p: {
         >
           <div className="team-list-head">Projects</div>
           {p.projects.map((pr) => (
+            <div key={pr.name} className="menu-row">
             <button
-              key={pr.name}
               role="menuitemradio"
+              title={pr.path ?? pr.name}
               aria-checked={pr.name === p.project}
               className={`menu-item ${pr.name === p.project ? "is-active" : ""}`}
               onClick={() => {
@@ -63,10 +66,25 @@ export function ProjectSwitcher(p: {
             >
               <ProjectBadge name={pr.name} size={16} />
               <span className="truncate">{pr.name}</span>
+              {pr.path && <span className="muted small linked-tag">folder</span>}
               {pr.name === p.project && (
                 <Icon name="check" size={14} className="team-check" />
               )}
             </button>
+            {pr.path && p.onUnlink && (
+              <button
+                className="icon-btn small-btn"
+                title={`Remove from the list (keeps ${pr.path})`}
+                aria-label={`Remove ${pr.name} from the list`}
+                onClick={() => {
+                  setOpen(false);
+                  p.onUnlink!(pr.name);
+                }}
+              >
+                <Icon name="x" size={13} />
+              </button>
+            )}
+            </div>
           ))}
           <button
             className="menu-item"
@@ -75,7 +93,7 @@ export function ProjectSwitcher(p: {
               p.onNew();
             }}
           >
-            <Icon name="folderPlus" size={15} /> New project
+            <Icon name="folderPlus" size={15} /> New or open project…
           </button>
         </div>
       )}

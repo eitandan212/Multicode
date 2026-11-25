@@ -34,6 +34,8 @@ import {
   type Provider,
 } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
+import { linkProject, listProjects, unlinkProject } from "../server/workspace.js";
+import { homedir } from "node:os";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
 import { selectPacks, SKILL_PACKS } from "../server/skills.js";
 import { recordRun } from "../server/graph.js";
@@ -358,6 +360,43 @@ describe("crew orchestration", () => {
       "app.js",
       "index.html",
     ]);
+  });
+});
+
+describe("opening an existing folder", () => {
+  it("links a folder, works in place, and unlinks without touching it", async () => {
+    const data = await mkdtemp(path.join(tmpdir(), "mc-data-"));
+    const projectsDir = path.join(data, "projects");
+    const outside = await mkdtemp(path.join(tmpdir(), "My App-"));
+    await writeFile(path.join(outside, "main.py"), "print(1)\n");
+    try {
+      const name = await linkProject(projectsDir, outside);
+      expect(name).toMatch(/^My-App-/);
+      expect(await linkProject(projectsDir, outside)).toBe(name); // same folder, same project
+      const ws = await Workspace.open(projectsDir, name);
+      expect(ws.root).toBe(outside);
+      expect(await ws.read("main.py")).toBe("print(1)\n");
+      expect((await listProjects(projectsDir)).find((p) => p.name === name)?.path).toBe(outside);
+      await unlinkProject(projectsDir, name);
+      expect((await listProjects(projectsDir)).some((p) => p.name === name)).toBe(false);
+      expect(await readFile(path.join(outside, "main.py"), "utf8")).toBe("print(1)\n");
+    } finally {
+      await rm(data, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses the home folder, a drive root, MultiCode's data and non-folders", async () => {
+    const data = await mkdtemp(path.join(tmpdir(), "mc-data-"));
+    const projectsDir = path.join(data, "projects");
+    try {
+      await expect(linkProject(projectsDir, homedir())).rejects.toThrow(/home folder/);
+      await expect(linkProject(projectsDir, path.parse(data).root)).rejects.toThrow(/drive/);
+      await expect(linkProject(projectsDir, data)).rejects.toThrow(/MultiCode itself/);
+      await expect(linkProject(projectsDir, path.join(data, "nope"))).rejects.toThrow(/not a folder/);
+    } finally {
+      await rm(data, { recursive: true, force: true });
+    }
   });
 });
 
