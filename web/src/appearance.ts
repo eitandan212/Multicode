@@ -1,3 +1,4 @@
+import { reportTheme } from "./windowChrome";
 /**
  * Personal appearance. Stored in this browser only (a per-viewer preference) and applied to
  * <html> before React renders, so there's no flash of the wrong theme.
@@ -83,6 +84,7 @@ export function saveAppearance(a: Appearance): void {
 
 export function applyAppearance(a: Appearance): void {
   const root = document.documentElement;
+  reportTheme(a.theme);
   const set = (name: string, value: string | null) =>
     value === null
       ? root.removeAttribute(name)

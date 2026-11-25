@@ -358,7 +358,7 @@ export function Thread({
             {run.context?.safety === "readonly"
               ? "Here's the plan. Nothing was changed (plan-only mode)."
               : run.changed.length === 0
-                ? "Done. No files changed."
+                ? run.summary?.trim() || "Done. No files changed."
                 : review.pending === "sandbox"
                   ? "Done in the sandbox. Review the changes, then apply them to your project."
                   : "Done. The crew finished and reviewed the work."}

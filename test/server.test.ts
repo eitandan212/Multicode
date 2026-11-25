@@ -78,8 +78,14 @@ describe("parsers", () => {
     expect(extractJson("nothing here")).toBeUndefined();
   });
 
-  it("falls back to a single task when the plan is unusable", () => {
-    const plan = parsePlan("I think we should…", "make a todo app");
+  it("builds nothing on a guess when the architect answers in prose", () => {
+    const plan = parsePlan("What should the app do?", "make something");
+    expect(plan.tasks).toEqual([]);
+    expect(plan.reply).toBe("What should the app do?");
+  });
+
+  it("falls back to a single task when a JSON plan has no usable tasks", () => {
+    const plan = parsePlan('{"summary":"todo app","tasks":[{"title":""}]}', "make a todo app");
     expect(plan.tasks).toHaveLength(1);
     expect(plan.tasks[0]!.description).toBe("make a todo app");
   });

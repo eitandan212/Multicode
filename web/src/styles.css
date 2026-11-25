@@ -4866,3 +4866,45 @@ pre,
 .ribbons { display: none; }
 .splash-ribbons { display: none; }
 @media (max-width: 640px) { .composer-bar .mode-switch svg { display: none; } .composer-bar { gap: 6px; } }
+.msg-agent p { white-space: pre-wrap; }
+
+/* ---- Desktop window chrome (as T3 Code): no native title bar ---------------------------------
+   The OS window buttons are drawn over the top bar; the top bars drag the window. */
+:root {
+  --wco-right: 0px;
+}
+.wco {
+  --wco-right: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
+}
+.wco .topbar,
+.wco .sb-head,
+.desktop-mac .topbar,
+.desktop-mac .sb-head {
+  -webkit-app-region: drag;
+}
+.wco .topbar :is(button, a, input, select, textarea, [role="button"]),
+.wco .sb-head :is(button, a, input, select, textarea, [role="button"]),
+.desktop-mac .topbar :is(button, a, input, select, textarea, [role="button"]),
+.desktop-mac .sb-head :is(button, a, input, select, textarea, [role="button"]) {
+  -webkit-app-region: no-drag;
+}
+/* Panel closed: the top bar ends where the window buttons begin. */
+.wco .main:not(:has(~ .slot-right)) .topbar {
+  padding-right: calc(14px + var(--wco-right));
+}
+/* Panel open: it starts below the window-button strip, which stays draggable. */
+.wco .slot-right > .side {
+  padding-top: calc(env(titlebar-area-height, 52px) + 4px);
+  position: relative;
+}
+.wco .slot-right > .side::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: env(titlebar-area-height, 52px);
+  -webkit-app-region: drag;
+}
+/* macOS: room for the traffic lights at the top left of the sidebar. */
+.desktop-mac .sb-head {
+  padding-left: 80px;
+}

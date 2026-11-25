@@ -64,6 +64,7 @@
     "files": [
       "dist/**/*",
       "desktop/main.js",
+      "desktop/preload.cjs",
       "build/icon.ico",
       "build/icon.png",
       "package.json",

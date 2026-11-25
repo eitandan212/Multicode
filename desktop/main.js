@@ -1,11 +1,27 @@
 // MultiCode desktop: starts the local MultiCode server inside Electron and shows it in a
 // window. Everything stays on this computer; the window only ever loads the local app.
-import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(here, "..", "build", process.platform === "win32" ? "icon.ico" : "icon.png");
+
+// As in T3 Code: no native title bar. The window buttons are drawn over the app's own top bar
+// (Windows/Linux: a transparent caption-button overlay; macOS: inset traffic lights).
+const TOPBAR_HEIGHT = 52;
+const TITLEBAR_COLOR = "#01000000"; // fully transparent #00000000 misbehaves on Linux
+const SYMBOL_LIGHT = "#1f2937";
+const SYMBOL_DARK = "#f8fafc";
+
+function titleBarOptions(dark) {
+  if (process.platform === "darwin")
+    return { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: TOPBAR_HEIGHT / 2 - 6 } };
+  return {
+    titleBarStyle: "hidden",
+    titleBarOverlay: { color: TITLEBAR_COLOR, height: TOPBAR_HEIGHT, symbolColor: dark ? SYMBOL_DARK : SYMBOL_LIGHT },
+  };
+}
 
 /** @type {BrowserWindow | null} */
 let win = null;
@@ -52,9 +68,11 @@ function createWindow() {
     title: "MultiCode",
     icon: ICON,
     show: false,
-    backgroundColor: dark ? "#0b0c0f" : "#fcfcfb",
+    backgroundColor: dark ? "#000000" : "#fcfcfc",
     autoHideMenuBar: true,
+    ...titleBarOptions(dark),
     webPreferences: {
+      preload: path.join(here, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -84,12 +102,29 @@ function createWindow() {
     }
   });
 
+  // The app's own theme choice drives the window buttons' colour.
+  const syncTitleBar = () => {
+    if (!win || win.isDestroyed()) return;
+    const isDark = nativeTheme.shouldUseDarkColors;
+    win.setBackgroundColor(isDark ? "#000000" : "#fcfcfc");
+    const { titleBarOverlay } = titleBarOptions(isDark);
+    if (titleBarOverlay) win.setTitleBarOverlay(titleBarOverlay);
+  };
+  nativeTheme.on("updated", syncTitleBar);
+  win.on("closed", () => nativeTheme.off("updated", syncTitleBar));
+
   win.once("ready-to-show", () => win?.show());
   win.on("closed", () => {
     win = null;
   });
   void win.loadURL(started.url);
 }
+
+// The page tells us the theme it shows ("system", "light" or "dark").
+ipcMain.on("multicode:theme", (event, theme) => {
+  if (!win || event.sender !== win.webContents) return;
+  if (theme === "system" || theme === "light" || theme === "dark") nativeTheme.themeSource = theme;
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

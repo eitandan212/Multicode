@@ -101,8 +101,12 @@ export function parsePlan(text: string, request: string): Plan {
       });
     });
   }
+  // No JSON at all: the architect answered in prose (often a question back), so nothing is built
+  // on a guess; the text is the reply.
+  if (!tasks.length && raw === undefined && text.trim())
+    return { summary: "", tasks: [], reply: text.trim().slice(0, 4000) };
   if (!tasks.length) {
-    // Architect failed to produce a usable plan: fall back to a single task.
+    // A JSON plan without usable tasks: fall back to a single task.
     return {
       summary:
         asString(raw?.summary) || "Build the requested change in one pass.",

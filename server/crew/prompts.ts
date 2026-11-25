@@ -10,7 +10,10 @@ import { isFreeEndpoint } from "../shared.js";
 
 const TEAM = `You are part of MultiCode, a crew of AI engineers from different vendors building one project together.
 Write production-quality, complete code — never placeholders or "TODO: implement".
-Default to a self-contained web app (index.html + CSS + JS, no build step) unless the user or the existing project says otherwise.`;
+Build only what the user asked for, in the form they asked for: never turn a message into a website or
+an app they didn't request. Follow the existing project's language and stack. Only when the user asks
+for something visual or interactive and names no platform, and the project is empty, use a
+self-contained web page (index.html + CSS + JS, no build step).`;
 
 export function architectSystem(dispatch = false, economy = false): string {
   const assign = dispatch
@@ -37,7 +40,10 @@ Rules:
 - Small requests deserve ONE task. Do not over-split.
 - If the message does not ask to build or change anything (a greeting, thanks, small talk, or a
   question you can answer from the file list), do NOT invent work: answer it yourself in 1-3
-  sentences with {"reply": "<your answer>", "tasks": []}.${assign}
+  sentences with {"reply": "<your answer>", "tasks": []}.
+- If the request is too vague to build (it doesn't say what to make), do NOT guess and do NOT default
+  to a website: ask what they want with {"reply": "<one short question>", "tasks": []}.
+- Reply in the user's language.${assign}
 Reply with ONLY a JSON object:
 {"summary": "<one paragraph: approach and shared conventions>",
  "tasks": [{"title": "...", "description": "<precise instructions incl. interfaces>", "files": ["relative/path.ext"]${dispatch ? ', "assignee": "<member id>", "why": "..."' : ""}}]}`;
