@@ -176,7 +176,7 @@ export function Thread({
         {run.usage.input + run.usage.output > 0 && (
           <span
             className="usage"
-            title={`${run.usage.input.toLocaleString()} in · ${run.usage.output.toLocaleString()} out`}
+            title={`${run.usage.input.toLocaleString()} new in · ${run.usage.output.toLocaleString()} out${run.usage.cached ? ` · ${run.usage.cached.toLocaleString()} re-read from cache (cheap, not counted)` : ""}`}
           >
             <CountUp value={run.usage.input + run.usage.output} format={fmt} />{" "}
             tokens

@@ -23,7 +23,7 @@ const FAKE_CODEX = `
 const rl = require("node:readline").createInterface({ input: process.stdin });
 const signedIn = process.env.FAKE_SIGNED_IN !== "0";
 let id = 9000; const waits = new Map(); let sawDev = "";
-const usage = { inputTokens: 120, outputTokens: 30, cachedInputTokens: 0, reasoningOutputTokens: 0, totalTokens: 150 };
+const usage = { inputTokens: 120, outputTokens: 30, cachedInputTokens: 20, reasoningOutputTokens: 0, totalTokens: 150 };
 const model = (id, hidden) => ({ id, model: id, displayName: id, description: "", hidden, isDefault: !hidden, defaultReasoningEffort: "medium", supportedReasoningEfforts: [] });
 const send = (m) => process.stdout.write(JSON.stringify(m) + "\\n");
 const ask = (method, params) => new Promise((r) => { const i = id++; waits.set(i, r); send({ id: i, method, params }); });
@@ -93,7 +93,8 @@ describe("Codex app-server connection", () => {
     );
     expect(live).toContain("▸ $ npm test");
     expect(live).toContain("▸ Edit a.js");
-    expect(usage).toEqual([{ input: 120, output: 30 }]);
+    // Codex counts cached input inside inputTokens; MultiCode reports it apart.
+    expect(usage).toEqual([{ input: 100, output: 30, cached: 20 }]);
   });
 
   it("read-only tasks use the read-only sandbox and decline edits", async () => {

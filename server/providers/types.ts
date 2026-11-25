@@ -20,8 +20,11 @@ export interface GenerateRequest {
 }
 
 export interface Usage {
+  /** New input tokens (cache writes included, cache reads not). */
   input: number;
   output: number;
+  /** Input re-read from the provider's prompt cache: cheap or free, and repeated on every step. */
+  cached?: number;
   costUsd?: number;
 }
 

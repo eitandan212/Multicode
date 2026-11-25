@@ -58,7 +58,7 @@ export interface RunView {
     safety?: SafetyMode;
     economy?: boolean;
   };
-  usage: { input: number; output: number; costUsd: number; freeTokens: number };
+  usage: { input: number; output: number; cached: number; costUsd: number; freeTokens: number };
   limits: {
     memberId: string;
     until: number;
@@ -82,7 +82,7 @@ export function emptyRun(id: string, prompt = ""): RunView {
     reviews: [],
     changed: [],
     status: "running",
-    usage: { input: 0, output: 0, costUsd: 0, freeTokens: 0 },
+    usage: { input: 0, output: 0, cached: 0, costUsd: 0, freeTokens: 0 },
     limits: [],
     protectedHits: [],
   };
@@ -110,6 +110,7 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
         usage: {
           input: s.usage.input + e.input,
           output: s.usage.output + e.output,
+          cached: s.usage.cached + (e.cached ?? 0),
           costUsd: s.usage.costUsd + e.costUsd,
           freeTokens: s.usage.freeTokens + (e.free ? e.input + e.output : 0),
         },

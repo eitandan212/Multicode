@@ -249,7 +249,7 @@ export interface ParsedLine {
   text?: string;
   result?: string;
   error?: string;
-  usage?: { input: number; output: number; costUsd?: number };
+  usage?: { input: number; output: number; cached?: number; costUsd?: number };
 }
 
 /** Extracts assistant text from one line of Claude Code `stream-json` output. */
@@ -288,7 +288,8 @@ export function parseClaudeStreamLine(line: string): ParsedLine {
       ...(u
         ? {
             usage: {
-              input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
+              input: u.input_tokens ?? 0,
+              cached: u.cache_read_input_tokens ?? 0,
               output: u.output_tokens ?? 0,
               costUsd:
                 typeof ev.total_cost_usd === "number"
@@ -341,7 +342,8 @@ export function parseOpenCodeLine(line: string): ParsedLine {
     if (t)
       return {
         usage: {
-          input: (t.input ?? 0) + (t.cache?.read ?? 0),
+          input: t.input ?? 0,
+          cached: t.cache?.read ?? 0,
           output: (t.output ?? 0) + (t.reasoning ?? 0),
           costUsd: typeof ev.part.cost === "number" ? ev.part.cost : undefined,
         },

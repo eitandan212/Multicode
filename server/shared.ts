@@ -337,6 +337,8 @@ export interface PlanTask {
 export interface Plan {
   summary: string;
   tasks: PlanTask[];
+  /** Set when the message asked for nothing to be built (a greeting, a question): the answer. */
+  reply?: string;
 }
 
 export interface ReviewIssue {
@@ -436,6 +438,8 @@ export type RunEvent =
       memberId: string;
       input: number;
       output: number;
+      /** Prompt-cache reads, kept apart from `input`. */
+      cached?: number;
       costUsd: number;
       free: boolean;
     }

@@ -54,6 +54,7 @@ export function codexApproval(
 interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
+  cachedInputTokens?: number;
 }
 interface ThreadItem {
   type: string;
@@ -232,7 +233,12 @@ export class CodexAppServerProvider implements Provider {
         ),
       );
       if (usage)
-        req.onUsage?.({ input: usage.inputTokens, output: usage.outputTokens });
+        req.onUsage?.({
+          // Codex's input count includes the cached part.
+          input: usage.inputTokens - (usage.cachedInputTokens ?? 0),
+          output: usage.outputTokens,
+          cached: usage.cachedInputTokens ?? 0,
+        });
       if (signal.aborted || result.status === "interrupted")
         throw new ProviderError("Cancelled");
       if (result.status === "failed")

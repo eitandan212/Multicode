@@ -66,8 +66,8 @@ export class AnthropicProvider implements Provider {
     req.onUsage?.({
       input:
         message.usage.input_tokens +
-        (message.usage.cache_read_input_tokens ?? 0) +
         (message.usage.cache_creation_input_tokens ?? 0),
+      cached: message.usage.cache_read_input_tokens ?? 0,
       output: message.usage.output_tokens,
     });
     if (message.stop_reason === "refusal")

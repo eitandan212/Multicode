@@ -34,7 +34,10 @@ Rules:
 - Each task owns a disjoint set of files (two tasks must never list the same file).
 - Order does not matter; tasks run in parallel, so make each self-sufficient and state the interfaces
   (element ids, function names, data shapes) other tasks rely on.
-- Small requests deserve ONE task. Do not over-split.${assign}
+- Small requests deserve ONE task. Do not over-split.
+- If the message does not ask to build or change anything (a greeting, thanks, small talk, or a
+  question you can answer from the file list), do NOT invent work: answer it yourself in 1-3
+  sentences with {"reply": "<your answer>", "tasks": []}.${assign}
 Reply with ONLY a JSON object:
 {"summary": "<one paragraph: approach and shared conventions>",
  "tasks": [{"title": "...", "description": "<precise instructions incl. interfaces>", "files": ["relative/path.ext"]${dispatch ? ', "assignee": "<member id>", "why": "..."' : ""}}]}`;

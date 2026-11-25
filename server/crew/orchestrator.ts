@@ -221,6 +221,7 @@ function agentKit(o: KitOptions) {
               memberId: member.id,
               input: u.input,
               output: u.output,
+              cached: u.cached ?? 0,
               costUsd: free ? 0 : (u.costUsd ?? 0),
               free,
             }),
@@ -356,6 +357,10 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     }
   };
 
+  // A bare greeting or thanks needs no model at all.
+  const small = smallTalkReply(o.prompt);
+  if (small) return { summary: small, changedFiles: [], checkpoint: { files: [], skipped: [] } };
+
   // 0. Auto: the manager staffs the request from every connection.
   if (o.manager && o.managerPicksTeam) {
     const pool = [
@@ -434,6 +439,10 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
       delete t.why;
     }
   }
+  // The message asked for nothing to be built: the architect's answer is the reply, and no
+  // builder or reviewer runs (a "hello" used to start a whole build).
+  if (plan.reply)
+    return { summary: plan.reply, changedFiles: [], checkpoint: { files: [], skipped: [] } };
   emit({ type: "plan", plan });
   checkAbort();
 
@@ -706,6 +715,23 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
 }
 
 /** The member that costs least to run: free, then flat-rate subscription, then pay-per-token. */
+const SMALL_TALK =
+  /^\s*(hi|hiya|hello|hey|yo|sup|thanks|thank you|thx|ty|ok|okay|cool|nice|great|good morning|good evening|שלום|היי|הי|אהלן|תודה|תודה רבה|בוקר טוב|ערב טוב|אוקיי|סבבה|יופי|מעולה)\s*[!.?,:)]*\s*$/i;
+
+/** An answer for a message that is only a greeting or thanks, so no model is called for it. */
+export function smallTalkReply(prompt: string): string | undefined {
+  if (!SMALL_TALK.test(prompt)) return undefined;
+  const hebrew = /[\u0590-\u05FF]/.test(prompt);
+  const thanks = /thank|thx|\bty\b|תודה/i.test(prompt);
+  if (thanks)
+    return hebrew
+      ? "בשמחה! מה נבנה הלאה?"
+      : "You're welcome! What should we build next?";
+  return hebrew
+    ? "היי! תאר מה לבנות או לשנות בפרויקט, והצוות יתכנן, יבנה ויבדוק את זה."
+    : "Hi! Describe what to build or change in this project, and the crew will plan, build and review it.";
+}
+
 export function cheapest(members: ResolvedMember[]): ResolvedMember {
   const rank = (m: ResolvedMember) =>
     ({ free: 0, "subscription (flat rate)": 1 })[P.costTier(m)] ?? 2;

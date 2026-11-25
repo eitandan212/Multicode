@@ -9,6 +9,7 @@ import { captureBaseline, diffChanges } from "../server/crew/diff.js";
 import {
   assignRoles,
   runCrew,
+  smallTalkReply,
   scheduleTasks,
   type ResolvedMember,
 } from "../server/crew/orchestrator.js";
@@ -351,6 +352,61 @@ describe("crew orchestration", () => {
       "app.js",
       "index.html",
     ]);
+  });
+});
+
+describe("no build when there is nothing to build", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-talk-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  const counting = (planText: string) => {
+    const calls: string[] = [];
+    const p: Provider = {
+      editsFiles: false,
+      async generate(req: GenerateRequest) {
+        calls.push(req.system.includes("ARCHITECT") ? "architect" : "other");
+        return planText;
+      },
+    };
+    return { p, calls };
+  };
+  const run = async (prompt: string, p: Provider) =>
+    runCrew({
+      prompt,
+      history: [],
+      workspace: await Workspace.open(dir, "talk"),
+      roles: assignRoles([member("solo", "builder", p)]),
+      settings: { maxReviewRounds: 2 },
+      emit: () => {},
+      signal: new AbortController().signal,
+    });
+
+  it("answers a greeting or thanks without calling any model", async () => {
+    for (const hi of ["hello", "Hi!", "שלום", "תודה רבה", "thanks."]) {
+      const { p, calls } = counting("{}");
+      const r = await run(hi, p);
+      expect(calls).toEqual([]);
+      expect(r.summary).toMatch(/\S/);
+      expect(r.changedFiles).toEqual([]);
+    }
+    expect(smallTalkReply("hello, build me a todo app")).toBeUndefined();
+  });
+
+  it("lets the architect answer a question with one call and no builders", async () => {
+    const { p, calls } = counting('{"reply":"The page is index.html.","tasks":[]}');
+    const r = await run("which file is the main page?", p);
+    expect(calls).toEqual(["architect"]);
+    expect(r.summary).toBe("The page is index.html.");
+    expect(r.changedFiles).toEqual([]);
+  });
+
+  it("still builds when the architect plans tasks", () => {
+    const plan = parsePlan('{"summary":"s","tasks":[{"title":"Page","description":"d","files":["index.html"]}],"reply":"ignored"}', "x");
+    expect(plan.reply).toBeUndefined();
+    expect(plan.tasks).toHaveLength(1);
   });
 });
 

@@ -71,8 +71,12 @@ const asString = (v: unknown, fallback = ""): string =>
 
 export function parsePlan(text: string, request: string): Plan {
   const raw = extractJson(text) as
-    | { summary?: unknown; tasks?: unknown }
+    | { summary?: unknown; tasks?: unknown; reply?: unknown }
     | undefined;
+  // Nothing to build: the architect answered the message itself.
+  const reply = asString(raw?.reply).trim();
+  if (reply && (!Array.isArray(raw?.tasks) || raw.tasks.length === 0))
+    return { summary: "", tasks: [], reply: reply.slice(0, 4000) };
   const tasks: PlanTask[] = [];
   if (raw && Array.isArray(raw.tasks)) {
     raw.tasks.slice(0, 12).forEach((t: unknown, i: number) => {
