@@ -293,14 +293,15 @@ function MoreControls(p: {
       )}
       <button
         type="button"
-        className={`icon-btn more-btn ${open ? "is-on" : ""}`}
+        className={`chip safety-chip ${open ? "is-open" : ""} ${s.safety !== "direct" ? "is-guarded" : ""}`}
         onClick={() => setOpen(!open)}
-        aria-label="More composer controls"
+        aria-label={`How the crew works: ${SAFETY.find((m) => m.id === s.safety)?.label ?? ""}${s.economy ? ", Economy" : ""}, review rounds ${s.maxReviewRounds}`}
         aria-expanded={open}
-        title={`${SAFETY.find((m) => m.id === s.safety)?.label ?? ""}${s.economy ? " · Economy" : ""} · Review ×${s.maxReviewRounds}`}
+        title="How the crew works: safety, review rounds, economy"
       >
-        <Icon name="menu" size={16} />
-        {(s.safety !== "direct" || s.economy) && <span className="more-dot" />}
+        <Icon name="shield" size={14} />
+        <span className="safety-label">{SAFETY.find((m) => m.id === s.safety)?.label}</span>
+        {s.economy && <span className="free-tag">Eco</span>}
       </button>
     </div>
   );

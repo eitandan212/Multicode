@@ -291,12 +291,12 @@ export function Sidebar(p: Props) {
 
       <div className="sb-foot">
         <button
-          className="icon-btn"
+          className="sb-settings"
           onClick={() => p.onOpenSettings("connections")}
-          title="Settings"
-          aria-label="Settings"
+          title="Settings (models, connections, appearance)"
         >
           <Icon name="settings" />
+          <span>Settings</span>
         </button>
         <button
           className="icon-btn"
@@ -320,7 +320,7 @@ export function Sidebar(p: Props) {
           title="Usage, savings & safety"
           aria-label="Usage, savings and safety"
         >
-          <Icon name="graph" />
+          <Icon name="shield" />
         </button>
       </div>
     </nav>

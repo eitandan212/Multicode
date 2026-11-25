@@ -4785,3 +4785,79 @@ pre,
 .settings-page[data-closing] {
   animation: dialog-out 200ms var(--ease-soft) forwards;
 }
+
+/* ---- Comfort pass: readable threads, clear controls, phone-friendly composer ---- */
+.tool-who { color: var(--text); }
+.composer-bar .mode-switch { margin-right: auto; }
+.composer-bar > * { min-width: 0; }
+.composer-bar .send { flex: none; }
+
+.msg-user-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.msg-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 160ms var(--ease); }
+.msg-user-wrap:hover .msg-actions, .msg-user-wrap:focus-within .msg-actions { opacity: 1; }
+@media (hover: none) { .msg-actions { opacity: 1; } }
+.small-btn { width: 26px; height: 26px; color: var(--muted); }
+.small-btn:hover { color: var(--text); }
+
+.ctx-line { margin: 2px 0 10px; font-size: 12px; color: var(--muted); }
+.ctx-line > summary {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+  padding: 3px 8px; border-radius: 999px; user-select: none;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+.ctx-line > summary::-webkit-details-marker { display: none; }
+.ctx-line > summary:hover { background: var(--hover, rgba(127,127,127,.1)); color: var(--text); }
+.ctx-badge { padding: 1px 7px; border-radius: 999px; background: var(--accent-soft, rgba(37,99,255,.12)); color: var(--accent, #2563ff); font-weight: 500; }
+.ctx-caret { transform: rotate(0deg); transition: transform 200ms var(--spring, ease); }
+.ctx-line[open] .ctx-caret { transform: rotate(90deg); }
+.ctx-line[open] .context-row { margin-top: 8px; animation: fade-in 220ms var(--ease) both; }
+
+.tool-done { color: var(--ok, #16a34a); }
+.err-text { color: var(--danger, #dc2626); font-weight: 500; }
+.tool-body-actions { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+
+.safety-chip.is-guarded { color: var(--text); }
+.safety-chip .safety-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.empty-start { position: relative; display: grid; justify-items: center; gap: 14px; max-width: 620px; padding: 0 16px; }
+.suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.suggestion {
+  padding: 8px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg);
+  color: var(--text); font: inherit; font-size: 13px; cursor: pointer; text-align: left;
+  transition: transform 180ms var(--spring, ease), border-color 160ms var(--ease), background 160ms var(--ease);
+  animation: fade-in 400ms var(--ease) both;
+}
+.suggestion:nth-child(2) { animation-delay: 60ms; }
+.suggestion:nth-child(3) { animation-delay: 120ms; }
+.suggestion:nth-child(4) { animation-delay: 180ms; }
+.suggestion:hover { transform: translateY(-2px); border-color: var(--accent, #2563ff); }
+.suggestion:active { transform: translateY(0) scale(.98); }
+.shortcut-hint kbd {
+  display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px;
+  border-radius: 5px; font: 11px/16px ui-monospace, monospace; color: var(--text);
+}
+
+.jump-latest {
+  position: absolute; left: 50%; bottom: calc(var(--dock-h, 150px) + 8px); transform: translateX(-50%); z-index: 5;
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg); color: var(--text);
+  font: inherit; font-size: 12px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.18);
+}
+.jump-latest svg { transform: rotate(90deg); }
+.main { position: relative; }
+.jump-latest:hover { border-color: var(--accent, #2563ff); }
+
+.sb-foot { align-items: center; }
+.sb-settings {
+  display: inline-flex; align-items: center; gap: 8px; flex: 1; height: 32px; padding: 0 10px; margin-right: 4px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+.sb-settings:hover { background: var(--hover, rgba(127,127,127,.1)); color: var(--text); }
+
+@media (max-width: 640px) {
+  .composer-bar { flex-wrap: wrap; row-gap: 6px; }
+  .composer-bar .team-label, .composer-bar .safety-label { display: none; }
+  .msg-actions { opacity: 1; }
+}
+@media (max-width: 640px), (hover: none) { .shortcut-hint { display: none; } }

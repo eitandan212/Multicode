@@ -30,12 +30,14 @@ import { Splash } from "./components/Splash";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
+
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
 import { LogoLoader, LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
 import { SettingsPage } from "./components/SettingsPage";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { celebrate, usePresence } from "./motion";
-import { ProjectForm, Tutorial } from "./components/Tutorial";
+import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
@@ -175,14 +177,10 @@ export function App() {
     void reload();
   }, [reload]);
 
-  // Ctrl/Cmd+K opens the command palette from anywhere.
+  // Keyboard shortcuts. The handler is refreshed every render so it always sees current state.
+  const shortcut = useRef<(e: KeyboardEvent) => void>(() => {});
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setDialog((d) => (d === "palette" ? null : (d ?? "palette")));
-      }
-    };
+    const onKey = (e: KeyboardEvent) => shortcut.current(e);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -218,6 +216,7 @@ export function App() {
     dispatch({ kind: "reset", run: null });
   };
   // A prompt picked in the tutorial, handed to the composer (n changes on every pick).
+  const [farFromEnd, setFarFromEnd] = useState(false);
   const [draft, setDraft] = useState<{ text: string; n: number } | undefined>();
   const createFirstProject = async (name: string) => {
     const p = await api.createProject(name);
@@ -302,6 +301,38 @@ export function App() {
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
+  };
+
+  const focusComposer = () =>
+    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus());
+  const newThread = () => {
+    dispatch({ kind: "reset", run: null });
+    if (narrow()) setSidebarOpen(false);
+    focusComposer();
+  };
+  shortcut.current = (e) => {
+    const mod = e.metaKey || e.ctrlKey;
+    const key = e.key.toLowerCase();
+    const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || /^(input|textarea|select)$/i.test(e.target.tagName));
+    if (mod && key === "k") {
+      e.preventDefault();
+      setDialog((d) => (d === "palette" ? null : (d ?? "palette")));
+    } else if (mod && !e.shiftKey && key === "b") {
+      e.preventDefault();
+      toggleSidebar(!sidebarOpen);
+    } else if (mod && !e.shiftKey && key === "j") {
+      e.preventDefault();
+      togglePanel(!panelOpen);
+    } else if (mod && !e.shiftKey && key === "e" && project && !typing) {
+      e.preventDefault();
+      setView(view === "ide" ? "chat" : "ide");
+    } else if (mod && e.shiftKey && key === "o") {
+      e.preventDefault();
+      newThread();
+    } else if (key === "/" && !mod && !typing && !dialog) {
+      e.preventDefault();
+      focusComposer();
+    }
   };
 
   const newProject = async () => {
@@ -532,8 +563,14 @@ export function App() {
   const chatView =
     run && project ? (
       <>
-        <div className="scroll">
+        <div className="scroll" onScroll={(e) => {
+          const el = e.currentTarget;
+          setFarFromEnd(el.scrollHeight - el.scrollTop - el.clientHeight > 400);
+        }}>
           <Thread
+            onReuse={(text) => {
+              setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }));
+            }}
             run={run}
             crew={crew}
             connections={state.connections}
@@ -568,6 +605,18 @@ export function App() {
             }}
           />
         </div>
+        {farFromEnd && (
+          <button
+            className="jump-latest enter"
+            title="Jump to latest"
+            onClick={(e) => {
+              const sc = (e.currentTarget.parentElement?.querySelector(".scroll") as HTMLElement | null);
+              sc?.scrollTo({ top: sc.scrollHeight, behavior: "smooth" });
+            }}
+          >
+            <Icon name="chevron" size={14} /> Latest
+          </button>
+        )}
         <div className="dock">{composer}</div>
       </>
     ) : tutorial || !project ? (
@@ -612,7 +661,19 @@ export function App() {
               to start the conversation.
             </p>
           ) : (
-            <p className="muted">Send a message to start the conversation.</p>
+            <div className="empty-start">
+              <p className="muted">Send a message to start the conversation.</p>
+              <div className="suggestions" aria-label="Ideas to start with">
+                {EXAMPLE_PROMPTS.map((ex) => (
+                  <button key={ex} className="suggestion" onClick={() => setDraft((d) => ({ text: ex, n: (d?.n ?? 0) + 1 }))}>
+                    {ex}
+                  </button>
+                ))}
+              </div>
+              <p className="muted small shortcut-hint">
+                <kbd>/</kbd> type · <kbd>{MOD}</kbd>+<kbd>K</kbd> commands · <kbd>{MOD}</kbd>+<kbd>B</kbd> sidebar · <kbd>{MOD}</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> new thread
+              </p>
+            </div>
           )}
         </div>
         <div className="dock">{composer}</div>
@@ -637,10 +698,7 @@ export function App() {
               runId={run?.id ?? null}
               onSelectProject={selectProject}
               onSelectRun={selectRun}
-              onNewThread={() => {
-                dispatch({ kind: "reset", run: null });
-                if (narrow()) setSidebarOpen(false);
-              }}
+              onNewThread={newThread}
               onNewProject={newProject}
               onOpenSettings={setDialog}
               onCollapse={() => toggleSidebar(false)}

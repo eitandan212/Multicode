@@ -39,6 +39,14 @@ interface ThreadProps {
     force?: boolean,
   ) => Promise<{ conflicts: string[] }>;
   onDiscard: () => Promise<void>;
+  /** Put a prompt back in the composer to edit and send again. */
+  onReuse?: (prompt: string) => void;
+}
+
+/** True when the thread is scrolled (nearly) to the bottom, so following new output won't yank the reader. */
+function nearBottom(el: Element | null): boolean {
+  const s = el?.closest(".scroll");
+  return !s || s.scrollHeight - s.scrollTop - s.clientHeight < 160;
 }
 
 const fmt = (n: number) =>
@@ -54,6 +62,7 @@ export function Thread({
   onUndo,
   onApply,
   onDiscard,
+  onReuse,
 }: ThreadProps) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
@@ -68,14 +77,15 @@ export function Thread({
   // Follow the conversation while the crew works, and once more to land on the result.
   const wasRunning = useRef(running);
   useEffect(() => {
-    if (running) end.current?.scrollIntoView({ block: "end" });
+    // Follow only while you're at the bottom; reading further up stays where you are.
+    if (running && nearBottom(end.current)) end.current?.scrollIntoView({ block: "end" });
   }, [running, run.streams.length, run.tasks, run.reviews.length]);
   useEffect(() => {
     if (wasRunning.current && !running) {
       // Wait a frame so the final card has its height before scrolling to it.
-      requestAnimationFrame(() =>
-        end.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
-      );
+      requestAnimationFrame(() => {
+        if (nearBottom(end.current)) end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      });
     }
     wasRunning.current = running;
   }, [running, run.diff]);
@@ -139,8 +149,18 @@ export function Thread({
 
   return (
     <div className="thread">
-      <div className="msg-user enter">
-        <p>{run.prompt}</p>
+      <div className="msg-user-wrap enter">
+        <div className="msg-user">
+          <p>{run.prompt}</p>
+        </div>
+        <div className="msg-actions">
+          <CopyButton text={run.prompt} />
+          {onReuse && (
+            <button className="icon-btn small-btn" onClick={() => onReuse(run.prompt)} title="Edit and send again" aria-label="Edit and send again">
+              <Icon name="compose" size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="work-head enter">
@@ -198,20 +218,27 @@ export function Thread({
         </div>
       )}
 
-      {run.context &&
-        (run.context.skills.length > 0 || run.context.plugins.length > 0) && (
-          <div className="context-row enter">
+      {run.context && (run.context.skills.length > 0 || run.context.plugins.length > 0 || run.context.economy || (run.context.safety && run.context.safety !== "direct")) && (
+        // One quiet line instead of a row of chips; the details open on demand.
+        <details className="ctx-line enter">
+          <summary>
             {run.context.safety && run.context.safety !== "direct" && (
-              <span className="ctx-chip safety">
-                <Icon name="shield" size={12} />{" "}
-                {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
+              <span className="ctx-badge">
+                <Icon name="shield" size={12} /> {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
               </span>
             )}
-            {run.context.economy && (
-              <span className="ctx-chip plugin">
-                <Icon name="spark" size={12} /> Economy
-              </span>
-            )}
+            {run.context.economy && <span className="ctx-badge">Economy</span>}
+            <span className="muted">
+              {[
+                run.context.plugins.length ? `${run.context.plugins.length} plugin${run.context.plugins.length === 1 ? "" : "s"}` : "",
+                run.context.skills.length ? `${run.context.skills.length} skill${run.context.skills.length === 1 ? "" : "s"}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            <Icon name="chevron" size={12} className="ctx-caret" />
+          </summary>
+          <div className="context-row">
             {run.context.plugins.map((p) => (
               <span key={p} className="ctx-chip plugin" title="Plugin">
                 <Icon name="puzzle" size={12} /> {p}
@@ -223,7 +250,8 @@ export function Thread({
               </span>
             ))}
           </div>
-        )}
+        </details>
+      )}
 
       {run.plan && (
         <div className="msg-agent enter">
@@ -426,13 +454,18 @@ function ToolLine({
               <i />
             </span>
           ) : stream.status === "error" ? (
-            "failed"
+            <span className="err-text">failed</span>
           ) : (
-            `${stream.text.length.toLocaleString()} chars`
+            <Icon name="check" size={13} className="tool-done" />
           )}
         </span>
         <Icon name={open ? "chevronDown" : "chevron"} size={13} />
       </button>
+      {open && stream.text && stream.status !== "live" && (
+        <div className="tool-body-actions">
+          <CopyButton text={stream.text} label="Copy output" />
+        </div>
+      )}
       {open && (
         <pre ref={body} className="tool-body">
           {stream.text || (stream.status === "live" ? "Thinking…" : "")}
@@ -712,4 +745,24 @@ function CountUp({
   format: (n: number) => string;
 }) {
   return <span className="count-up">{format(useCountUp(value))}</span>;
+}
+
+/** Copies text and says so for a moment. */
+function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      className="icon-btn small-btn"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setDone(true);
+          window.setTimeout(() => setDone(false), 1400);
+        });
+      }}
+      title={done ? "Copied" : label}
+      aria-label={done ? "Copied" : label}
+    >
+      <Icon name={done ? "check" : "file"} size={13} />
+    </button>
+  );
 }
