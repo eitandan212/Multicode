@@ -6,6 +6,7 @@ import {
   type ReviewIssue,
 } from "../shared.js";
 import { modelStrength } from "../team.js";
+import { isFreeEndpoint } from "../shared.js";
 
 const TEAM = `You are part of MultiCode, a crew of AI engineers from different vendors building one project together.
 Write production-quality, complete code — never placeholders or "TODO: implement".
@@ -43,10 +44,7 @@ Reply with ONLY a JSON object:
 export function costTier(m: ResolvedMember): string {
   const model = (m.model || m.connection.defaultModel || "").toLowerCase();
   const url = (m.connection.baseUrl ?? "").toLowerCase();
-  if (
-    /(-free|big-pickle|:free)$/.test(model) ||
-    /localhost|127\.0\.0\.1/.test(url)
-  )
+  if (/(-free|big-pickle|:free)$/.test(model) || isFreeEndpoint(url))
     return "free";
   if (AGENT_KINDS.includes(m.connection.kind))
     return "subscription (flat rate)";

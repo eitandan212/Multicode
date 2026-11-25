@@ -42,6 +42,7 @@ import { autoTeam, soloMember } from "./team.js";
 import {
   connectionName,
   HARNESS_NAMES,
+  isFreeEndpoint,
   isFreeModel,
   type TeamChoice,
   type McpServer,
@@ -293,7 +294,9 @@ export class RunManager {
 
   /** True while a crew is changing this project's files (so the IDE doesn't write over it). */
   isWorking(project: string): boolean {
-    return [...this.runs.values()].some((r) => r.project === project && r.status === "running");
+    return [...this.runs.values()].some(
+      (r) => r.project === project && r.status === "running",
+    );
   }
 
   list(project?: string): RunSummary[] {
@@ -399,9 +402,7 @@ export class RunManager {
       return conn ? asManager(conn, m.model) : undefined;
     }
     const free = this.config.connections.find(
-      (c) =>
-        isFreeModel(c.defaultModel) ||
-        /localhost|127\.0\.0\.1/.test(c.baseUrl ?? ""),
+      (c) => isFreeModel(c.defaultModel) || isFreeEndpoint(c.baseUrl),
     );
     if (free) return asManager(free);
     return fallback ? asManager(fallback.connection) : undefined;
@@ -423,7 +424,7 @@ export class RunManager {
       baseUrl: m.connection.baseUrl,
       free:
         isFreeModel(m.model || m.connection.defaultModel) ||
-        /localhost|127\.0\.0\.1/.test(m.connection.baseUrl ?? ""),
+        isFreeEndpoint(m.connection.baseUrl),
     };
   }
 

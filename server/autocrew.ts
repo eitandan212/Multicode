@@ -1,5 +1,5 @@
 import type { Connection } from "./config.js";
-import { connectionName, type CrewMember } from "./shared.js";
+import { connectionName, isFreeLlmApi, type CrewMember } from "./shared.js";
 
 interface ModelInfo {
   id: string;
@@ -15,6 +15,50 @@ const isFree = (m: ModelInfo) =>
  * Builds a whole crew from a single multi-model key (OpenRouter): free models plan and review,
  * and builders use OpenRouter's Auto Router, which picks a suitable model for every prompt.
  */
+/**
+ * FreeLLMAPI (github.com/tashfeenahmed/freellmapi) routes across 80+ free providers itself, so
+ * its router models make a free crew: "auto:smart" plans, "auto" (or your "auto:coding"
+ * profile, when you made one) builds in parallel, and "fusion" (several models + a judge) reviews.
+ */
+export function freeLlmApiCrew(conn: Connection, ids: string[]): CrewMember[] {
+  const name = (id: string) => connectionName(conn.kind, conn.baseUrl, id);
+  const builder = ids.some((m) => m.toLowerCase() === "auto:coding")
+    ? "auto:coding"
+    : "auto";
+  const reviewer = ids.some((m) => m.toLowerCase() === "fusion")
+    ? "fusion"
+    : "auto:smart";
+  const base = { connectionId: conn.id };
+  return [
+    {
+      ...base,
+      id: crypto.randomUUID(),
+      name: name("auto:smart"),
+      role: "architect",
+      model: "auto:smart",
+      agents: 1,
+    },
+    {
+      ...base,
+      id: crypto.randomUUID(),
+      name: name(builder),
+      role: "builder",
+      model: builder,
+      agents: 3,
+      instructions:
+        "General builder; FreeLLMAPI routes each call to a free model that fits.",
+    },
+    {
+      ...base,
+      id: crypto.randomUUID(),
+      name: name(reviewer),
+      role: "reviewer",
+      model: reviewer,
+      agents: 1,
+    },
+  ];
+}
+
 export async function autoCrew(
   conn: Connection,
   fetchImpl: typeof fetch = fetch,
@@ -26,6 +70,11 @@ export async function autoCrew(
   });
   if (!res.ok) throw new Error(`Could not list models (${res.status}).`);
   const data = ((await res.json()) as { data?: ModelInfo[] }).data ?? [];
+  if (isFreeLlmApi(conn.baseUrl) || data.some((m) => m.id === "fusion"))
+    return freeLlmApiCrew(
+      conn,
+      data.map((m) => m.id),
+    );
   const free = data
     .filter(isFree)
     .sort((a, b) => (b.context_length ?? 0) - (a.context_length ?? 0));

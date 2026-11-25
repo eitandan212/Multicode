@@ -218,9 +218,7 @@ function installDir(agent: RegistryAgent): string {
 }
 
 /** How to start an agent on this computer, or why it can't be started yet. */
-export async function resolveAgent(
-  agent: RegistryAgent,
-): Promise<{
+export async function resolveAgent(agent: RegistryAgent): Promise<{
   launch?: AcpLaunch;
   method?: AcpAgentView["method"];
   needsInstall?: boolean;

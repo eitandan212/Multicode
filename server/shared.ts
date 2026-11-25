@@ -59,7 +59,21 @@ export const HARNESS_NAMES: Record<ProviderKind, string> = {
   "openai-compatible": "OpenAI-compatible",
 };
 
+/** FreeLLMAPI (github.com/tashfeenahmed/freellmapi): 80+ free providers behind one /v1 endpoint. */
+export const FREELLMAPI_URL = "http://localhost:3001/v1";
+export function isFreeLlmApi(baseUrl?: string): boolean {
+  return /freellmapi|:3001(\/|$)/i.test(baseUrl ?? "");
+}
+/** Endpoints that cost nothing to call: a local server, or a free-tier aggregator. */
+export function isFreeEndpoint(baseUrl?: string): boolean {
+  return (
+    isFreeLlmApi(baseUrl) ||
+    /localhost|127\.0\.0\.1|\[::1\]/i.test(baseUrl ?? "")
+  );
+}
+
 const ENDPOINT_BRANDS: [RegExp, string][] = [
+  [/freellmapi|:3001(\/|$)/i, "FreeLLMAPI"],
   [/openrouter/i, "OpenRouter"],
   [/groq/i, "Groq"],
   [/deepseek/i, "DeepSeek"],
@@ -146,6 +160,15 @@ export function connectionName(
   baseUrl?: string,
   model?: string,
 ): string {
+  // FreeLLMAPI's router models: "auto", "auto:coding", "fusion" (many models + a judge).
+  if (model && isFreeLlmApi(baseUrl)) {
+    const m = model.toLowerCase();
+    if (m === "auto") return "FreeLLMAPI Auto (free)";
+    if (m.startsWith("auto:"))
+      return `FreeLLMAPI ${m.slice(5).replace(/^\w/, (c) => c.toUpperCase())} (free)`;
+    if (m === "fusion") return "FreeLLMAPI Fusion (free)";
+    return `${modelDisplayName(model)} (free)`;
+  }
   if (model)
     return `${modelDisplayName(model)}${isFreeModel(model) ? " (free)" : ""}`;
   return serviceName(kind, baseUrl);

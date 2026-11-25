@@ -37,6 +37,7 @@ import { enabledPlugins, PLUGINS } from "../server/plugins.js";
 import { selectPacks, SKILL_PACKS } from "../server/skills.js";
 import { recordRun } from "../server/graph.js";
 import { connectionName } from "../server/shared.js";
+import { costTier } from "../server/crew/prompts.js";
 import {
   codexMcpArgs,
   HarnessSync,
@@ -668,6 +669,74 @@ describe("specialist agents", () => {
       { name: "GPT-5", role: "builder", connectionId: c.id, preset: "made-up" },
     ]);
     expect(crew.map((m) => m.preset)).toEqual(["security", undefined]);
+  });
+});
+
+describe("FreeLLMAPI and agent-desktop", () => {
+  const free: Connection = {
+    id: "f",
+    kind: "openai-compatible",
+    label: "FreeLLMAPI",
+    baseUrl: "http://localhost:3001/v1",
+    apiKey: "freellmapi-x",
+  };
+
+  it("names FreeLLMAPI's router models and counts the endpoint as free", () => {
+    expect(connectionName("openai-compatible", free.baseUrl, "auto")).toBe(
+      "FreeLLMAPI Auto (free)",
+    );
+    expect(
+      connectionName("openai-compatible", free.baseUrl, "auto:smart"),
+    ).toBe("FreeLLMAPI Smart (free)");
+    expect(connectionName("openai-compatible", free.baseUrl, "fusion")).toBe(
+      "FreeLLMAPI Fusion (free)",
+    );
+    expect(connectionName("openai-compatible", free.baseUrl)).toBe(
+      "FreeLLMAPI",
+    );
+    expect(
+      costTier({
+        ...member("f", "builder", fakeProvider({ review: [] })),
+        connection: free,
+      }),
+    ).toBe("free");
+  });
+
+  it("builds a free crew from FreeLLMAPI's router models", async () => {
+    const models = (ids: string[]) =>
+      (async () =>
+        new Response(
+          JSON.stringify({ data: ids.map((id) => ({ id })) }),
+        )) as unknown as typeof fetch;
+    const crew = await autoCrew(
+      free,
+      models(["auto", "fusion", "gemini-2.5-flash"]),
+    );
+    expect(crew.map((m) => [m.role, m.model, m.agents])).toEqual([
+      ["architect", "auto:smart", 1],
+      ["builder", "auto", 3],
+      ["reviewer", "fusion", 1],
+    ]);
+    // A user-made "coding" profile is used for builders when it exists.
+    expect(
+      (await autoCrew(free, models(["auto", "auto:coding", "fusion"])))[1]!
+        .model,
+    ).toBe("auto:coding");
+  });
+
+  it("offers agent-desktop as an opt-in, high-risk, pinned plugin", () => {
+    const p = PLUGINS.find((x) => x.id === "agent-desktop")!;
+    expect(p).toMatchObject({
+      category: "computer",
+      risk: "high",
+      defaultOn: false,
+    });
+    expect(p.server().args).toEqual(["-y", "agent-desktop@1.2.0", "mcp"]);
+    expect(
+      enabledPlugins({ enabled: [], disabled: [] }).some(
+        (x) => x.id === "agent-desktop",
+      ),
+    ).toBe(false);
   });
 });
 

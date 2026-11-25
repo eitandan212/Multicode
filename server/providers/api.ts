@@ -2,7 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import type { Connection } from "../config.js";
-import { ProviderError, type DeltaHandler, type GenerateRequest, type Provider } from "./types.js";
+import {
+  ProviderError,
+  type DeltaHandler,
+  type GenerateRequest,
+  type Provider,
+} from "./types.js";
 
 const MAX_OUTPUT_TOKENS = 64_000;
 
@@ -14,7 +19,10 @@ export const DEFAULT_MODELS: Partial<Record<Connection["kind"], string>> = {
 
 function requireModel(req: GenerateRequest, conn: Connection): string {
   const model = req.model || conn.defaultModel || DEFAULT_MODELS[conn.kind];
-  if (!model) throw new ProviderError(`No model set for "${conn.label}". Pick one in Connections.`);
+  if (!model)
+    throw new ProviderError(
+      `No model set for "${conn.label}". Pick one in Connections.`,
+    );
   return model;
 }
 
@@ -23,10 +31,17 @@ export class AnthropicProvider implements Provider {
   private client: Anthropic;
 
   constructor(private conn: Connection) {
-    this.client = new Anthropic({ apiKey: conn.apiKey, baseURL: conn.baseUrl || undefined });
+    this.client = new Anthropic({
+      apiKey: conn.apiKey,
+      baseURL: conn.baseUrl || undefined,
+    });
   }
 
-  async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
+  async generate(
+    req: GenerateRequest,
+    onDelta: DeltaHandler,
+    signal: AbortSignal,
+  ): Promise<string> {
     const model = requireModel(req, this.conn);
     // Current-generation models can decline on safety grounds; let the API reroute such
     // requests to a fallback model instead of failing the whole crew run.
@@ -37,19 +52,31 @@ export class AnthropicProvider implements Provider {
         max_tokens: MAX_OUTPUT_TOKENS,
         system: req.system,
         messages: [{ role: "user", content: req.prompt }],
-        ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+        ...(fallback
+          ? {
+              betas: ["server-side-fallback-2026-07-01"],
+              fallbacks: "default" as const,
+            }
+          : {}),
       },
       { signal },
     );
     stream.on("text", (t) => onDelta(t));
     const message = await stream.finalMessage();
     req.onUsage?.({
-      input: message.usage.input_tokens + (message.usage.cache_read_input_tokens ?? 0) + (message.usage.cache_creation_input_tokens ?? 0),
+      input:
+        message.usage.input_tokens +
+        (message.usage.cache_read_input_tokens ?? 0) +
+        (message.usage.cache_creation_input_tokens ?? 0),
       output: message.usage.output_tokens,
     });
-    if (message.stop_reason === "refusal") throw new ProviderError("The model declined this request.");
-    const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    if (message.stop_reason === "max_tokens") return `${text}\n<!-- output truncated: max_tokens -->`;
+    if (message.stop_reason === "refusal")
+      throw new ProviderError("The model declined this request.");
+    const text = message.content
+      .flatMap((b) => (b.type === "text" ? [b.text] : []))
+      .join("");
+    if (message.stop_reason === "max_tokens")
+      return `${text}\n<!-- output truncated: max_tokens -->`;
     return text;
   }
 
@@ -71,7 +98,11 @@ export class OpenAIProvider implements Provider {
     });
   }
 
-  async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
+  async generate(
+    req: GenerateRequest,
+    onDelta: DeltaHandler,
+    signal: AbortSignal,
+  ): Promise<string> {
     const stream = await this.client.chat.completions.create(
       {
         model: requireModel(req, this.conn),
@@ -86,7 +117,11 @@ export class OpenAIProvider implements Provider {
     );
     let text = "";
     for await (const chunk of stream) {
-      if (chunk.usage) req.onUsage?.({ input: chunk.usage.prompt_tokens, output: chunk.usage.completion_tokens });
+      if (chunk.usage)
+        req.onUsage?.({
+          input: chunk.usage.prompt_tokens,
+          output: chunk.usage.completion_tokens,
+        });
       const delta = chunk.choices[0]?.delta?.content;
       if (delta) {
         text += delta;
@@ -111,7 +146,11 @@ export class GeminiProvider implements Provider {
     this.client = new GoogleGenAI({ apiKey: conn.apiKey });
   }
 
-  async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
+  async generate(
+    req: GenerateRequest,
+    onDelta: DeltaHandler,
+    signal: AbortSignal,
+  ): Promise<string> {
     const stream = await this.client.models.generateContentStream({
       model: requireModel(req, this.conn),
       contents: req.prompt,
@@ -121,7 +160,11 @@ export class GeminiProvider implements Provider {
     let usage: { input: number; output: number } | undefined;
     for await (const chunk of stream) {
       const u = chunk.usageMetadata;
-      if (u) usage = { input: u.promptTokenCount ?? 0, output: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0) };
+      if (u)
+        usage = {
+          input: u.promptTokenCount ?? 0,
+          output: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
+        };
       const delta = chunk.text;
       if (delta) {
         text += delta;
@@ -136,7 +179,10 @@ export class GeminiProvider implements Provider {
     const ids: string[] = [];
     const pager = await this.client.models.list();
     for await (const m of pager) {
-      if (m.name && (m.supportedActions ?? ["generateContent"]).includes("generateContent"))
+      if (
+        m.name &&
+        (m.supportedActions ?? ["generateContent"]).includes("generateContent")
+      )
         ids.push(m.name.replace(/^models\//, ""));
     }
     return ids;

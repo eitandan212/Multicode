@@ -4605,3 +4605,19 @@ pre,
   flex: none;
   height: 32px;
 }
+
+/* Quick-setup endpoints for OpenAI-compatible connections */
+.endpoint-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.preset-chip {
+  height: 28px;
+  border: 1px solid var(--line);
+  font-size: 13px;
+}
+.preset-chip.is-active {
+  border-color: var(--focus);
+  background: var(--accent-soft);
+}

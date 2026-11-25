@@ -129,3 +129,12 @@ its own name, logo, illustrations and code; no assets or trademarks of either pr
 ## Non-goals (v1)
 Hosted/cloud version, billing, git integration, an in-app terminal (it would expose a shell to the
 browser UI), Electron packaging (planned next).
+
+## Integrations
+* **FreeLLMAPI** (tashfeenahmed/freellmapi, MIT): an OpenAI-compatible connection preset; recognised by
+  URL (`:3001` or a `freellmapi` host) as a free endpoint (cost tier, manager, economy). Auto crew uses its
+  built-in router models only (`auto:smart`, `auto`, `fusion`; `auto:coding` when the user created that
+  profile), since unknown `auto:<profile>` names return 400.
+* **agent-desktop** (vercel-labs/agent-desktop, Apache-2.0): a computer-control plugin running
+  `npx -y agent-desktop@1.2.0 mcp` (the first release with the MCP server). High risk, off by default,
+  needs explicit consent like the other computer plugins.

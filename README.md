@@ -23,7 +23,7 @@ build your project together as a crew.
   * **Memory graph** (on): a shared knowledge graph; MultiCode records every thread in it.
   * **AI browser** (on): Playwright MCP, limited to the app preview unless you allow any website.
   * Chrome DevTools, live library docs (Context7), sequential thinking.
-  * **Computer control** and **Desktop Commander**: off; turning them on needs an explicit confirmation.
+  * **Desktop apps (agent-desktop)**, **Computer control** and **Desktop Commander**: off; turning them on needs an explicit confirmation. agent-desktop ([vercel-labs/agent-desktop](https://github.com/vercel-labs/agent-desktop), Apache-2.0) operates desktop apps through the accessibility tree, without screenshots.
 * **Skill packs** (Agent Skills / `SKILL.md`): quality, web craft, testing, Node & TypeScript, Python,
   Roblox & Luau. In Auto they switch on from your request and the project's files, land in
   `.claude/skills`, `.agents/skills`, `.gemini/skills`, `.qwen/skills`, and are inlined for API agents.
@@ -40,6 +40,7 @@ build your project together as a crew.
 | Nothing yet — start free | OpenCode | `opencode` with its free models (e.g. `opencode/big-pickle`) |
 | GitHub Copilot, or any of 75+ providers | OpenCode | `opencode auth login`, then pick `provider/model` |
 | A free Qwen account | Qwen Code | `qwen` |
+| No paid account at all: 80+ free providers | OpenAI-compatible → **FreeLLMAPI** preset | [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) (MIT) running on your computer |
 | Any other coding agent: Copilot, Cursor, Goose, Kiro, Qoder, Cline, Junie, Amp, Devin… | Any ACP agent | the [Agent Client Protocol](https://agentclientprotocol.com) registry |
 
 Subscriptions don't come with API keys, so MultiCode drives each vendor's official CLI
@@ -56,6 +57,16 @@ npm i -g @qwen-code/qwen-code        # then run: qwen
 ```
 
 In the crew editor, the model field suggests every model the agent offers (OpenCode lists 200+).
+
+### FreeLLMAPI: a whole crew for free
+
+[FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) puts the free tiers of 80+ providers behind
+one OpenAI-compatible endpoint, with routing and failover. Run it on your computer, add your free
+provider keys in its dashboard, then in *Connections → OpenAI-compatible* press **FreeLLMAPI**
+(fills `http://localhost:3001/v1` and the `auto` model) and paste its unified `freellmapi-…` key.
+**Auto crew** then builds a crew that costs nothing: `auto:smart` plans, `auto` builds with three
+agents (your `auto:coding` profile if you made one), and `fusion` (several models plus a judge)
+reviews. MultiCode counts the endpoint as free, so it also becomes the free manager.
 
 ### Any ACP agent
 

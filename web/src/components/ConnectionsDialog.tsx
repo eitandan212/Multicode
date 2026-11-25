@@ -5,6 +5,7 @@ import {
   type AcpAgentView,
   KIND_LABELS,
   connectionName,
+  FREELLMAPI_URL,
   OPEN_SOURCE_KINDS,
   SUBSCRIPTION_KINDS,
   type ConnectionView,
@@ -21,12 +22,49 @@ interface Props {
   onChanged: () => Promise<void>;
 }
 
+/** One-click endpoints for the OpenAI-compatible connection. */
+const ENDPOINT_PRESETS: {
+  name: string;
+  url: string;
+  model: string;
+  free?: boolean;
+  hint: string;
+}[] = [
+  {
+    name: "FreeLLMAPI",
+    url: FREELLMAPI_URL,
+    model: "auto",
+    free: true,
+    hint: "80+ free providers behind one endpoint, with failover (runs on this computer)",
+  },
+  {
+    name: "OpenRouter",
+    url: "https://openrouter.ai/api/v1",
+    model: "openrouter/auto",
+    hint: "Hundreds of models with one key",
+  },
+  {
+    name: "Ollama",
+    url: "http://localhost:11434/v1",
+    model: "qwen2.5-coder",
+    free: true,
+    hint: "Local models",
+  },
+  {
+    name: "LM Studio",
+    url: "http://localhost:1234/v1",
+    model: "",
+    free: true,
+    hint: "Local models",
+  },
+];
+
 const KEY_HELP: Partial<Record<ProviderKind, string>> = {
   anthropic: "console.anthropic.com → API keys",
   openai: "platform.openai.com → API keys",
   gemini: "aistudio.google.com → Get API key",
   "openai-compatible":
-    "OpenRouter, Groq, DeepSeek, Together, or a local Ollama / LM Studio server",
+    "FreeLLMAPI's unified key, OpenRouter, Groq, DeepSeek, Together, or none for a local Ollama / LM Studio server",
 };
 
 const MODEL_HINT: Partial<Record<ProviderKind, string>> = {
@@ -331,6 +369,40 @@ function AddConnection(props: {
                 <small className="muted">{KEY_HELP[kind]}</small>
               )}
             </label>
+          )}
+          {kind === "openai-compatible" && (
+            <div
+              className="endpoint-presets"
+              role="group"
+              aria-label="Quick setup"
+            >
+              {ENDPOINT_PRESETS.map((e) => (
+                <button
+                  key={e.name}
+                  type="button"
+                  className={`chip preset-chip ${baseUrl === e.url ? "is-active" : ""}`}
+                  onClick={() => {
+                    setBaseUrl(e.url);
+                    setModel(e.model);
+                  }}
+                  title={e.hint}
+                >
+                  {e.name}
+                  {e.free && <span className="free-tag">free</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {kind === "openai-compatible" && baseUrl === FREELLMAPI_URL && (
+            <div className="cli-status is-ok">
+              <strong>FreeLLMAPI</strong> puts 80+ free providers behind this
+              one endpoint and fails over between them. Run it on this computer
+              (<code>docker compose up</code> or its desktop app, see
+              github.com/tashfeenahmed/freellmapi), add your free provider keys
+              in its dashboard, then paste its unified <code>freellmapi-…</code>{" "}
+              key here. Afterwards press <b>Auto crew</b> for a crew that costs
+              nothing.
+            </div>
           )}
           {kind === "openai-compatible" && (
             <label className="field">

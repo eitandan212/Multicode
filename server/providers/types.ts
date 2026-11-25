@@ -39,9 +39,13 @@ export function isLimitError(message: string): boolean {
 export function limitCooldownMs(message: string): number {
   const h = /(\d+)\s*h(?:ours?)?/i.exec(message);
   const m = /(\d+)\s*m(?:in(?:utes?)?)?\b/i.exec(message);
-  const total = (h ? Number(h[1]) * 3600_000 : 0) + (m ? Number(m[1]) * 60_000 : 0);
+  const total =
+    (h ? Number(h[1]) * 3600_000 : 0) + (m ? Number(m[1]) * 60_000 : 0);
   if (total > 0 && total < 7 * 24 * 3600_000) return total;
-  const hard = /quota|credit|usage limit|limit reached|reached your|billing|exceeded your current|plan limit|upgrade/i.test(message);
+  const hard =
+    /quota|credit|usage limit|limit reached|reached your|billing|exceeded your current|plan limit|upgrade/i.test(
+      message,
+    );
   return hard ? 3600_000 : 120_000;
 }
 
@@ -50,7 +54,11 @@ export type DeltaHandler = (text: string) => void;
 export interface Provider {
   /** True when the provider edits files on disk itself (CLI agents in edit mode). */
   readonly editsFiles: boolean;
-  generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string>;
+  generate(
+    req: GenerateRequest,
+    onDelta: DeltaHandler,
+    signal: AbortSignal,
+  ): Promise<string>;
   listModels?(signal: AbortSignal): Promise<string[]>;
 }
 

@@ -130,6 +130,23 @@ export const PLUGINS: PluginDef[] = [
     }),
   },
   {
+    // vercel-labs/agent-desktop (Apache-2.0): reads apps through the OS accessibility tree.
+    id: "agent-desktop",
+    name: "Desktop apps (agent-desktop)",
+    category: "computer",
+    description:
+      "Lets agents see and operate desktop apps on macOS, Windows and Linux through the accessibility tree: no screenshots, and it doesn't move your mouse unless asked. Good for testing the desktop apps and games the crew builds, but an agent can then click and type in any app.",
+    risk: "high",
+    defaultOn: false,
+    source: "agent-desktop@1.2.0",
+    server: () => ({
+      name: "agent-desktop",
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "agent-desktop@1.2.0", "mcp"],
+    }),
+  },
+  {
     id: "computer-use",
     name: "Computer control",
     category: "computer",

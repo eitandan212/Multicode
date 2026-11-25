@@ -610,7 +610,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
   // Economy: one cheap reviewer. Otherwise every reviewer (e.g. code + security) checks in parallel.
   const reviewers = economy
     ? [cheapest([roles.reviewer, roles.architect, ...roles.builders])]
-    : (roles.reviewers?.length ? roles.reviewers : [roles.reviewer]);
+    : roles.reviewers?.length
+      ? roles.reviewers
+      : [roles.reviewer];
   let reviewSummary = "";
   for (let round = 1; round <= rounds; round++) {
     emit({ type: "phase", phase: "reviewing", round });
@@ -623,7 +625,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
                 files: "(read the files from the current directory)",
               }
             : await digest(economy ? 50_000 : 120_000, [...changed]);
-          const what = reviewer.instructions ? reviewer.instructions.split(/[:.]/)[0]!.trim() : "";
+          const what = reviewer.instructions
+            ? reviewer.instructions.split(/[:.]/)[0]!.trim()
+            : "";
           return call(
             m,
             ws,
@@ -651,7 +655,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
       summary:
         verdicts.length === 1
           ? verdicts[0]!.review.summary
-          : verdicts.map((v) => `${v.reviewer.name}: ${v.review.summary}`).join("\n"),
+          : verdicts
+              .map((v) => `${v.reviewer.name}: ${v.review.summary}`)
+              .join("\n"),
       issues: verdicts
         .flatMap((v) => v.review.issues)
         .filter((i) => {
