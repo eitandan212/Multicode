@@ -115,6 +115,8 @@ export const api = {
       entities: { name: string; entityType: string; observations: string[] }[];
       relations: { from: string; to: string; relationType: string }[];
     }>("GET", `/api/projects/${project}/memory`),
+  about: () =>
+    request<{ version: string; dataDir: string | null; projectsDir: string; errorLog: string | null; node: string; platform: string }>("GET", "/api/about"),
   usage: (fresh = false) => request<AccountUsage[]>("GET", `/api/usage${fresh ? "?fresh=1" : ""}`),
   checkConnection: (id: string) => request<ConnectionHealth>("GET", `/api/connections/${id}/check`),
   agentAccess: (kind: string) => request<AgentAccess>("GET", `/api/agents/${kind}/access`),

@@ -4867,3 +4867,188 @@ pre,
 .usage-meter-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; }
 .usage-meter-head .truncate { flex: 1; min-width: 0; }
 .usage-meter .usage-track { height: 5px; }
+
+/* ---- Settings: General, Shortcuts, Projects, About ---------------------- */
+.kb-list,
+.proj-list{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.kb-list li,
+.proj-list li{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--hover);
+  animation: row-in 420ms var(--spring) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+.kb-list li{ justify-content: space-between; }
+.kb-keys{ display: flex; gap: 4px; }
+.kb-keys kbd{
+  min-width: 24px;
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--bg);
+  font: 12px var(--mono);
+  text-align: center;
+  transition: transform 160ms var(--spring);
+}
+.kb-list li:hover kbd{ transform: translateY(-1px); }
+.proj-info{ display: grid; min-width: 0; flex: 1; gap: 2px; }
+.proj-actions{ display: flex; align-items: center; gap: 4px; flex: none; }
+.proj-list li .project-badge{ border-radius: 8px; }
+@container (max-width: 460px) {
+  .proj-list li{ flex-wrap: wrap; }
+}
+.about-hero{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%);
+}
+.about-hero > div{ display: grid; gap: 2px; }
+.about-hero strong{ font-size: 17px; }
+.about-logo{
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 40%, transparent);
+  animation: logo-bob 3.2s var(--ease-soft) infinite;
+}
+@keyframes logo-bob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-3px) rotate(-6deg); }
+}
+.about-path{
+  display: block;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--hover);
+  font: 12px var(--mono);
+  overflow-wrap: anywhere;
+}
+.about-actions{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+/* ---- More smooth, playful motion ---------------------------------------- */
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+.pop-in{ animation: row-in 360ms var(--spring) both; }
+
+/* Agent messages and tool lines rise in, one after another. */
+.msg-agent.enter{ animation: rise-in 460ms var(--spring) both; }
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px); filter: blur(2px); }
+}
+.tool-lines > *{ animation: row-in 380ms var(--spring) both; }
+.tool-lines > *:nth-child(2){ animation-delay: 40ms; }
+.tool-lines > *:nth-child(3){ animation-delay: 80ms; }
+.tool-lines > *:nth-child(n + 4){ animation-delay: 120ms; }
+
+/* An approval slides up and gently glows twice so you notice it. */
+.ask-card.enter{
+  animation:
+    ask-in 520ms var(--spring) both,
+    ask-glow 1.4s var(--ease-soft) 520ms 2;
+}
+@keyframes ask-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+}
+@keyframes ask-glow {
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 22%, transparent); }
+}
+
+/* New threads pop into the sidebar; a changed status bounces. */
+.sb-card{ animation: row-in 380ms var(--spring) both; }
+.sb-card .sb-state,
+.sb-card .working-tag{ animation: status-pop 420ms var(--spring) both; }
+@keyframes status-pop {
+  from { opacity: 0; transform: scale(0.7); }
+}
+.sb-settings svg{ transition: transform 520ms var(--spring); }
+.sb-settings:hover svg{ transform: rotate(90deg); }
+
+/* Usage bars fill up from empty. */
+.usage-track > span{ animation: bar-fill 900ms var(--ease) both; transform-origin: left; }
+@keyframes bar-fill {
+  from { transform: scaleX(0); }
+}
+
+/* Settings sections cross-fade when you switch. */
+.settings-content{ animation: section-in 320ms var(--ease) both; }
+@keyframes section-in {
+  from { opacity: 0; transform: translateX(10px); }
+}
+.settings-item{ transition: background-color 160ms var(--ease-soft), transform 260ms var(--spring); }
+.settings-item:hover{ transform: translateX(2px); }
+.settings-item svg{ transition: transform 360ms var(--spring); }
+.settings-item:hover svg{ transform: scale(1.12) rotate(-6deg); }
+
+/* Buttons press in; switches squish as they slide. */
+.btn,
+.icon-btn{ transition: background-color 140ms var(--ease-soft), color 140ms var(--ease-soft), box-shadow 200ms var(--ease-soft), border-color 140ms var(--ease-soft), transform 220ms var(--spring); }
+.btn:active:not(:disabled),
+.icon-btn:active:not(:disabled){ transform: scale(0.95); }
+.switch span{ transition: transform 360ms var(--spring), width 200ms var(--ease-soft); }
+.switch:active span{ width: 20px; }
+.switch.on:active span{ transform: translateX(12px); }
+
+/* The message box glows softly while you type. */
+.composer{ transition: border-color 200ms var(--ease-soft), box-shadow 300ms var(--ease); }
+.composer:focus-within{
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent),
+    0 8px 28px rgb(0 0 0 / 0.08);
+}
+.send:active:not(:disabled) svg{ transform: translateY(-3px); transition: transform 160ms var(--spring); }
+
+/* Memory graph nodes bloom in. */
+.mem-node circle{
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: node-in 600ms var(--spring) both;
+  transition: transform 260ms var(--spring);
+}
+.mem-node:hover circle{ transform: scale(1.18); }
+@keyframes node-in {
+  from { opacity: 0; transform: scale(0.2); }
+}
+
+/* A finished run's summary gets one soft shimmer. */
+.run-summary,
+.msg-agent.is-done{ position: relative; overflow: hidden; }
+.run-summary::after,
+.msg-agent.is-done::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--brand) 14%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: done-sheen 1.2s var(--ease) 200ms 1 both;
+}
+@keyframes done-sheen {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-list li, .proj-list li, .pop-in, .msg-agent.enter, .tool-lines > *, .ask-card.enter, .sb-card,
+  .sb-card .sb-state, .sb-card .working-tag, .usage-track > span, .settings-content, .mem-node circle,
+  .about-logo, .run-summary::after, .msg-agent.is-done::after{ animation: none !important; }
+}
+.prefs .ap-control{ flex-direction: column; align-items: flex-start; gap: 8px; }
+.prefs .ap-control > p{ margin: 0; }

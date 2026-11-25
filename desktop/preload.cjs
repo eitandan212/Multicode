@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("multicodeDesktop", {
   setTheme: (theme) => ipcRenderer.send("multicode:theme", String(theme)),
   pickFolder: () => ipcRenderer.invoke("multicode:pick-folder"),
+  openPath: (p) => ipcRenderer.invoke("multicode:open-path", String(p)),
   keepAwake: (on) => ipcRenderer.send("multicode:keep-awake", Boolean(on)),
   update: {
     check: () => ipcRenderer.invoke("multicode:update-check"),

@@ -3,6 +3,10 @@ import { EmbeddedContext } from "./embed";
 import { Icon, type IconName } from "./Icon";
 
 export type SettingsSection =
+  | "general"
+  | "keybindings"
+  | "projects"
+  | "about"
   | "appearance"
   | "connections"
   | "crew"
@@ -17,7 +21,11 @@ const NAV: {
 }[] = [
   {
     group: "Preferences",
-    items: [{ id: "appearance", label: "Appearance", icon: "palette" }],
+    items: [
+      { id: "general", label: "General", icon: "bell" },
+      { id: "appearance", label: "Appearance", icon: "palette" },
+      { id: "keybindings", label: "Keyboard shortcuts", icon: "keyboard" },
+    ],
   },
   {
     group: "Agents",
@@ -33,6 +41,13 @@ const NAV: {
     items: [
       { id: "extensions", label: "Plugins & skills", icon: "puzzle" },
       { id: "sync", label: "Sync across harnesses", icon: "sync" },
+    ],
+  },
+  {
+    group: "Workspace",
+    items: [
+      { id: "projects", label: "Projects", icon: "folder" },
+      { id: "about", label: "About", icon: "info" },
     ],
   },
 ];

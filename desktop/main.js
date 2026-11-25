@@ -153,6 +153,15 @@ ipcMain.on("multicode:keep-awake", (event, on) => {
   }
 });
 
+// "Show in folder": opens a path in Explorer / Finder (it must exist).
+ipcMain.handle("multicode:open-path", async (event, target) => {
+  if (!win || event.sender !== win.webContents || typeof target !== "string" || !target) return false;
+  const { existsSync } = await import("node:fs");
+  if (!existsSync(target)) return false;
+  shell.showItemInFolder(target);
+  return true;
+});
+
 // "Open folder": the native folder picker.
 ipcMain.handle("multicode:pick-folder", async (event) => {
   if (!win || event.sender !== win.webContents) return null;

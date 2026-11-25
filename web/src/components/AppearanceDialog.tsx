@@ -155,7 +155,7 @@ export function AppearanceDialog({
   );
 }
 
-function Row({
+export function Row({
   label,
   children,
 }: {
@@ -170,7 +170,7 @@ function Row({
   );
 }
 
-function Seg<T extends string>(p: {
+export function Seg<T extends string>(p: {
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
@@ -198,7 +198,7 @@ function Seg<T extends string>(p: {
   );
 }
 
-function Toggle({
+export function Toggle({
   checked,
   onChange,
   text,

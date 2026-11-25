@@ -22,6 +22,18 @@ import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
+import { readFileSync } from "node:fs";
+
+/** The app's version, from package.json (next to dist/ in the app and in development). */
+const APP_VERSION: string = (() => {
+  for (const p of ["../../package.json", "../package.json"])
+    try {
+      return (JSON.parse(readFileSync(new URL(p, import.meta.url), "utf8")) as { version: string }).version;
+    } catch {
+      /* try the next place */
+    }
+  return "dev";
+})();
 import { CLI_SPECS } from "./providers/cli.js";
 import { enabledPlugins, memoryGraphFile, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
@@ -344,6 +356,17 @@ export function createApp(opts: AppOptions) {
   );
   // One-click agent setup: install, sign in, and who you're signed in as.
   const signIn = new SignIn();
+  // About: version and where MultiCode keeps its data and its error log.
+  api.get("/about", (_req, res) => {
+    res.json({
+      version: APP_VERSION,
+      dataDir: opts.stateDir ?? null,
+      projectsDir,
+      errorLog: opts.stateDir ? path.join(opts.stateDir, "logs", "errors.log") : null,
+      node: process.versions.node,
+      platform: `${process.platform} ${process.arch}`,
+    });
+  });
   // Subscription limits (as Claude's /usage shows them): how much is used and when it resets.
   api.get(
     "/usage",

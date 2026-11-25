@@ -357,7 +357,7 @@ export function Thread({
       )}
 
       {run.status === "done" && !run.variants && (
-        <div className="msg-agent enter">
+        <div className="msg-agent enter is-done">
           <p>
             {run.context?.safety === "readonly"
               ? "Here's the plan. Nothing was changed (plan-only mode)."

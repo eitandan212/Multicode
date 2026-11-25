@@ -13,6 +13,8 @@ declare global {
       setTheme(theme: string): void;
       /** The desktop app's native folder picker (undefined in a browser). */
       pickFolder?: () => Promise<string | null>;
+      /** Shows a file or folder in Explorer / Finder. */
+      openPath?: (p: string) => Promise<boolean>;
       /** Sleep mode: stop the computer from sleeping while the crew works. */
       keepAwake?: (on: boolean) => void;
       /** In-app updates (desktop app only). */

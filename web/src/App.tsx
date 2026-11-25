@@ -32,7 +32,7 @@ import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
 
 import { LogoLoader, LogoMark } from "./components/Logo";
-import { SettingsPage } from "./components/SettingsPage";
+import { SettingsPage, type SettingsSection } from "./components/SettingsPage";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { SetupWizard } from "./components/SetupWizard";
 import { UsageDialog } from "./components/UsageDialog";
@@ -44,6 +44,8 @@ import { ProjectEmojis, Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
+import { AboutDialog, GeneralDialog, KeybindingsDialog, ProjectsDialog } from "./components/PreferencesDialogs";
+import { chime, loadPrefs, notify } from "./prefs";
 import { emptyRun, reduceRun, type RunView } from "./runState";
 
 /** The IDE (Monaco) loads only when you open it, so Chat view stays light. */
@@ -82,19 +84,12 @@ export function App() {
   const [loadError, setLoadError] = useState("");
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [projectsDir, setProjectsDir] = useState<string | null>(null);
+  useEffect(() => {
+    void api.about().then((a) => setProjectsDir(a.projectsDir)).catch(() => {});
+  }, []);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [dialog, setDialog] = useState<
-    | "connections"
-    | "crew"
-    | "palette"
-    | "sync"
-    | "extensions"
-    | "appearance"
-    | "safety"
-    | "usage"
-    | "project"
-    | null
-  >(null);
+  const [dialog, setDialog] = useState<SettingsSection | "palette" | "project" | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("preview");
   const [appearance, setAppearanceState] = useState<Appearance>(loadAppearance);
   // The intro plays once per browser session (and never with reduced motion).
@@ -179,6 +174,30 @@ export function App() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Background threads: refresh the list while any is working, so finishing ones are noticed.
+  const working = runs.some((r) => r.status === "running");
+  useEffect(() => {
+    if (!working) return;
+    const t = window.setInterval(() => void api.allRuns().then(setRuns).catch(() => {}), 5000);
+    return () => window.clearInterval(t);
+  }, [working]);
+
+  // Desktop notification (and an optional chime) when a thread finishes or fails.
+  const lastStatus = useRef(new Map<string, string>());
+  useEffect(() => {
+    const prefs = loadPrefs();
+    for (const r of runs) {
+      const before = lastStatus.current.get(r.id);
+      lastStatus.current.set(r.id, r.status);
+      if (before !== "running" || r.status === "running") continue;
+      const what = r.prompt.length > 80 ? `${r.prompt.slice(0, 80)}…` : r.prompt;
+      if (r.status === "done") {
+        if (prefs.notifyDone) notify(`✅ Done · ${r.project}`, what);
+        if (prefs.sound) chime();
+      } else if (r.status === "error" && prefs.notifyDone) notify(`⚠️ Failed · ${r.project}`, what);
+    }
+  }, [runs]);
 
   // Keyboard shortcuts. The handler is refreshed every render so it always sees current state.
   const shortcut = useRef<(e: KeyboardEvent) => void>(() => {});
@@ -275,6 +294,8 @@ export function App() {
     if (!runId) return;
     return api.events(runId, (event) => {
       dispatch({ kind: "event", event });
+      if (event.type === "approval.request" && loadPrefs().notifyApproval)
+        notify("✋ Waiting for your approval", event.title);
       if (event.type === "file.changed" || event.type === "run.done")
         bumpPreview();
       if (event.type === "run.done" || event.type === "run.error")
@@ -441,6 +462,37 @@ export function App() {
         icon: "shield",
         group: "Actions",
         run: () => setDialog("safety"),
+      },
+      {
+        id: "general",
+        label: "General settings",
+        hint: "send key, notifications, sound",
+        icon: "bell",
+        group: "View",
+        run: () => setDialog("general"),
+      },
+      {
+        id: "keybindings",
+        label: "Keyboard shortcuts",
+        icon: "keyboard",
+        group: "View",
+        run: () => setDialog("keybindings"),
+      },
+      {
+        id: "projects",
+        label: "Manage projects",
+        hint: "show in folder, remove opened folders",
+        icon: "folder",
+        group: "Actions",
+        run: () => setDialog("projects"),
+      },
+      {
+        id: "about",
+        label: "About MultiCode",
+        hint: "version, updates, data folder, error log",
+        icon: "info",
+        group: "View",
+        run: () => setDialog("about"),
       },
       {
         id: "appearance",
@@ -986,6 +1038,25 @@ export function App() {
             switch (section) {
               case "extensions":
                 return <ExtensionsDialog onClose={done} />;
+              case "general":
+                return <GeneralDialog onClose={done} />;
+              case "keybindings":
+                return <KeybindingsDialog onClose={done} />;
+              case "about":
+                return <AboutDialog onClose={done} />;
+              case "projects":
+                return (
+                  <ProjectsDialog
+                    projects={state.projects}
+                    projectsDir={projectsDir}
+                    onClose={done}
+                    onChanged={reload}
+                    onOpen={(name) => {
+                      setDialog(null);
+                      selectProject(name);
+                    }}
+                  />
+                );
               case "usage":
                 return <UsageDialog onClose={done} onConnect={() => setDialog("connections")} />;
               case "safety":

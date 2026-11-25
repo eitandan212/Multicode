@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { loadPrefs } from "../prefs";
 import type {
   ConnectionView,
   CrewMember,
@@ -89,11 +90,10 @@ export function Composer(p: Props) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (
-              e.key === "Enter" &&
-              !e.shiftKey &&
-              !e.nativeEvent.isComposing
-            ) {
+            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+            const mod = e.ctrlKey || e.metaKey;
+            // Settings > General: Enter sends, or Ctrl/⌘+Enter sends (then Enter is a new line).
+            if (loadPrefs().sendKey !== "mod" || mod) {
               e.preventDefault();
               void submit();
             }
