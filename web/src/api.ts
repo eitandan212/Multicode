@@ -107,6 +107,11 @@ export const api = {
     ),
   createProject: (name: string) =>
     request<{ name: string }>("POST", "/api/projects", { name }),
+  memory: (project: string) =>
+    request<{
+      entities: { name: string; entityType: string; observations: string[] }[];
+      relations: { from: string; to: string; relationType: string }[];
+    }>("GET", `/api/projects/${project}/memory`),
   openFolder: (path: string) =>
     request<{ name: string }>("POST", "/api/projects/open", { path }),
   unlinkProject: (name: string) =>

@@ -280,6 +280,8 @@ export function App() {
 
   const togglePanel = (open: boolean) => {
     setPanelOpen(open);
+    // Sidebar + chat + panel don't fit side by side below ~1200px: the panel takes the sidebar's room.
+    if (open && window.innerWidth < 1200) setSidebarOpen(false);
     if (!narrow()) store.set("panel", open ? "1" : "0");
   };
   const toggleSidebar = (open: boolean) => {

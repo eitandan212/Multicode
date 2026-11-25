@@ -17,7 +17,8 @@ import type { ProviderFactory } from "./providers/registry.js";
 import { RunManager } from "./runs.js";
 import { autoCrew } from "./autocrew.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
-import { enabledPlugins, PLUGINS } from "./plugins.js";
+import { readGraph } from "./graph.js";
+import { enabledPlugins, memoryGraphFile, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
 import { parseTeam } from "./team.js";
 import { installAgent, loadRegistry, registryView } from "./acp/registry.js";
@@ -308,6 +309,18 @@ export function createApp(opts: AppOptions) {
   api.get(
     "/projects",
     wrap(async (_req, res) => res.json(await listProjects(projectsDir))),
+  );
+  // The project's memory graph (what the crew and the memory plugin remember).
+  api.get(
+    "/projects/:name/memory",
+    wrap(async (req, res) => {
+      const name = validateProjectName(param(req, "name"));
+      res.json(
+        opts.stateDir
+          ? await readGraph(memoryGraphFile(opts.stateDir, name))
+          : { entities: [], relations: [] },
+      );
+    }),
   );
   // Open an existing folder on this computer as a project.
   api.post(

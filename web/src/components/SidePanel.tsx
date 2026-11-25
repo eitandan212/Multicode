@@ -8,11 +8,12 @@ import { api } from "../api";
 import { serviceName } from "../../../server/shared";
 import { colorFor, ROLE_LABEL } from "../crewColors";
 import { DiffView } from "./DiffView";
+import { MemoryGraph } from "./MemoryGraph";
 import { AGENT_PRESETS } from "../../../server/agents";
 import { ProviderLogo } from "./ProviderLogo";
 import { Icon, Spinner } from "./Icon";
 
-export type PanelTab = "preview" | "files" | "changes";
+export type PanelTab = "preview" | "files" | "changes" | "memory";
 
 interface Props {
   project: string;
@@ -165,6 +166,15 @@ export function SidePanel(p: Props) {
               <span className="muted">{p.diff.length}</span>
             )}
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "memory"}
+            className={tab === "memory" ? "is-active" : ""}
+            onClick={() => setTab("memory")}
+            title="What the crew remembers about this project"
+          >
+            <Icon name="graph" size={14} /> Memory
+          </button>
           {tab === "preview" && hasIndex && (
             <a
               className="icon-btn push-right"
@@ -197,6 +207,8 @@ export function SidePanel(p: Props) {
           ))}
 
         {tab === "changes" && <DiffView files={p.diff} />}
+
+        {tab === "memory" && <MemoryGraph project={p.project} refreshKey={p.refreshKey} />}
 
         {tab === "files" && (
           <div className="files">

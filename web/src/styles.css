@@ -4904,3 +4904,66 @@ pre,
 .menu-row { display: flex; align-items: center; gap: 2px; }
 .menu-row .menu-item { flex: 1; min-width: 0; }
 .linked-tag { margin-left: auto; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; }
+
+/* ---- Memory graph ---- */
+.memory { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.memory-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.memory-search { display: flex; align-items: center; gap: 6px; flex: 1 1 140px; min-width: 0; color: var(--muted); }
+.memory-search input { flex: 1; min-width: 0; height: 28px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; outline: none; }
+.memory-legend { display: flex; gap: 10px; font-size: 12px; color: var(--muted); }
+.memory-legend i, .memory-detail header i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.memory-canvas { flex: 1; min-height: 240px; width: 100%; cursor: grab; touch-action: none; user-select: none; }
+.memory-canvas:active { cursor: grabbing; }
+.mem-edge { stroke: var(--line-strong); stroke-width: 1; }
+.mem-edge.is-on { stroke: var(--brand); stroke-width: 1.6; }
+.mem-edge.is-dim { opacity: 0.25; }
+.mem-node { cursor: pointer; transition: opacity 160ms var(--ease); }
+.mem-node circle { stroke: var(--bg); stroke-width: 2; }
+.mem-node.is-sel circle { stroke: var(--text); }
+.mem-node text { font-size: 11px; fill: var(--text); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; pointer-events: none; }
+.mem-node.is-dim { opacity: 0.2; }
+.mem-node:focus { outline: none; }
+.mem-node:focus-visible circle { stroke: var(--focus); stroke-width: 3; }
+.memory-detail {
+  position: absolute; right: 10px; bottom: 10px; width: min(320px, calc(100% - 20px)); max-height: 55%;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; overflow: auto;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: var(--shadow-pop);
+}
+.memory-detail header { display: flex; align-items: center; gap: 8px; }
+.memory-detail header .icon-btn { margin-left: auto; }
+.memory-links, .memory-obs { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; }
+.memory-links { list-style: none; padding-left: 0; }
+.memory-obs li { color: var(--text); line-height: 1.45; }
+
+/* ---- Every window size: parts adapt to the room they actually have, not the screen width ---- */
+.composer { container: composer / inline-size; }
+@container composer (max-width: 600px) {
+  .composer-bar { flex-wrap: wrap; row-gap: 6px; }
+  .composer-bar .team-label,
+  .composer-bar .safety-label { display: none; }
+}
+@container composer (max-width: 420px) {
+  .composer-bar .mode-switch svg { display: none; }
+}
+.ws-card { container: ws / inline-size; }
+.ws-card > .seg { overflow-x: auto; scrollbar-width: none; }
+.ws-card > .seg::-webkit-scrollbar { display: none; }
+@container ws (max-width: 400px) {
+  .ws-card > .seg [role="tab"] .muted { display: none; }
+}
+@container ws (max-width: 340px) {
+  .ws-card > .seg [role="tab"] { gap: 0; font-size: 0; padding-inline: 8px; }
+  .ws-card > .seg [role="tab"] svg { width: 16px; height: 16px; }
+}
+
+/* Large screens at 100% scaling: everything a little bigger and the conversation wider, so the
+   app doesn't shrink to a thin column in the middle of a 1440p or 4K display. */
+@media (min-width: 1800px) {
+  :root { --chat-w: 52rem; }
+}
+@media (min-width: 2400px) {
+  html { zoom: 1.2; }
+}
+@media (min-width: 3200px) {
+  html { zoom: 1.5; }
+}

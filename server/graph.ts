@@ -107,3 +107,45 @@ export async function recordRun(file: string, r: RunRecord): Promise<void> {
   await writeFile(tmp, out.join("\n") + "\n");
   await rename(tmp, file);
 }
+
+export interface MemoryGraph {
+  entities: { name: string; entityType: string; observations: string[] }[];
+  relations: { from: string; to: string; relationType: string }[];
+}
+
+/** The project's memory graph as the memory MCP server and MultiCode wrote it. */
+export async function readGraph(file: string): Promise<MemoryGraph> {
+  const graph: MemoryGraph = { entities: [], relations: [] };
+  let text = "";
+  try {
+    text = await readFile(file, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    return graph;
+  }
+  for (const l of text.split("\n")) {
+    if (!l.trim()) continue;
+    try {
+      const x = JSON.parse(l) as {
+        type?: string;
+        name?: unknown;
+        entityType?: unknown;
+        observations?: unknown;
+        from?: unknown;
+        to?: unknown;
+        relationType?: unknown;
+      };
+      if (x.type === "entity" && typeof x.name === "string")
+        graph.entities.push({
+          name: x.name,
+          entityType: String(x.entityType ?? "thing"),
+          observations: Array.isArray(x.observations) ? x.observations.map(String) : [],
+        });
+      else if (x.type === "relation" && typeof x.from === "string" && typeof x.to === "string")
+        graph.relations.push({ from: x.from, to: x.to, relationType: String(x.relationType ?? "") });
+    } catch {
+      /* a line the memory server may add later: skip it */
+    }
+  }
+  return graph;
+}
