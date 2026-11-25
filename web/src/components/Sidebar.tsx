@@ -18,6 +18,7 @@ interface Props {
   onOpenExtensions: () => void;
   onOpenAppearance: () => void;
   onOpenSafety: () => void;
+  onOpenTutorial: () => void;
   onCollapse: () => void;
 }
 
@@ -189,6 +190,7 @@ export function Sidebar(p: Props) {
             },
             { icon: "sync", label: "Sync across harnesses", run: p.onOpenSync },
             { icon: "palette", label: "Appearance", run: p.onOpenAppearance },
+            { icon: "spark", label: "Tutorial", run: p.onOpenTutorial },
           ]}
         />
       </div>

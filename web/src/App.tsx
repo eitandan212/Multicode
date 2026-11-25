@@ -25,6 +25,7 @@ import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
 import { LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
+import { ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
@@ -138,19 +139,43 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Pick (or create) a project once state has loaded.
+  // Pick the last project once state has loaded. Nothing is created for the user: the
+  // tutorial walks them through naming their own first project.
   useEffect(() => {
     if (!state || project) return;
     const last = store.get("project");
     const existing =
       state.projects.find((p) => p.name === last) ?? state.projects[0];
     if (existing) setProject(existing.name);
-    else
-      void api.createProject("my-first-app").then(async (p) => {
-        await reload();
-        setProject(p.name);
-      });
-  }, [state, project, reload]);
+  }, [state, project]);
+
+  const [tutorial, setTutorial] = useState(
+    () => store.get("tutorial") !== "done",
+  );
+  // People who already built something skip the guide (until they ask for it again).
+  const runsLoaded = runs.length > 0;
+  useEffect(() => {
+    if (runsLoaded && store.get("tutorial") === null) {
+      setTutorial(false);
+      store.set("tutorial", "done");
+    }
+  }, [runsLoaded]);
+  const endTutorial = () => {
+    setTutorial(false);
+    store.set("tutorial", "done");
+  };
+  const showTutorial = () => {
+    setTutorial(true);
+    store.set("tutorial", "");
+    dispatch({ kind: "reset", run: null });
+  };
+  // A prompt picked in the tutorial, handed to the composer (n changes on every pick).
+  const [draft, setDraft] = useState<{ text: string; n: number } | undefined>();
+  const createFirstProject = async (name: string) => {
+    const p = await api.createProject(name);
+    await reload();
+    selectProject(p.name);
+  };
 
   const selectProject = (name: string) => {
     if (name === project) return;
@@ -218,6 +243,7 @@ export function App() {
     if (!project) return;
     const summary = await api.startRun(project, prompt, mode);
     setRuns((rs) => [summary, ...rs]);
+    if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
   };
 
@@ -242,6 +268,14 @@ export function App() {
         icon: "compose",
         group: "Actions",
         run: () => dispatch({ kind: "reset", run: null }),
+      },
+      {
+        id: "tutorial",
+        label: "Show the tutorial",
+        hint: "getting started, step by step",
+        icon: "spark",
+        group: "View",
+        run: showTutorial,
       },
       {
         id: "new-project",
@@ -413,6 +447,7 @@ export function App() {
             : "Describe what to build"
           : "Connect an AI to start"
       }
+      draft={draft}
       onSubmit={startRun}
       onStop={() => run && void api.cancelRun(run.id)}
       onOpenCrew={() => setDialog("crew")}
@@ -448,6 +483,7 @@ export function App() {
             onOpenExtensions={() => setDialog("extensions")}
             onOpenAppearance={() => setDialog("appearance")}
             onOpenSafety={() => setDialog("safety")}
+            onOpenTutorial={showTutorial}
             onCollapse={() => toggleSidebar(false)}
           />
           <div
@@ -471,9 +507,17 @@ export function App() {
             </button>
           )}
           <div className="crumbs truncate">
-            <span className="muted">{project}</span>
-            <span className="muted sep">/</span>
-            <span className="truncate">{run ? run.prompt : "New thread"}</span>
+            {project ? (
+              <>
+                <span className="muted">{project}</span>
+                <span className="muted sep">/</span>
+                <span className="truncate">
+                  {run ? run.prompt : "New thread"}
+                </span>
+              </>
+            ) : (
+              <span>Getting started</span>
+            )}
           </div>
           <button
             className="kbd-btn"
@@ -539,6 +583,35 @@ export function App() {
             </div>
             <div className="dock">{composer}</div>
           </>
+        ) : tutorial || !project ? (
+          <div className="hero">
+            <Ribbons />
+            {tutorial ? (
+              <Tutorial
+                hasConnection={state.connections.length > 0}
+                crewSize={crew.length}
+                hasProject={Boolean(project)}
+                hasRun={runs.length > 0}
+                onConnect={() => setDialog("connections")}
+                onEditCrew={() => setDialog("crew")}
+                onCreateProject={createFirstProject}
+                onExample={(text) =>
+                  setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }))
+                }
+                onSkip={endTutorial}
+              />
+            ) : (
+              <section className="tutorial">
+                <LogoMark size={40} className="hero-mark" />
+                <h1>Create a project to start</h1>
+                <p className="muted">
+                  A folder on this computer where the crew writes the code.
+                </p>
+                <ProjectForm onCreate={createFirstProject} />
+              </section>
+            )}
+            {composer}
+          </div>
         ) : (
           <div className="hero">
             <Ribbons />

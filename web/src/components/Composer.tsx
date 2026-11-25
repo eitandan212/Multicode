@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CrewMember, RunMode, Settings } from "../../../server/shared";
 import { colorFor } from "../crewColors";
 import { Icon } from "./Icon";
@@ -12,6 +12,8 @@ interface Props {
   /** Finished / total tasks of the running thread, for the progress bar. */
   progress?: { done: number; total: number };
   placeholder: string;
+  /** Text to place in the box (e.g. an example picked in the tutorial); n changes per pick. */
+  draft?: { text: string; n: number };
   onSubmit: (prompt: string, mode: RunMode) => Promise<void>;
   onOpenSafety: () => void;
   onStop: () => void;
@@ -39,6 +41,13 @@ export function Composer(p: Props) {
     }
   };
 
+  const box = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!p.draft) return;
+    setPrompt(p.draft.text);
+    box.current?.focus();
+  }, [p.draft]);
+
   const reviews = p.settings.maxReviewRounds;
 
   return (
@@ -51,6 +60,7 @@ export function Composer(p: Props) {
         }}
       >
         <textarea
+          ref={box}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {

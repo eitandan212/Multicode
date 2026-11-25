@@ -84,6 +84,11 @@ For development (`tsx watch` + Vite with hot reload): `npm run dev`, then open h
 Your projects live in `~/.multicode/projects/<name>` and thread history in `~/.multicode/runs`
 (override the folder with `MULTICODE_HOME`). Threads, their agent output and their diffs survive restarts.
 
+On first launch a short tutorial walks you through it: connect an AI, meet your crew, name your
+first project (MultiCode doesn't create one for you), and ask for something, from scratch or from
+an example. Each step ticks itself off from what you actually did. Skip it any time; bring it back
+from **Settings → Tutorial** or `Ctrl K` → *Show the tutorial*.
+
 ### Make it yours
 
 **Settings** (bottom of the sidebar) holds Connections, Crew, Savings & safety, Plugins & skills,
