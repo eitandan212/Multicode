@@ -353,19 +353,81 @@ code {
   height: 100%;
   padding: 16px;
 }
+/* Always three tracks (sidebar, main, panel) so opening and closing can slide. */
 .shell {
+  --sb-w: 272px;
+  --panel-w: clamp(320px, 36vw, 640px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 0px minmax(0, 1fr) 0px;
   height: 100%;
+  overflow: hidden;
+  transition: grid-template-columns 340ms var(--ease);
 }
 .shell.with-sidebar {
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: var(--sb-w) minmax(0, 1fr) 0px;
 }
 .shell.with-panel {
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 38%);
+  grid-template-columns: 0px minmax(0, 1fr) var(--panel-w);
 }
 .shell.with-sidebar.with-panel {
-  grid-template-columns: 272px minmax(0, 1fr) minmax(320px, 36%);
+  grid-template-columns: var(--sb-w) minmax(0, 1fr) var(--panel-w);
+}
+.main {
+  grid-column: 2;
+  grid-row: 1;
+}
+.slot {
+  grid-row: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.slot-left {
+  grid-column: 1;
+  justify-content: flex-end;
+}
+.slot-left > .sidebar {
+  flex: none;
+  width: var(--sb-w);
+}
+.slot-right {
+  grid-column: 3;
+}
+.slot-right > .side {
+  flex: none;
+  width: var(--panel-w);
+}
+.slot > * {
+  transition:
+    opacity 260ms var(--ease),
+    transform 340ms var(--ease);
+}
+.slot-left > * {
+  animation: slot-in-left 340ms var(--ease) both;
+}
+.slot-right > * {
+  animation: slot-in-right 340ms var(--ease) both;
+}
+.slot-left.is-closing > * {
+  opacity: 0;
+  transform: translateX(-16px);
+}
+.slot-right.is-closing > * {
+  opacity: 0;
+  transform: translateX(16px);
+}
+@keyframes slot-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+@keyframes slot-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
 }
 .scrim,
 .panel-close {
@@ -1400,7 +1462,13 @@ kbd {
   .shell.with-sidebar,
   .shell.with-panel,
   .shell.with-sidebar.with-panel {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 0px minmax(0, 1fr) 0px;
+  }
+  .slot {
+    overflow: visible;
+  }
+  .slot-right > .side {
+    width: auto;
   }
   .sidebar {
     position: fixed;
@@ -2340,6 +2408,24 @@ kbd {
 .dialog[open]::backdrop {
   animation: fade-in 220ms ease-out;
 }
+/* ...and leave the same way (see motion.ts: every dialog plays this before closing). */
+.dialog[data-closing] {
+  animation: dialog-out 200ms var(--ease-soft) forwards;
+}
+.dialog[data-closing]::backdrop {
+  animation: fade-out 200ms ease-in forwards;
+}
+@keyframes dialog-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
 @keyframes dialog-in {
   from {
     opacity: 0;
@@ -2352,16 +2438,34 @@ kbd {
   }
 }
 
-/* Panels and sidebar slide open on narrow screens. */
+/* Narrow screens: the sidebar slides over the page, the panel rises; both leave the same way. */
 @media (max-width: 900px) {
-  .sidebar {
-    animation: slide-right 320ms var(--ease);
+  .slot-left > .sidebar {
+    animation: drawer-in 340ms var(--ease) both;
   }
-  .side {
-    animation: rise 320ms var(--ease);
+  .slot-left.is-closing > .sidebar {
+    opacity: 1;
+    transform: translateX(-105%);
+  }
+  .slot-right > .side {
+    animation: rise 340ms var(--ease) both;
+  }
+  .slot-right.is-closing > .side {
+    transform: translateY(16px);
   }
   .scrim {
     animation: fade-in 220ms ease-out;
+    transition: opacity 260ms var(--ease);
+  }
+  .scrim.is-closing,
+  .panel-close.is-closing {
+    opacity: 0;
+    transition: opacity 200ms var(--ease);
+  }
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(-105%);
   }
 }
 @keyframes slide-right {
@@ -3090,4 +3194,150 @@ pre,
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ---- Motion everywhere ---------------------------------------------------- */
+
+/* Menus leave the way they came. */
+.menu-pop.is-closing {
+  animation: menu-out 160ms var(--ease-soft) forwards;
+}
+@keyframes menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+/* Press feedback on every control. */
+.btn,
+.icon-btn,
+.chip,
+.kbd-btn,
+.menu-item,
+.sb-settings,
+.tut-example,
+.kind-option,
+.seg > button,
+.card-row {
+  transition:
+    background-color 160ms var(--ease-soft),
+    color 160ms var(--ease-soft),
+    border-color 160ms var(--ease-soft),
+    box-shadow 200ms var(--ease-soft),
+    opacity 200ms var(--ease-soft),
+    transform 180ms var(--ease);
+}
+.btn:not(:disabled):active,
+.icon-btn:not(:disabled):active,
+.chip:not(:disabled):active,
+.kbd-btn:active,
+.menu-item:active,
+.sb-settings:active,
+.kind-option:active,
+.seg > button:active,
+.card-row:active {
+  transform: scale(0.97);
+}
+.btn.primary:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+/* The topbar title and the "show sidebar" button settle in when they change. */
+.crumbs {
+  animation: crumb-in 280ms var(--ease) both;
+}
+@keyframes crumb-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.topbar > .icon-btn:first-child {
+  animation: fade-in 260ms var(--ease) both;
+}
+
+/* Sidebar rows: projects and threads slide in (staggered) when a list opens. */
+.sb-project,
+.sb-thread,
+.sb-card {
+  animation: row-in 300ms var(--ease) both;
+}
+.sb-project:nth-child(2),
+.sb-thread:nth-child(3) {
+  animation-delay: 30ms;
+}
+.sb-project:nth-child(3),
+.sb-thread:nth-child(4) {
+  animation-delay: 60ms;
+}
+.sb-project:nth-child(n + 4),
+.sb-thread:nth-child(n + 5) {
+  animation-delay: 90ms;
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+.sb-group svg,
+.chevron,
+.meta-select svg {
+  transition: transform 220ms var(--ease);
+}
+
+/* Side panel: tab content crossfades in; crew rows rise. */
+.ws-card > :not(.seg) {
+  animation: enter 300ms var(--ease) both;
+}
+.member-row {
+  animation: row-in 300ms var(--ease) both;
+}
+
+/* Connections, crew members and other list rows. */
+.conn-row,
+.acp-row:not(.skeleton),
+.kind-option,
+.ap-row {
+  animation: enter 320ms var(--ease) both;
+}
+.acp-row:nth-child(2) {
+  animation-delay: 25ms;
+}
+.acp-row:nth-child(3) {
+  animation-delay: 50ms;
+}
+.acp-row:nth-child(n + 4) {
+  animation-delay: 75ms;
+}
+
+/* The composer lifts a touch while you type; the send button pops when it becomes ready. */
+.send:not(:disabled) {
+  animation: pop 320ms var(--ease);
+}
+
+/* Logo in the sidebar header greets each time the sidebar opens. */
+.slot-left .sb-head .lockup svg path {
+  animation: piece-in 520ms var(--ease) both;
+}
+.slot-left .sb-head .lockup .lm-a {
+  --from: translate(-6px, 4px);
+}
+.slot-left .sb-head .lockup .lm-b {
+  --from: translateY(-6px);
+  animation-delay: 70ms;
+}
+.slot-left .sb-head .lockup .lm-c {
+  --from: translate(6px, 4px);
+  animation-delay: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell {
+    transition: none;
+  }
+}
+:root[data-motion="reduced"] .shell {
+  transition: none;
 }

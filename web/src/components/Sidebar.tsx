@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectInfo, RunSummary } from "../../../server/shared";
 import { Icon, Spinner } from "./Icon";
 import { Lockup } from "./Logo";
+import { usePresence } from "../motion";
 
 interface Props {
   projects: ProjectInfo[];
@@ -207,6 +208,7 @@ type MenuItem = {
 /** Every setting behind one quiet button, as in T3 Code's sidebar footer. */
 function SettingsMenu({ items }: { items: MenuItem[] }) {
   const [open, setOpen] = useState(false);
+  const presence = usePresence(open, 160);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -227,8 +229,12 @@ function SettingsMenu({ items }: { items: MenuItem[] }) {
   }, [open]);
   return (
     <div className="settings-menu" ref={ref}>
-      {open && (
-        <div className="menu-pop" role="menu">
+      {presence.mounted && (
+        <div
+          className={`menu-pop ${presence.closing ? "is-closing" : ""}`}
+          role="menu"
+          inert={!open}
+        >
           {items.map((it) => (
             <button
               key={it.label}

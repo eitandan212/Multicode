@@ -25,6 +25,7 @@ import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
 import { LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
+import { usePresence } from "./motion";
 import { ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
@@ -109,6 +110,9 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(
     () => !narrow() && store.get("panel") === "1",
   );
+  // Sidebar and panel stay mounted while they slide out.
+  const sidebarPresence = usePresence(sidebarOpen);
+  const panelPresence = usePresence(panelOpen && Boolean(project));
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshTimer = useRef<number | undefined>(undefined);
 
@@ -463,31 +467,36 @@ export function App() {
     <div
       className={`shell ${sidebarOpen ? "with-sidebar" : ""} ${panelOpen ? "with-panel" : ""}`}
     >
-      {sidebarOpen && (
+      {sidebarPresence.mounted && (
         <>
-          <Sidebar
-            projects={state.projects}
-            runs={runs}
-            project={project}
-            runId={run?.id ?? null}
-            onSelectProject={selectProject}
-            onSelectRun={selectRun}
-            onNewThread={() => {
-              dispatch({ kind: "reset", run: null });
-              if (narrow()) setSidebarOpen(false);
-            }}
-            onNewProject={newProject}
-            onOpenConnections={() => setDialog("connections")}
-            onOpenCrew={() => setDialog("crew")}
-            onOpenSync={() => setDialog("sync")}
-            onOpenExtensions={() => setDialog("extensions")}
-            onOpenAppearance={() => setDialog("appearance")}
-            onOpenSafety={() => setDialog("safety")}
-            onOpenTutorial={showTutorial}
-            onCollapse={() => toggleSidebar(false)}
-          />
           <div
-            className="scrim"
+            className={`slot slot-left ${sidebarPresence.closing ? "is-closing" : ""}`}
+            inert={!sidebarOpen}
+          >
+            <Sidebar
+              projects={state.projects}
+              runs={runs}
+              project={project}
+              runId={run?.id ?? null}
+              onSelectProject={selectProject}
+              onSelectRun={selectRun}
+              onNewThread={() => {
+                dispatch({ kind: "reset", run: null });
+                if (narrow()) setSidebarOpen(false);
+              }}
+              onNewProject={newProject}
+              onOpenConnections={() => setDialog("connections")}
+              onOpenCrew={() => setDialog("crew")}
+              onOpenSync={() => setDialog("sync")}
+              onOpenExtensions={() => setDialog("extensions")}
+              onOpenAppearance={() => setDialog("appearance")}
+              onOpenSafety={() => setDialog("safety")}
+              onOpenTutorial={showTutorial}
+              onCollapse={() => toggleSidebar(false)}
+            />
+          </div>
+          <div
+            className={`scrim ${sidebarPresence.closing ? "is-closing" : ""}`}
             onClick={() => toggleSidebar(false)}
             aria-hidden
           />
@@ -506,7 +515,10 @@ export function App() {
               <Icon name="sidebar" />
             </button>
           )}
-          <div className="crumbs truncate">
+          <div
+            className="crumbs truncate"
+            key={`${project ?? ""}/${run?.id ?? "new"}`}
+          >
             {project ? (
               <>
                 <span className="muted">{project}</span>
@@ -636,27 +648,32 @@ export function App() {
         )}
       </main>
 
-      {panelOpen && project && (
+      {panelPresence.mounted && project && (
         <>
-          <SidePanel
-            project={project}
-            crew={crew}
-            connections={state.connections}
-            busy={busy}
-            refreshKey={refreshKey}
-            changed={run?.changed ?? []}
-            diff={run?.diff}
-            tab={panelTab}
-            onTab={setPanelTab}
-            onOpenCrew={() => setDialog("crew")}
-            onOpenConnections={() => setDialog("connections")}
-            onOpenSync={() => setDialog("sync")}
-            onOpenExtensions={() => setDialog("extensions")}
-            onOpenSafety={() => setDialog("safety")}
-            limits={state.limits}
-          />
+          <div
+            className={`slot slot-right ${panelPresence.closing ? "is-closing" : ""}`}
+            inert={!panelOpen}
+          >
+            <SidePanel
+              project={project}
+              crew={crew}
+              connections={state.connections}
+              busy={busy}
+              refreshKey={refreshKey}
+              changed={run?.changed ?? []}
+              diff={run?.diff}
+              tab={panelTab}
+              onTab={setPanelTab}
+              onOpenCrew={() => setDialog("crew")}
+              onOpenConnections={() => setDialog("connections")}
+              onOpenSync={() => setDialog("sync")}
+              onOpenExtensions={() => setDialog("extensions")}
+              onOpenSafety={() => setDialog("safety")}
+              limits={state.limits}
+            />
+          </div>
           <button
-            className="panel-close icon-btn"
+            className={`panel-close icon-btn ${panelPresence.closing ? "is-closing" : ""}`}
             onClick={() => togglePanel(false)}
             aria-label="Close panel"
           >
