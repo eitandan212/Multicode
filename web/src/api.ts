@@ -55,8 +55,8 @@ async function request<T>(
   return data as T;
 }
 
-import type { AgentAccess, SignInFlow } from "../../server/shared";
-export type { AgentAccess, SignInFlow };
+import type { AgentAccess, ConnectionHealth, SignInFlow } from "../../server/shared";
+export type { AgentAccess, ConnectionHealth, SignInFlow };
 
 export const api = {
   state: () => request<AppState>("GET", "/api/state"),
@@ -115,6 +115,7 @@ export const api = {
       entities: { name: string; entityType: string; observations: string[] }[];
       relations: { from: string; to: string; relationType: string }[];
     }>("GET", `/api/projects/${project}/memory`),
+  checkConnection: (id: string) => request<ConnectionHealth>("GET", `/api/connections/${id}/check`),
   agentAccess: (kind: string) => request<AgentAccess>("GET", `/api/agents/${kind}/access`),
   installAgent: (kind: string) =>
     request<{ ok: boolean; output: string }>("POST", `/api/agents/${kind}/install`),

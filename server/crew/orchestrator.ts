@@ -6,6 +6,7 @@ import { createTwoFilesPatch } from "diff";
 const patchOf = (...args: Parameters<typeof createTwoFilesPatch>) =>
   createTwoFilesPatch(...args).split("\n").slice(2).join("\n");
 import type { Approvals } from "../approvals.js";
+import { explain } from "../health.js";
 import type { Connection } from "../config.js";
 import {
   isLimitError,
@@ -279,10 +280,15 @@ function agentKit(o: KitOptions) {
       emit({ type: "agent.end", streamId, ok: true });
       return text;
     } catch (err) {
+      const raw = reason && !signal.aborted ? `Stopped: ${reason}.` : (err as Error).message;
+      // The reason in plain words first (not signed in, not installed, key rejected…), then the original.
+      const plain = signal.aborted ? undefined : explain(raw, member.connection);
       const message =
-        reason && !signal.aborted
-          ? `Stopped: ${reason}.`
-          : (err as Error).message;
+        plain && plain.status !== "problem"
+          ? `${plain.message} (${raw})`
+          : plain && !plain.message.includes("isn't working:")
+            ? `${plain.message} (${raw})`
+            : raw;
       emit({ type: "agent.end", streamId, ok: false, error: message });
       throw new Error(message);
     } finally {
@@ -508,6 +514,8 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
   let failures = 0;
   /** Tasks whose change you declined. */
   let declined = 0;
+  /** Why the last task failed, for the run's own error. */
+  let lastFailure = "";
   /** Who last wrote each file: review fixes go back to the agent that knows the file. */
   const owner = new Map<string, string>();
   // Each member contributes as many workers as it has parallel agents.
@@ -715,6 +723,7 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
             return;
           }
           failed.push({ task, by: member.id });
+          lastFailure = (err as Error).message;
           emit({
             type: "task.status",
             taskId: task.id,
@@ -764,7 +773,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
       checkpoint: { files: [], skipped: [] },
     };
   if (failures >= plan.tasks.length)
-    throw new Error("Every build task failed — check the agent errors above.");
+    throw new Error(
+      lastFailure ? `Every build task failed. ${lastFailure}` : "Every build task failed — check the agent errors above.",
+    );
   if (!changed.size)
     throw new Error(
       "The builders finished without changing any files in the project.",

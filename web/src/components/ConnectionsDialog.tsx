@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { AgentSetup, canSignIn } from "./AgentSetup";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AgentSetup, canSignIn, SignInDialog } from "./AgentSetup";
 import {
   API_KINDS,
   CLI_KINDS,
@@ -9,12 +9,13 @@ import {
   FREELLMAPI_URL,
   OPEN_SOURCE_KINDS,
   SUBSCRIPTION_KINDS,
+  type ConnectionHealth,
   type ConnectionView,
   type ProviderKind,
 } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { useOpenDialog } from "./embed";
-import { Icon } from "./Icon";
+import { Icon, Spinner } from "./Icon";
 import { AgentIcon, hasBundledAgentLogo, ProviderLogo } from "./ProviderLogo";
 
 interface Props {
@@ -166,6 +167,17 @@ export function ConnectionsDialog({ state, onClose, onChanged }: Props) {
   );
 }
 
+const STATUS_TEXT: Record<ConnectionHealth["status"], string> = {
+  ready: "Ready",
+  install: "Not installed",
+  "sign-in": "Needs sign-in",
+  problem: "Not working",
+};
+
+/**
+ * One connection: it checks itself (free, no model call) and says in plain words whether it works,
+ * and if not, why, with the one button that fixes it.
+ */
 function ConnectionRow({
   conn,
   onChanged,
@@ -173,85 +185,142 @@ function ConnectionRow({
   conn: ConnectionView;
   onChanged: () => Promise<void>;
 }) {
-  const [test, setTest] = useState<{
-    busy: boolean;
-    ok?: boolean;
-    message?: string;
-  }>({ busy: false });
+  const [health, setHealth] = useState<ConnectionHealth | null>(null);
+  const [busy, setBusy] = useState("");
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [key, setKey] = useState("");
+  const [address, setAddress] = useState(conn.baseUrl ?? "");
+  const [showDetail, setShowDetail] = useState(false);
 
-  const runTest = async () => {
-    setTest({ busy: true });
+  const check = useCallback(async () => {
+    setHealth(null);
     try {
-      const r = await api.testConnection(conn.id);
-      setTest({
-        busy: false,
-        ok: r.ok,
-        message: r.ok ? `Connected: ${r.message}` : r.message,
-      });
+      setHealth(await api.checkConnection(conn.id));
     } catch (e) {
-      setTest({ busy: false, ok: false, message: (e as Error).message });
+      setHealth({ status: "problem", message: (e as Error).message });
     }
+  }, [conn.id]);
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  const act = async (label: string, fn: () => Promise<unknown>) => {
+    setBusy(label);
+    setNote(null);
+    try {
+      await fn();
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy("");
+    }
+    await onChanged();
+    await check();
   };
 
+  const install = () =>
+    act("Installing…", async () => {
+      if (conn.kind === "acp" && conn.acp) await api.installAcpAgent(conn.acp.agentId);
+      else {
+        const r = await api.installAgent(conn.kind);
+        if (!r.ok) throw new Error(`Install failed: ${r.output}`);
+      }
+    });
+
+  const signInKind = canSignIn(conn.kind) ? conn.kind : null;
   return (
-    <li className="conn-row">
+    <li className={`conn-row is-${health?.status ?? "checking"}`}>
       <span className="conn-logo">
-        <ProviderLogo
-          kind={conn.kind}
-          acp={conn.acp}
-          baseUrl={conn.baseUrl}
-          model={conn.defaultModel}
-          size={20}
-        />
+        <ProviderLogo kind={conn.kind} acp={conn.acp} baseUrl={conn.baseUrl} model={conn.defaultModel} size={20} />
       </span>
       <div className="conn-main">
-        <strong>{conn.label}</strong>
-        <span className="muted small">
-          {conn.kind === "acp"
-            ? `ACP agent${conn.acp?.custom ? " · custom command" : ""}`
-            : CLI_KINDS.includes(conn.kind)
-              ? "Subscription via CLI"
-              : `API key ${conn.keyHint ?? "not set"}`}
-          {conn.defaultModel ? ` · ${conn.defaultModel}` : ""}
-        </span>
-        {test.message && (
-          <span
-            className={`small ${test.ok ? "ok-text" : "err-text"}`}
-            role="status"
-          >
-            {test.ok ? "" : "Failed: "}
-            {test.message}
+        <div className="conn-title">
+          <strong className="truncate">{conn.label}</strong>
+          <span className={`conn-status is-${health?.status ?? "checking"}`}>
+            {health ? (
+              <>
+                {health.status === "ready" ? <Icon name="check" size={12} /> : <span className="dot" />}
+                {STATUS_TEXT[health.status]}
+              </>
+            ) : (
+              <>
+                <Spinner /> Checking…
+              </>
+            )}
           </span>
+        </div>
+        <span className="muted small">
+          {health?.message ??
+            (conn.kind === "acp"
+              ? "ACP agent"
+              : CLI_KINDS.includes(conn.kind) || conn.kind === "antigravity"
+                ? "Subscription"
+                : `API key ${conn.keyHint ?? "not set"}`)}
+          {health?.detail && health.status !== "ready" && (
+            <button className="link small conn-why" onClick={() => setShowDetail(!showDetail)}>
+              {showDetail ? "hide details" : "details"}
+            </button>
+          )}
+        </span>
+        {showDetail && health?.detail && <pre className="conn-detail small">{health.detail}</pre>}
+        {note && <span className={`small ${note.ok ? "ok-text" : "err-text"}`}>{note.text}</span>}
+        {editing && (
+          <form
+            className="conn-edit"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act("Saving…", () =>
+                api.updateConnection(conn.id, {
+                  ...(key ? { apiKey: key } : {}),
+                  ...(address !== (conn.baseUrl ?? "") ? { baseUrl: address } : {}),
+                }),
+              ).then(() => setEditing(false));
+            }}
+          >
+            <input type="password" autoComplete="off" placeholder="New API key" value={key} onChange={(e) => setKey(e.target.value)} />
+            <input placeholder="Address (optional)" value={address} onChange={(e) => setAddress(e.target.value)} spellCheck={false} />
+            <button className="btn small primary">Save</button>
+          </form>
         )}
       </div>
       <div className="row-actions">
-        <button className="btn small" onClick={runTest} disabled={test.busy}>
-          {test.busy ? "Testing…" : "Test"}
+        {health?.action === "install" && (
+          <button className="btn small primary" onClick={install} disabled={Boolean(busy)}>
+            {busy || "Install"}
+          </button>
+        )}
+        {health?.action === "sign-in" && signInKind && (
+          <button className="btn small primary" onClick={() => setSigning(true)}>
+            Sign in
+          </button>
+        )}
+        {health?.action === "edit" && !editing && (
+          <button className="btn small primary" onClick={() => setEditing(true)}>
+            Change key
+          </button>
+        )}
+        {health?.action === "node" && (
+          <a className="btn small primary" href="https://nodejs.org/en/download" target="_blank" rel="noreferrer">
+            Get Node.js
+          </a>
+        )}
+        <button className="btn small" onClick={() => void check()} disabled={!health || Boolean(busy)} title="Check again (free)">
+          Check
         </button>
-        {conn.kind === "openai-compatible" && (
+        {conn.kind === "openai-compatible" && health?.status === "ready" && (
           <button
             className="btn small"
-            disabled={test.busy}
+            disabled={Boolean(busy)}
             title="Build a whole crew from this one key: free models plan and review, the best model builds"
-            onClick={async () => {
-              setTest({ busy: true });
-              try {
+            onClick={() =>
+              void act("Building…", async () => {
                 const crew = await api.autoCrew(conn.id);
-                await onChanged();
-                setTest({
-                  busy: false,
-                  ok: true,
-                  message: `Crew ready: ${crew.map((m) => m.name).join(", ")}`,
-                });
-              } catch (e) {
-                setTest({
-                  busy: false,
-                  ok: false,
-                  message: (e as Error).message,
-                });
-              }
-            }}
+                setNote({ ok: true, text: `Crew ready: ${crew.map((m) => m.name).join(", ")}` });
+              })
+            }
           >
             Auto crew
           </button>
@@ -267,14 +336,20 @@ function ConnectionRow({
             Confirm remove
           </button>
         ) : (
-          <button
-            className="btn small ghost"
-            onClick={() => setConfirming(true)}
-          >
+          <button className="btn small ghost" onClick={() => setConfirming(true)}>
             Remove
           </button>
         )}
       </div>
+      {signing && signInKind && (
+        <SignInDialog
+          kind={signInKind}
+          onClose={() => {
+            setSigning(false);
+            void check();
+          }}
+        />
+      )}
     </li>
   );
 }
@@ -346,10 +421,8 @@ export function AddConnection(props: {
         ))}
       </fieldset>
       <fieldset className="kind-picker">
-        <legend>Use an open-source agent</legend>
-        {OPEN_SOURCE_KINDS.map((k) => (
-          <KindOption key={k} kind={k} current={kind} onPick={props.onKind} />
-        ))}
+        <legend>Free, no account needed</legend>
+        <KindOption kind="opencode-cli" current={kind} onPick={props.onKind} />
       </fieldset>
       <fieldset className="kind-picker">
         <legend>Use an API key</legend>
@@ -357,10 +430,16 @@ export function AddConnection(props: {
           <KindOption key={k} kind={k} current={kind} onPick={props.onKind} />
         ))}
       </fieldset>
-      <fieldset className="kind-picker">
-        <legend>Use any coding agent</legend>
-        <KindOption kind="acp" current={kind} onPick={props.onKind} />
-      </fieldset>
+      <details className="kind-more" open={kind === "acp" || (kind !== "opencode-cli" && OPEN_SOURCE_KINDS.includes(kind))}>
+        <summary>More ways to connect</summary>
+        <fieldset className="kind-picker">
+          <legend>Other agents</legend>
+          {OPEN_SOURCE_KINDS.filter((k) => k !== "opencode-cli").map((k) => (
+            <KindOption key={k} kind={k} current={kind} onPick={props.onKind} />
+          ))}
+          <KindOption kind="acp" current={kind} onPick={props.onKind} />
+        </fieldset>
+      </details>
 
       {kind === "acp" && (
         <AcpPicker onCancel={props.onCancel} onSaved={props.onSaved} />

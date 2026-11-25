@@ -582,3 +582,13 @@ export interface SignInFlow {
   message?: string;
 }
 
+
+/** A connection's health, in plain words, with the one thing to do about it. */
+export interface ConnectionHealth {
+  status: "ready" | "install" | "sign-in" | "problem";
+  message: string;
+  /** install: one-click install; sign-in: the sign-in window; edit: change key or address; node: get Node.js. */
+  action?: "install" | "sign-in" | "edit" | "node";
+  /** The original error, for the curious. */
+  detail?: string;
+}

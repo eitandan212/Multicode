@@ -20,6 +20,7 @@ import { autoCrew } from "./autocrew.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
+import { checkConnection } from "./health.js";
 import { CLI_SPECS } from "./providers/cli.js";
 import { enabledPlugins, memoryGraphFile, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
@@ -342,6 +343,14 @@ export function createApp(opts: AppOptions) {
   );
   // One-click agent setup: install, sign in, and who you're signed in as.
   const signIn = new SignIn();
+  // A connection's health: free and fast (no model is asked anything).
+  api.get(
+    "/connections/:id/check",
+    wrap(async (req, res) => {
+      const { conn, provider } = providerFor(param(req, "id"));
+      res.json(await checkConnection(conn, provider, signIn));
+    }),
+  );
   api.get(
     "/agents/:kind/access",
     wrap(async (req, res) => res.json(await signIn.access(param(req, "kind")))),
