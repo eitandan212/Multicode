@@ -6,7 +6,12 @@ import {
   useRef,
   useState,
 } from "react";
-import type { RunEvent, RunMode, RunSummary } from "../../server/shared";
+import type {
+  RunEvent,
+  RunMode,
+  RunSummary,
+  TeamChoice,
+} from "../../server/shared";
 import { api, type AppState } from "./api";
 import { CommandPalette, type Command } from "./components/CommandPalette";
 import {
@@ -110,6 +115,29 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(
     () => !narrow() && store.get("panel") === "1",
   );
+  // Who works: Auto, the configured crew, or one model alone (remembered in this browser).
+  const [teamPref, setTeamPref] = useState<TeamChoice | null>(() => {
+    try {
+      return JSON.parse(store.get("team") ?? "null") as TeamChoice | null;
+    } catch {
+      return null;
+    }
+  });
+  const chooseTeam = (t: TeamChoice) => {
+    setTeamPref(t);
+    store.set("team", JSON.stringify(t));
+  };
+  // A solo pick whose connection was removed, or no pick yet, falls back to a sensible default.
+  const team: TeamChoice = (() => {
+    if (
+      teamPref?.kind === "solo" &&
+      state?.connections.some((c) => c.id === teamPref.connectionId)
+    )
+      return teamPref;
+    if (teamPref && teamPref.kind !== "solo") return teamPref;
+    return state?.crew.length ? { kind: "crew" } : { kind: "auto" };
+  })();
+
   // Sidebar and panel stay mounted while they slide out.
   const sidebarPresence = usePresence(sidebarOpen);
   const panelPresence = usePresence(panelOpen && Boolean(project));
@@ -245,7 +273,7 @@ export function App() {
 
   const startRun = async (prompt: string, mode: RunMode = "build") => {
     if (!project) return;
-    const summary = await api.startRun(project, prompt, mode);
+    const summary = await api.startRun(project, prompt, mode, team);
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
@@ -431,6 +459,8 @@ export function App() {
     <Composer
       crew={crew}
       connections={state.connections}
+      team={team}
+      onTeam={chooseTeam}
       settings={state.settings}
       project={project}
       canRun={canRun}

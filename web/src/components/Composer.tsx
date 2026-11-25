@@ -4,13 +4,16 @@ import type {
   CrewMember,
   RunMode,
   Settings,
+  TeamChoice,
 } from "../../../server/shared";
 import { Icon } from "./Icon";
-import { MemberLogo } from "./ProviderLogo";
+import { TeamPicker } from "./TeamPicker";
 
 interface Props {
   crew: CrewMember[];
   connections: ConnectionView[];
+  team: TeamChoice;
+  onTeam: (t: TeamChoice) => void;
   settings: Settings;
   project: string;
   canRun: boolean;
@@ -111,34 +114,13 @@ export function Composer(p: Props) {
               <Icon name="palette" size={13} /> MultiDesign
             </button>
           </div>
-          <button
-            type="button"
-            className="chip crew-chip push-right"
-            onClick={p.onOpenCrew}
-            title="Edit crew"
-          >
-            <span className="crew-logos" aria-hidden>
-              {p.crew.slice(0, 4).map((m) => (
-                <span key={m.id} className="crew-logo">
-                  <MemberLogo
-                    member={m}
-                    connections={p.connections}
-                    size={12}
-                  />
-                </span>
-              ))}
-              {p.crew.length > 4 && (
-                <span className="crew-logo crew-more">
-                  +{p.crew.length - 4}
-                </span>
-              )}
-            </span>
-            {p.crew.length === 0
-              ? "No crew yet"
-              : p.crew.length === 1
-                ? p.crew[0]!.name
-                : `Crew of ${p.crew.length}`}
-          </button>
+          <TeamPicker
+            team={p.team}
+            crew={p.crew}
+            connections={p.connections}
+            onTeam={p.onTeam}
+            onEditCrew={p.onOpenCrew}
+          />
           {p.running ? (
             <button
               type="button"
@@ -194,6 +176,10 @@ export function Composer(p: Props) {
         )}
         {error ? (
           <span className="err-text">{error}</span>
+        ) : p.team.kind === "solo" ? (
+          <span className="meta-item">
+            Builds directly · no planning or review
+          </span>
         ) : (
           <label className="meta-item meta-select">
             <Icon name="shield" size={13} />

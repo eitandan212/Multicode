@@ -100,7 +100,7 @@ export function modelDisplayName(model: string): string {
   return out.join(" ");
 }
 
-const isFreeModel = (model?: string) => Boolean(model && /(-free|:free|big-pickle)$/i.test(model));
+export const isFreeModel = (model?: string) => Boolean(model && /(-free|:free|big-pickle)$/i.test(model));
 
 /** The service behind a connection: the harness, or the brand of an OpenAI-compatible endpoint. */
 export function serviceName(kind: ProviderKind, baseUrl?: string): string {
@@ -334,6 +334,9 @@ export type RunEvent =
   | { type: "run.done"; summary: string; changedFiles: string[]; at: number }
   | { type: "run.error"; error: string; at: number };
 
+/** Who works on a run: MultiCode's automatic team, your crew, or one model alone. */
+export type TeamChoice = { kind: "auto" } | { kind: "crew" } | { kind: "solo"; connectionId: string; model?: string };
+
 export interface RunSummary {
   id: string;
   project: string;
@@ -342,6 +345,7 @@ export interface RunSummary {
   /** The crew finished in a sandbox or as design variants and waits for you to apply. */
   pending?: "sandbox" | "design";
   mode?: RunMode;
+  team?: TeamChoice;
   /** What you decided about pending changes. */
   resolution?: "applied" | "discarded";
   startedAt: number;

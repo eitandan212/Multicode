@@ -1,20 +1,45 @@
 import { randomUUID } from "node:crypto";
 import { createWriteStream, type WriteStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import type { ConfigStore, Connection } from "./config.js";
 import { HttpError } from "./config.js";
 import { rm } from "node:fs/promises";
-import { assignRoles, DESIGN_DIRECTIONS, hashText, runCrew, runDesign, type Checkpoint, type ResolvedMember } from "./crew/orchestrator.js";
+import {
+  assignRoles,
+  DESIGN_DIRECTIONS,
+  hashText,
+  runCrew,
+  runDesign,
+  type Checkpoint,
+  type ResolvedMember,
+} from "./crew/orchestrator.js";
 import { copyToSandbox, makeProtector } from "./guard.js";
 import { CLI_BINARIES, findBinary } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
 import type { CrewMember, RunEvent, RunSummary } from "./shared.js";
 import type { HarnessSync, ProjectMemory, SyncExtras } from "./sync.js";
-import { memoryGraphFile, pluginContributions, enabledPlugins } from "./plugins.js";
+import {
+  memoryGraphFile,
+  pluginContributions,
+  enabledPlugins,
+} from "./plugins.js";
 import { inlineSkills, selectPacks, type ActivePack } from "./skills.js";
 import { recordRun } from "./graph.js";
-import { connectionName, HARNESS_NAMES, type McpServer, type RunMode } from "./shared.js";
+import { autoTeam, soloMember } from "./team.js";
+import {
+  connectionName,
+  HARNESS_NAMES,
+  type TeamChoice,
+  type McpServer,
+  type RunMode,
+} from "./shared.js";
 import { Workspace } from "./workspace.js";
 
 type Listener = (e: RunEvent) => void;
@@ -31,7 +56,7 @@ const MAX_EVENTS = 20_000;
 const MAX_CACHED_EVENT_LOGS = 12;
 const RUN_ID = /^[0-9a-f-]{36}$/;
 
-const summaryOf = ({ id, project, prompt, status, startedAt, endedAt, undoneAt, canUndo, pending, mode, resolution }: Run): RunSummary => ({
+const summaryOf = ({
   id,
   project,
   prompt,
@@ -43,6 +68,20 @@ const summaryOf = ({ id, project, prompt, status, startedAt, endedAt, undoneAt, 
   pending,
   mode,
   resolution,
+  team,
+}: Run): RunSummary => ({
+  id,
+  project,
+  prompt,
+  status,
+  startedAt,
+  endedAt,
+  undoneAt,
+  canUndo,
+  pending,
+  mode,
+  resolution,
+  team,
 });
 
 export interface UndoResult {
@@ -69,14 +108,22 @@ export class RunManager {
     private projectsDir: string,
     private providerFactory: ProviderFactory,
     private runsDir?: string,
-    private sync?: { harness: HarnessSync; memory: ProjectMemory; dataDir: string; previewOrigin: string },
+    private sync?: {
+      harness: HarnessSync;
+      memory: ProjectMemory;
+      dataDir: string;
+      previewOrigin: string;
+    },
   ) {}
 
   /** Plugins and skill packs for a request: what gets synced and handed to the crew. */
   private async extras(project: string, request: string) {
     const ws = await Workspace.open(this.projectsDir, project);
     const ext = this.config.extensions;
-    const pluginState = { enabled: ext.pluginsEnabled, disabled: ext.pluginsDisabled };
+    const pluginState = {
+      enabled: ext.pluginsEnabled,
+      disabled: ext.pluginsDisabled,
+    };
     const plugins = this.sync
       ? pluginContributions(pluginState, {
           project,
@@ -85,11 +132,36 @@ export class RunManager {
           options: { browserAnyWebsite: ext.browserAnyWebsite },
         })
       : { servers: [] as McpServer[], instructions: [] as string[] };
-    const packs: ActivePack[] = selectPacks(ext.packModes, request, await ws.list());
-    const extras: SyncExtras = { servers: plugins.servers, instructions: plugins.instructions, skills: packs.flatMap((p) => p.pack.skills) };
-    const servers = [...this.config.sync.mcpServers, ...plugins.servers.filter((p) => !this.config.sync.mcpServers.some((u) => u.name === p.name))];
-    const env = { ...this.config.sync.env, ...Object.assign({}, ...plugins.servers.map((s) => s.fixedEnv ?? {})) };
-    return { ws, extras, packs, servers, env, pluginNames: this.sync ? enabledPlugins(pluginState).map((p) => p.name) : [] };
+    const packs: ActivePack[] = selectPacks(
+      ext.packModes,
+      request,
+      await ws.list(),
+    );
+    const extras: SyncExtras = {
+      servers: plugins.servers,
+      instructions: plugins.instructions,
+      skills: packs.flatMap((p) => p.pack.skills),
+    };
+    const servers = [
+      ...this.config.sync.mcpServers,
+      ...plugins.servers.filter(
+        (p) => !this.config.sync.mcpServers.some((u) => u.name === p.name),
+      ),
+    ];
+    const env = {
+      ...this.config.sync.env,
+      ...Object.assign({}, ...plugins.servers.map((s) => s.fixedEnv ?? {})),
+    };
+    return {
+      ws,
+      extras,
+      packs,
+      servers,
+      env,
+      pluginNames: this.sync
+        ? enabledPlugins(pluginState).map((p) => p.name)
+        : [],
+    };
   }
 
   /** Writes shared instructions, memory, MCP servers and skills into the project's harness files. */
@@ -101,13 +173,21 @@ export class RunManager {
 
   private async saveCheckpoint(id: string, cp: Checkpoint): Promise<void> {
     if (!this.runsDir) return void this.checkpoints.set(id, cp);
-    await writeFile(path.join(this.runsDir, `${id}.checkpoint.json`), JSON.stringify(cp));
+    await writeFile(
+      path.join(this.runsDir, `${id}.checkpoint.json`),
+      JSON.stringify(cp),
+    );
   }
 
   private async loadCheckpoint(id: string): Promise<Checkpoint | undefined> {
     if (!this.runsDir) return this.checkpoints.get(id);
     try {
-      return JSON.parse(await readFile(path.join(this.runsDir, `${id}.checkpoint.json`), "utf8")) as Checkpoint;
+      return JSON.parse(
+        await readFile(
+          path.join(this.runsDir, `${id}.checkpoint.json`),
+          "utf8",
+        ),
+      ) as Checkpoint;
     } catch {
       return undefined;
     }
@@ -119,15 +199,20 @@ export class RunManager {
    */
   async undo(id: string, force = false): Promise<UndoResult> {
     const run = this.get(id);
-    if (run.status === "running") throw new HttpError(409, "stop the crew before undoing its work");
-    if (run.undoneAt) throw new HttpError(409, "this thread was already undone");
+    if (run.status === "running")
+      throw new HttpError(409, "stop the crew before undoing its work");
+    if (run.undoneAt)
+      throw new HttpError(409, "this thread was already undone");
     const cp = await this.loadCheckpoint(id);
     if (!cp) throw new HttpError(404, "this thread has no checkpoint to undo");
     const ws = await Workspace.open(this.projectsDir, run.project);
 
     const conflicts: string[] = [];
-    for (const f of cp.files) if (hashText(await ws.tryRead(f.path)) !== f.afterHash) conflicts.push(f.path);
-    if (conflicts.length && !force) return { restored: [], conflicts, skipped: cp.skipped };
+    for (const f of cp.files)
+      if (hashText(await ws.tryRead(f.path)) !== f.afterHash)
+        conflicts.push(f.path);
+    if (conflicts.length && !force)
+      return { restored: [], conflicts, skipped: cp.skipped };
 
     const restored: string[] = [];
     for (const f of cp.files) {
@@ -148,13 +233,24 @@ export class RunManager {
       const id = name.replace(/\.json$/, "");
       if (!name.endsWith(".json") || !RUN_ID.test(id)) continue;
       try {
-        const s = JSON.parse(await readFile(path.join(this.runsDir, name), "utf8")) as RunSummary;
-        if (s.id !== id || typeof s.project !== "string" || typeof s.prompt !== "string") continue;
+        const s = JSON.parse(
+          await readFile(path.join(this.runsDir, name), "utf8"),
+        ) as RunSummary;
+        if (
+          s.id !== id ||
+          typeof s.project !== "string" ||
+          typeof s.prompt !== "string"
+        )
+          continue;
         const run: Run = { ...s, events: null, listeners: new Set() };
         if (run.status === "running") {
           run.status = "error";
           run.endedAt = Date.now();
-          const e: RunEvent = { type: "run.error", error: "MultiCode was stopped while the crew was working.", at: run.endedAt };
+          const e: RunEvent = {
+            type: "run.error",
+            error: "MultiCode was stopped while the crew was working.",
+            at: run.endedAt,
+          };
           await appendFile(this.logPath(id), JSON.stringify(e) + "\n");
           await this.saveSummary(run);
         }
@@ -171,7 +267,10 @@ export class RunManager {
 
   private async saveSummary(run: Run): Promise<void> {
     if (!this.runsDir) return;
-    await writeFile(path.join(this.runsDir, `${run.id}.json`), JSON.stringify(summaryOf(run)));
+    await writeFile(
+      path.join(this.runsDir, `${run.id}.json`),
+      JSON.stringify(summaryOf(run)),
+    );
   }
 
   /** The crew to use: the configured one, or every connection if none is configured yet. */
@@ -239,15 +338,31 @@ export class RunManager {
   /** The free model that takes over when an account hits its limit (needs OpenCode). */
   private async freeFallback(): Promise<ResolvedMember | undefined> {
     const f = this.config.settings.freeFallback;
-    if (!f.enabled || !(await findBinary(CLI_BINARIES["opencode-cli"]))) return undefined;
-    const connection: Connection = { id: "free-fallback", kind: "opencode-cli", label: connectionName("opencode-cli", undefined, f.model), defaultModel: f.model };
-    return { id: "free-fallback", name: `${connection.label} · fallback`, role: "builder", connectionId: connection.id, connection, provider: this.providerFactory(connection), agents: 1 };
+    if (!f.enabled || !(await findBinary(CLI_BINARIES["opencode-cli"])))
+      return undefined;
+    const connection: Connection = {
+      id: "free-fallback",
+      kind: "opencode-cli",
+      label: connectionName("opencode-cli", undefined, f.model),
+      defaultModel: f.model,
+    };
+    return {
+      id: "free-fallback",
+      name: `${connection.label} · fallback`,
+      role: "builder",
+      connectionId: connection.id,
+      connection,
+      provider: this.providerFactory(connection),
+      agents: 1,
+    };
   }
 
   /** Accounts currently out of quota: connectionId -> reset time. */
   limitsView(): Record<string, number> {
     const now = Date.now();
-    return Object.fromEntries([...this.limited.entries()].filter(([, until]) => until > now));
+    return Object.fromEntries(
+      [...this.limited.entries()].filter(([, until]) => until > now),
+    );
   }
 
   clearLimit(connectionId: string): void {
@@ -261,24 +376,57 @@ export class RunManager {
 
   /** Where a sandbox or design variant can be previewed from. */
   sandboxRoot(runId: string, name: string): string {
-    if (!RUN_ID.test(runId) || !/^[a-z0-9-]{1,40}$/.test(name)) throw new HttpError(404, "not found");
+    if (!RUN_ID.test(runId) || !/^[a-z0-9-]{1,40}$/.test(name))
+      throw new HttpError(404, "not found");
     return this.sandboxDir(runId, name);
   }
 
-  async start(project: string, prompt: string, mode: RunMode = "build"): Promise<RunSummary> {
-    if (typeof prompt !== "string" || !prompt.trim()) throw new HttpError(400, "prompt is required");
-    if (prompt.length > 20_000) throw new HttpError(400, "prompt is too long");
-    if (mode !== "build" && mode !== "design") throw new HttpError(400, "mode must be build or design");
-    if ([...this.runs.values()].some((r) => r.project === project && (r.status === "running" || r.pending)))
-      throw new HttpError(409, "this project has a crew at work or changes waiting for your review");
+  /** The members a team choice resolves to. */
+  teamMembers(team: TeamChoice): CrewMember[] {
+    if (team.kind === "auto") return autoTeam(this.config.connections);
+    if (team.kind === "solo") {
+      const conn = this.config.connection(team.connectionId);
+      if (!conn) throw new HttpError(400, "that connection no longer exists");
+      return [soloMember(conn, team.model)];
+    }
+    return this.effectiveCrew();
+  }
 
-    const settings = this.config.settings;
+  async start(
+    project: string,
+    prompt: string,
+    mode: RunMode = "build",
+    team: TeamChoice = { kind: "crew" },
+  ): Promise<RunSummary> {
+    if (typeof prompt !== "string" || !prompt.trim())
+      throw new HttpError(400, "prompt is required");
+    if (prompt.length > 20_000) throw new HttpError(400, "prompt is too long");
+    if (mode !== "build" && mode !== "design")
+      throw new HttpError(400, "mode must be build or design");
+    if (
+      [...this.runs.values()].some(
+        (r) => r.project === project && (r.status === "running" || r.pending),
+      )
+    )
+      throw new HttpError(
+        409,
+        "this project has a crew at work or changes waiting for your review",
+      );
+
+    // Auto always lets the dispatcher pick the best builder for each task.
+    const settings =
+      team.kind === "auto"
+        ? { ...this.config.settings, dispatch: "smart" as const }
+        : this.config.settings;
     const sandboxed = mode === "design" || settings.safety === "sandbox";
-    if (sandboxed && !this.sync) throw new HttpError(400, "sandboxes need a data folder");
+    if (sandboxed && !this.sync)
+      throw new HttpError(400, "sandboxes need a data folder");
     const projectWs = await Workspace.open(this.projectsDir, project);
-    const members: ResolvedMember[] = this.effectiveCrew().flatMap((m) => {
+    const members: ResolvedMember[] = this.teamMembers(team).flatMap((m) => {
       const connection = this.config.connection(m.connectionId);
-      return connection ? [{ ...m, connection, provider: this.providerFactory(connection) }] : [];
+      return connection
+        ? [{ ...m, connection, provider: this.providerFactory(connection) }]
+        : [];
     });
     const roles = (() => {
       try {
@@ -297,11 +445,16 @@ export class RunManager {
       .map((r) => r.prompt.slice(0, 500));
 
     // Every harness sees the same instructions, memory, tools and skills before the crew starts.
-    const ctx = await this.extras(project, mode === "design" ? `${prompt} design ui web` : prompt);
+    const ctx = await this.extras(
+      project,
+      mode === "design" ? `${prompt} design ui web` : prompt,
+    );
     if (this.sync)
       await this.sync.harness
         .apply(project, ctx.ws, this.config.sync, ctx.extras)
-        .catch((err: Error) => console.error(`Sync failed for ${project}:`, err.message));
+        .catch((err: Error) =>
+          console.error(`Sync failed for ${project}:`, err.message),
+        );
 
     const run: Run = {
       id: randomUUID(),
@@ -310,6 +463,7 @@ export class RunManager {
       status: "running",
       startedAt: Date.now(),
       mode,
+      team,
       events: [],
       listeners: new Set(),
       controller: new AbortController(),
@@ -317,7 +471,9 @@ export class RunManager {
     if (this.runsDir) {
       await mkdir(this.runsDir, { recursive: true });
       run.log = createWriteStream(this.logPath(run.id), { flags: "a" });
-      run.log.on("error", (err) => console.error(`Could not write run log ${run.id}:`, err.message));
+      run.log.on("error", (err) =>
+        console.error(`Could not write run log ${run.id}:`, err.message),
+      );
       await this.saveSummary(run);
     }
     this.runs.set(run.id, run);
@@ -327,7 +483,13 @@ export class RunManager {
       run.log?.write(JSON.stringify(e) + "\n");
       for (const l of run.listeners) l(e);
     };
-    emit({ type: "run.started", runId: run.id, project, prompt: run.prompt, at: run.startedAt });
+    emit({
+      type: "run.started",
+      runId: run.id,
+      project,
+      prompt: run.prompt,
+      at: run.startedAt,
+    });
     emit({
       type: "context",
       skills: ctx.packs.flatMap((p) => p.pack.skills.map((s) => s.name)),
@@ -340,7 +502,8 @@ export class RunManager {
     // Who wrote which file, for the memory graph.
     const wrote = new Map<string, Set<string>>();
     const track = (e: RunEvent) => {
-      if (e.type === "file.changed") wrote.set(e.memberId, (wrote.get(e.memberId) ?? new Set()).add(e.path));
+      if (e.type === "file.changed")
+        wrote.set(e.memberId, (wrote.get(e.memberId) ?? new Set()).add(e.path));
     };
 
     const finish = async (status: RunSummary["status"], last: RunEvent) => {
@@ -350,7 +513,9 @@ export class RunManager {
       run.log?.end();
       run.log = undefined;
       this.cached.push(run.id);
-      await this.saveSummary(run).catch((err: Error) => console.error(`Could not save run ${run.id}:`, err.message));
+      await this.saveSummary(run).catch((err: Error) =>
+        console.error(`Could not save run ${run.id}:`, err.message),
+      );
     };
 
     const common = {
@@ -382,39 +547,89 @@ export class RunManager {
             const dir = this.sandboxDir(run.id, id);
             await copyToSandbox(projectWs.root, dir, isProtected);
             const member = roles.builders[i % roles.builders.length]!;
-            return { variant: { id, title: d.title, direction: d.direction, memberId: member.id }, member, workspace: new Workspace(dir) };
+            return {
+              variant: {
+                id,
+                title: d.title,
+                direction: d.direction,
+                memberId: member.id,
+              },
+              member,
+              workspace: new Workspace(dir),
+            };
           }),
         );
         const { summary, done } = await runDesign({ ...common, variants });
         run.pending = "design";
         await this.savePending(run.id, { variants: done });
         emit({ type: "approval", kind: "design" });
-        await finish("done", { type: "run.done", summary, changedFiles: [], at: Date.now() });
+        await finish("done", {
+          type: "run.done",
+          summary,
+          changedFiles: [],
+          at: Date.now(),
+        });
         return;
       }
 
       let ws = projectWs;
       if (sandboxed) {
-        await copyToSandbox(projectWs.root, this.sandboxDir(run.id), isProtected);
+        await copyToSandbox(
+          projectWs.root,
+          this.sandboxDir(run.id),
+          isProtected,
+        );
         ws = new Workspace(this.sandboxDir(run.id));
       }
-      const { summary, changedFiles, checkpoint } = await runCrew({ ...common, workspace: ws });
+      const { summary, changedFiles, checkpoint } = await runCrew({
+        ...common,
+        workspace: ws,
+        solo: team.kind === "solo",
+      });
       if (checkpoint.files.length) {
-        await this.saveCheckpoint(run.id, checkpoint).catch((err: Error) => console.error("Could not save checkpoint:", err.message));
+        await this.saveCheckpoint(run.id, checkpoint).catch((err: Error) =>
+          console.error("Could not save checkpoint:", err.message),
+        );
         if (!sandboxed) run.canUndo = true;
       }
       if (sandboxed && changedFiles.length) {
         run.pending = "sandbox";
         emit({ type: "approval", kind: "sandbox" });
-      } else if (sandboxed) await rm(path.dirname(this.sandboxDir(run.id)), { recursive: true, force: true });
-      if (this.sync && settings.safety !== "readonly") await this.remember(project, run, summary, changedFiles, wrote, members, ctx);
-      await finish("done", { type: "run.done", summary, changedFiles, at: Date.now() });
+      } else if (sandboxed)
+        await rm(path.dirname(this.sandboxDir(run.id)), {
+          recursive: true,
+          force: true,
+        });
+      if (this.sync && settings.safety !== "readonly")
+        await this.remember(
+          project,
+          run,
+          summary,
+          changedFiles,
+          wrote,
+          members,
+          ctx,
+        );
+      await finish("done", {
+        type: "run.done",
+        summary,
+        changedFiles,
+        at: Date.now(),
+      });
     };
 
     work().catch(async (err: Error) => {
       const aborted = run.controller!.signal.aborted;
-      if (sandboxed) await rm(path.dirname(this.sandboxDir(run.id)), { recursive: true, force: true }).catch(() => {});
-      return finish(aborted ? "cancelled" : "error", { type: "run.error", error: aborted ? "Cancelled" : err.message, at: Date.now() });
+      if (sandboxed)
+        await rm(path.dirname(this.sandboxDir(run.id)), {
+          recursive: true,
+          force: true,
+        }).catch(() => {});
+      return finish(aborted ? "cancelled" : "error", {
+        type: "run.error",
+        error: aborted ? "Cancelled" : err.message,
+        at: Date.now(),
+      });
     });
 
     return summaryOf(run);
@@ -431,30 +646,62 @@ export class RunManager {
     ctx: Awaited<ReturnType<RunManager["extras"]>>,
   ) {
     if (!this.sync) return;
-    await this.sync.memory.add(project, { at: Date.now(), prompt: run.prompt, summary });
+    await this.sync.memory.add(project, {
+      at: Date.now(),
+      prompt: run.prompt,
+      summary,
+    });
     const ext = this.config.extensions;
-    if (enabledPlugins({ enabled: ext.pluginsEnabled, disabled: ext.pluginsDisabled }).some((p) => p.id === "memory-graph")) {
+    if (
+      enabledPlugins({
+        enabled: ext.pluginsEnabled,
+        disabled: ext.pluginsDisabled,
+      }).some((p) => p.id === "memory-graph")
+    ) {
       const agents = [...wrote.entries()].map(([id, files]) => {
         const m = members.find((x) => x.id === id);
-        return { name: m?.name ?? id, harness: m ? (m.connection.acp?.agentName ?? HARNESS_NAMES[m.connection.kind]) : "OpenCode", files: [...files] };
+        return {
+          name: m?.name ?? id,
+          harness: m
+            ? (m.connection.acp?.agentName ?? HARNESS_NAMES[m.connection.kind])
+            : "OpenCode",
+          files: [...files],
+        };
       });
-      await recordRun(memoryGraphFile(this.sync.dataDir, project), { project, prompt: run.prompt, summary, files: changedFiles, agents, at: Date.now() }).catch(
-        (err: Error) => console.error("Could not update the memory graph:", err.message),
+      await recordRun(memoryGraphFile(this.sync.dataDir, project), {
+        project,
+        prompt: run.prompt,
+        summary,
+        files: changedFiles,
+        agents,
+        at: Date.now(),
+      }).catch((err: Error) =>
+        console.error("Could not update the memory graph:", err.message),
       );
     }
-    await this.sync.harness.apply(project, ctx.ws, this.config.sync, ctx.extras).catch(() => {});
+    await this.sync.harness
+      .apply(project, ctx.ws, this.config.sync, ctx.extras)
+      .catch(() => {});
   }
 
   private async savePending(id: string, data: { variants: string[] }) {
-    if (this.runsDir) await writeFile(path.join(this.runsDir, `${id}.pending.json`), JSON.stringify(data));
+    if (this.runsDir)
+      await writeFile(
+        path.join(this.runsDir, `${id}.pending.json`),
+        JSON.stringify(data),
+      );
     this.pendingData.set(id, data);
   }
 
-  private async loadPending(id: string): Promise<{ variants: string[] } | undefined> {
+  private async loadPending(
+    id: string,
+  ): Promise<{ variants: string[] } | undefined> {
     if (this.pendingData.has(id)) return this.pendingData.get(id);
     if (!this.runsDir) return undefined;
     try {
-      return JSON.parse(await readFile(path.join(this.runsDir, `${id}.pending.json`), "utf8"));
+      return JSON.parse(
+        await readFile(path.join(this.runsDir, `${id}.pending.json`), "utf8"),
+      );
     } catch {
       return undefined;
     }
@@ -464,41 +711,76 @@ export class RunManager {
    * Applies a sandbox run (or the chosen design variant) to the real project. Files you edited
    * since the run started are reported as conflicts and left alone unless `force` is set.
    */
-  async apply(id: string, variant?: string, force = false): Promise<UndoResult & { applied: string[] }> {
+  async apply(
+    id: string,
+    variant?: string,
+    force = false,
+  ): Promise<UndoResult & { applied: string[] }> {
     const run = this.get(id);
-    if (!run.pending) throw new HttpError(409, "nothing is waiting to be applied for this thread");
+    if (!run.pending)
+      throw new HttpError(
+        409,
+        "nothing is waiting to be applied for this thread",
+      );
     const project = await Workspace.open(this.projectsDir, run.project);
     const isProtected = makeProtector(this.config.settings.protectedPaths);
-    let files: { path: string; before: string | null | undefined; content: string | undefined }[] = [];
+    let files: {
+      path: string;
+      before: string | null | undefined;
+      content: string | undefined;
+    }[] = [];
 
     if (run.pending === "sandbox") {
       const cp = await this.loadCheckpoint(id);
       if (!cp) throw new HttpError(404, "this sandbox has no recorded changes");
       const sandbox = new Workspace(this.sandboxDir(id));
-      files = await Promise.all(cp.files.map(async (f) => ({ path: f.path, before: f.before, content: await sandbox.tryRead(f.path) })));
+      files = await Promise.all(
+        cp.files.map(async (f) => ({
+          path: f.path,
+          before: f.before,
+          content: await sandbox.tryRead(f.path),
+        })),
+      );
     } else {
       const pending = await this.loadPending(id);
-      if (!variant || !pending?.variants.includes(variant)) throw new HttpError(400, "pick one of the finished designs");
+      if (!variant || !pending?.variants.includes(variant))
+        throw new HttpError(400, "pick one of the finished designs");
       const sandbox = new Workspace(this.sandboxRoot(id, variant));
-      const all = new Set([...(await sandbox.list()), ...(await project.list())]);
+      const all = new Set([
+        ...(await sandbox.list()),
+        ...(await project.list()),
+      ]);
       for (const p of all) {
         if (isProtected(p)) continue;
-        const [mine, theirs] = [await project.tryRead(p), await sandbox.tryRead(p)];
-        if (mine !== theirs) files.push({ path: p, before: undefined, content: theirs });
+        const [mine, theirs] = [
+          await project.tryRead(p),
+          await sandbox.tryRead(p),
+        ];
+        if (mine !== theirs)
+          files.push({ path: p, before: undefined, content: theirs });
       }
     }
 
     const conflicts: string[] = [];
     if (run.pending === "sandbox")
-      for (const f of files) if (hashText(await project.tryRead(f.path)) !== hashText(f.before ?? null)) conflicts.push(f.path);
-    if (conflicts.length && !force) return { applied: [], restored: [], conflicts, skipped: [] };
+      for (const f of files)
+        if (
+          hashText(await project.tryRead(f.path)) !== hashText(f.before ?? null)
+        )
+          conflicts.push(f.path);
+    if (conflicts.length && !force)
+      return { applied: [], restored: [], conflicts, skipped: [] };
 
     // Checkpoint of the real project first, so applying can be undone like any other run.
     const checkpoint: Checkpoint = { files: [], skipped: [] };
     const applied: string[] = [];
     for (const f of files) {
       if (isProtected(f.path)) continue;
-      checkpoint.files.push({ path: f.path, before: (await project.tryRead(f.path)) ?? null, afterHash: hashText(f.content ?? null) });
+      checkpoint.files.push({
+        path: f.path,
+        before: (await project.tryRead(f.path)) ?? null,
+        afterHash: hashText(f.content ?? null),
+      });
       if (f.content === undefined) await project.remove(f.path);
       else await project.write(f.path, f.content);
       applied.push(f.path);
@@ -507,30 +789,43 @@ export class RunManager {
     run.canUndo = applied.length > 0;
     run.pending = undefined;
     run.resolution = "applied";
-    await rm(path.dirname(this.sandboxDir(id)), { recursive: true, force: true });
+    await rm(path.dirname(this.sandboxDir(id)), {
+      recursive: true,
+      force: true,
+    });
     await this.saveSummary(run);
     return { applied, restored: [], conflicts: [], skipped: [] };
   }
 
   async discard(id: string): Promise<void> {
     const run = this.get(id);
-    if (!run.pending) throw new HttpError(409, "nothing is waiting for review in this thread");
+    if (!run.pending)
+      throw new HttpError(409, "nothing is waiting for review in this thread");
     run.pending = undefined;
     run.resolution = "discarded";
-    await rm(path.dirname(this.sandboxDir(id)), { recursive: true, force: true });
+    await rm(path.dirname(this.sandboxDir(id)), {
+      recursive: true,
+      force: true,
+    });
     await this.saveSummary(run);
   }
 
   private async saveLimits(): Promise<void> {
     if (!this.sync) return;
-    await writeFile(path.join(this.sync.dataDir, "limits.json"), JSON.stringify(this.limitsView())).catch(() => {});
+    await writeFile(
+      path.join(this.sync.dataDir, "limits.json"),
+      JSON.stringify(this.limitsView()),
+    ).catch(() => {});
   }
 
   async loadLimits(): Promise<void> {
     if (!this.sync) return;
     try {
-      const data = JSON.parse(await readFile(path.join(this.sync.dataDir, "limits.json"), "utf8")) as Record<string, number>;
-      for (const [k, v] of Object.entries(data)) if (typeof v === "number" && v > Date.now()) this.limited.set(k, v);
+      const data = JSON.parse(
+        await readFile(path.join(this.sync.dataDir, "limits.json"), "utf8"),
+      ) as Record<string, number>;
+      for (const [k, v] of Object.entries(data))
+        if (typeof v === "number" && v > Date.now()) this.limited.set(k, v);
     } catch {
       /* none saved */
     }

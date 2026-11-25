@@ -19,6 +19,7 @@ import { autoCrew } from "./autocrew.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
 import { enabledPlugins, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
+import { parseTeam } from "./team.js";
 import { installAgent, loadRegistry, registryView } from "./acp/registry.js";
 import {
   AGENT_KINDS,
@@ -336,15 +337,14 @@ export function createApp(opts: AppOptions) {
   api.post(
     "/projects/:name/runs",
     wrap(async (req, res) =>
-      res
-        .status(201)
-        .json(
-          await runs.start(
-            validateProjectName(param(req, "name")),
-            req.body?.prompt,
-            req.body?.mode ?? "build",
-          ),
+      res.status(201).json(
+        await runs.start(
+          validateProjectName(param(req, "name")),
+          req.body?.prompt,
+          req.body?.mode ?? "build",
+          parseTeam(req.body?.team, (id) => config.connection(id)),
         ),
+      ),
     ),
   );
   api.post(

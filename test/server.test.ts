@@ -6,19 +6,53 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../server/app.js";
 import { ConfigStore, type Connection } from "../server/config.js";
 import { captureBaseline, diffChanges } from "../server/crew/diff.js";
-import { assignRoles, runCrew, scheduleTasks, type ResolvedMember } from "../server/crew/orchestrator.js";
-import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/crew/parse.js";
-import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseCmdShim, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
-import { isLimitError, limitCooldownMs, type GenerateRequest, type Provider } from "../server/providers/types.js";
+import {
+  assignRoles,
+  runCrew,
+  scheduleTasks,
+  type ResolvedMember,
+} from "../server/crew/orchestrator.js";
+import {
+  extractJson,
+  parseFileOps,
+  parsePlan,
+  parseReview,
+} from "../server/crew/parse.js";
+import {
+  buildCliArgs,
+  CLI_SPECS,
+  parseClaudeStreamLine,
+  parseCmdShim,
+  parseOpenCodeLine,
+  type CliKind,
+} from "../server/providers/cli.js";
+import {
+  isLimitError,
+  limitCooldownMs,
+  type GenerateRequest,
+  type Provider,
+} from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
 import { selectPacks, SKILL_PACKS } from "../server/skills.js";
 import { recordRun } from "../server/graph.js";
 import { connectionName } from "../server/shared.js";
-import { codexMcpArgs, HarnessSync, ProjectMemory, renderBlock, upsertBlock } from "../server/sync.js";
+import {
+  codexMcpArgs,
+  HarnessSync,
+  ProjectMemory,
+  renderBlock,
+  upsertBlock,
+} from "../server/sync.js";
 import type { PlanTask, RunEvent, Settings } from "../server/shared.js";
 import { makeProtector } from "../server/guard.js";
 import { autoCrew } from "../server/autocrew.js";
+import {
+  autoTeam,
+  modelStrength,
+  parseTeam,
+  soloMember,
+} from "../server/team.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
 
 describe("parsers", () => {
@@ -34,7 +68,9 @@ describe("parsers", () => {
   });
 
   it("extracts JSON with braces inside strings", () => {
-    expect(extractJson('Plan:\n```json\n{"summary":"use {x}","tasks":[]}\n```')).toEqual({ summary: "use {x}", tasks: [] });
+    expect(
+      extractJson('Plan:\n```json\n{"summary":"use {x}","tasks":[]}\n```'),
+    ).toEqual({ summary: "use {x}", tasks: [] });
     expect(extractJson('noise {"a": "}"} tail')).toEqual({ a: "}" });
     expect(extractJson("nothing here")).toBeUndefined();
   });
@@ -46,7 +82,11 @@ describe("parsers", () => {
   });
 
   it("reads review verdicts", () => {
-    expect(parseReview('{"approved":false,"summary":"bug","issues":[{"file":"a.js","problem":"x","fix":"y"}]}').approved).toBe(false);
+    expect(
+      parseReview(
+        '{"approved":false,"summary":"bug","issues":[{"file":"a.js","problem":"x","fix":"y"}]}',
+      ).approved,
+    ).toBe(false);
     expect(parseReview('{"summary":"fine","issues":[]}').approved).toBe(true);
     expect(parseReview("no json").approved).toBe(true);
   });
@@ -54,14 +94,28 @@ describe("parsers", () => {
 
 describe("workspace safety", () => {
   it("rejects escaping and protected paths", () => {
-    for (const bad of ["../x", "/etc/passwd", "C:/win", "a/../../b", ".git/config", "node_modules/x/y.js", ""])
+    for (const bad of [
+      "../x",
+      "/etc/passwd",
+      "C:/win",
+      "a/../../b",
+      ".git/config",
+      "node_modules/x/y.js",
+      "",
+    ])
       expect(() => safeRelative(bad)).toThrow();
     expect(safeRelative("./src\\app.js")).toBe("src/app.js");
   });
 });
 
 describe("cli adapters", () => {
-  const req: GenerateRequest = { system: "", prompt: "", cwd: "/p", mode: "edit", model: "m" };
+  const req: GenerateRequest = {
+    system: "",
+    prompt: "",
+    cwd: "/p",
+    mode: "edit",
+    model: "m",
+  };
   it("never uses blanket permission bypass flags", () => {
     for (const kind of Object.keys(CLI_SPECS) as CliKind[]) {
       for (const mode of ["text", "edit"] as const) {
@@ -71,12 +125,22 @@ describe("cli adapters", () => {
         expect(args).not.toContain("-y");
       }
     }
-    expect(buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x")).toEqual(expect.arrayContaining(["--agent", "plan", "--dir", "/p"]));
-    expect(buildCliArgs("qwen-cli", { ...req, mode: "text" }, "x")).toEqual(expect.arrayContaining(["--approval-mode", "plan"]));
-    const ocEnv = JSON.parse(CLI_SPECS["opencode-cli"].env!(req).OPENCODE_CONFIG_CONTENT!);
+    expect(buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x")).toEqual(
+      expect.arrayContaining(["--agent", "plan", "--dir", "/p"]),
+    );
+    expect(buildCliArgs("qwen-cli", { ...req, mode: "text" }, "x")).toEqual(
+      expect.arrayContaining(["--approval-mode", "plan"]),
+    );
+    const ocEnv = JSON.parse(
+      CLI_SPECS["opencode-cli"].env!(req).OPENCODE_CONFIG_CONTENT!,
+    );
     expect(ocEnv.permission.bash).toBe("deny");
-    expect(buildCliArgs("codex-cli", { ...req, mode: "text" }, "x")).toContain("read-only");
-    expect(buildCliArgs("claude-cli", { ...req, mode: "text" }, "x")).toContain("plan");
+    expect(buildCliArgs("codex-cli", { ...req, mode: "text" }, "x")).toContain(
+      "read-only",
+    );
+    expect(buildCliArgs("claude-cli", { ...req, mode: "text" }, "x")).toContain(
+      "plan",
+    );
   });
   it("finds the script inside a Windows npm .cmd shim", () => {
     const shim = [
@@ -90,18 +154,38 @@ describe("cli adapters", () => {
       "CALL :find_dp0",
       'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*',
     ].join("\r\n");
-    expect(parseCmdShim(shim)).toBe("node_modules/@anthropic-ai/claude-code/cli.js");
+    expect(parseCmdShim(shim)).toBe(
+      "node_modules/@anthropic-ai/claude-code/cli.js",
+    );
     expect(parseCmdShim("@echo hello")).toBeUndefined();
   });
   it("parses Claude Code stream-json", () => {
-    expect(parseClaudeStreamLine('{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}')).toEqual({ text: "hi" });
-    expect(parseClaudeStreamLine('{"type":"result","is_error":false,"result":"done"}')).toEqual({ result: "done" });
+    expect(
+      parseClaudeStreamLine(
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}',
+      ),
+    ).toEqual({ text: "hi" });
+    expect(
+      parseClaudeStreamLine(
+        '{"type":"result","is_error":false,"result":"done"}',
+      ),
+    ).toEqual({ result: "done" });
     expect(parseClaudeStreamLine("garbage")).toEqual({});
   });
   it("parses OpenCode json events", () => {
-    expect(parseOpenCodeLine('{"type":"text","part":{"type":"text","text":"done"}}')).toEqual({ text: "done" });
-    expect(parseOpenCodeLine('{"type":"tool_use","part":{"tool":"write","state":{"status":"completed","input":{"filePath":"/p/app.js"}}}}')).toEqual({ text: "▸ write app.js" });
-    expect(parseOpenCodeLine('{"type":"error","error":{"name":"APIError","data":{"message":"bad key"}}}')).toEqual({ error: "bad key" });
+    expect(
+      parseOpenCodeLine('{"type":"text","part":{"type":"text","text":"done"}}'),
+    ).toEqual({ text: "done" });
+    expect(
+      parseOpenCodeLine(
+        '{"type":"tool_use","part":{"tool":"write","state":{"status":"completed","input":{"filePath":"/p/app.js"}}}}',
+      ),
+    ).toEqual({ text: "▸ write app.js" });
+    expect(
+      parseOpenCodeLine(
+        '{"type":"error","error":{"name":"APIError","data":{"message":"bad key"}}}',
+      ),
+    ).toEqual({ error: "bad key" });
     expect(parseOpenCodeLine('{"type":"step_start"}')).toEqual({});
   });
 });
@@ -122,7 +206,10 @@ describe("scheduler", () => {
       if (!t.files.length) expect(active.size).toBe(0);
       t.files.forEach((f) => active.add(f));
       active.add(`task:${t.id}`);
-      maxParallel = Math.max(maxParallel, [...active].filter((k) => k.startsWith("task:")).length);
+      maxParallel = Math.max(
+        maxParallel,
+        [...active].filter((k) => k.startsWith("task:")).length,
+      );
       await new Promise((r) => setTimeout(r, 10));
       t.files.forEach((f) => active.delete(f));
       active.delete(`task:${t.id}`);
@@ -144,13 +231,31 @@ function fakeProvider(script: { review: string[] }): Provider {
         out = JSON.stringify({
           summary: "Two files.",
           tasks: [
-            { title: "Page", description: "html", files: ["index.html"], assignee: "b2", why: "markup" },
-            { title: "Logic", description: "js", files: ["app.js"], assignee: "b1", why: "logic" },
+            {
+              title: "Page",
+              description: "html",
+              files: ["index.html"],
+              assignee: "b2",
+              why: "markup",
+            },
+            {
+              title: "Logic",
+              description: "js",
+              files: ["app.js"],
+              assignee: "b1",
+              why: "logic",
+            },
           ],
         });
-      else if (req.system.includes("REVIEWER")) out = script.review[reviews++] ?? '{"approved":true,"summary":"ok","issues":[]}';
-      else if (req.prompt.includes("YOUR TASK: Page")) out = '<file path="index.html">\n<script src="app.js"></script>\n</file>';
-      else if (req.prompt.includes("YOUR TASK: Logic")) out = '<file path="app.js">\nconsole.log(1)\n</file>';
+      else if (req.system.includes("REVIEWER"))
+        out =
+          script.review[reviews++] ??
+          '{"approved":true,"summary":"ok","issues":[]}';
+      else if (req.prompt.includes("YOUR TASK: Page"))
+        out =
+          '<file path="index.html">\n<script src="app.js"></script>\n</file>';
+      else if (req.prompt.includes("YOUR TASK: Logic"))
+        out = '<file path="app.js">\nconsole.log(1)\n</file>';
       else out = '<file path="app.js">\nconsole.log("fixed")\n</file>';
       onDelta(out);
       return out;
@@ -158,8 +263,17 @@ function fakeProvider(script: { review: string[] }): Provider {
   };
 }
 
-const conn = (id: string): Connection => ({ id, kind: "openai-compatible", label: id, baseUrl: "http://x" });
-const member = (id: string, role: ResolvedMember["role"], provider: Provider): ResolvedMember => ({
+const conn = (id: string): Connection => ({
+  id,
+  kind: "openai-compatible",
+  label: id,
+  baseUrl: "http://x",
+});
+const member = (
+  id: string,
+  role: ResolvedMember["role"],
+  provider: Provider,
+): ResolvedMember => ({
   id,
   name: id,
   role,
@@ -185,14 +299,21 @@ describe("crew orchestration", () => {
   it("plans, builds in parallel, reviews, fixes and re-reviews", async () => {
     const ws = await Workspace.open(dir, "demo");
     const p = fakeProvider({
-      review: ['{"approved":false,"summary":"bug","issues":[{"file":"app.js","problem":"logs 1","fix":"log fixed"}]}'],
+      review: [
+        '{"approved":false,"summary":"bug","issues":[{"file":"app.js","problem":"logs 1","fix":"log fixed"}]}',
+      ],
     });
     const events: RunEvent[] = [];
     const result = await runCrew({
       prompt: "make a page",
       history: [],
       workspace: ws,
-      roles: assignRoles([member("arch", "architect", p), member("b1", "builder", p), member("b2", "builder", p), member("rev", "reviewer", p)]),
+      roles: assignRoles([
+        member("arch", "architect", p),
+        member("b1", "builder", p),
+        member("b2", "builder", p),
+        member("rev", "reviewer", p),
+      ]),
       settings: { maxReviewRounds: 2, dispatch: "smart" },
       emit: (e) => events.push(e),
       signal: new AbortController().signal,
@@ -200,13 +321,119 @@ describe("crew orchestration", () => {
     expect(result.changedFiles).toEqual(["app.js", "index.html"]);
     expect(await ws.read("app.js")).toBe('console.log("fixed")\n');
     expect(events.filter((e) => e.type === "review")).toHaveLength(2);
-    const ran = (id: string) => events.find((e) => e.type === "task.status" && e.taskId === id && e.status === "running");
+    const ran = (id: string) =>
+      events.find(
+        (e) =>
+          e.type === "task.status" && e.taskId === id && e.status === "running",
+      );
     // The dispatcher's picks are honoured.
     expect(ran("t1")).toMatchObject({ memberId: "b2" });
     expect(ran("t2")).toMatchObject({ memberId: "b1" });
     // The review fix goes back to the agent that wrote app.js.
     expect(ran("r1-1")).toMatchObject({ memberId: "b1" });
-    expect(result.checkpoint.files.map((f) => f.path)).toEqual(["app.js", "index.html"]);
+    expect(result.checkpoint.files.map((f) => f.path)).toEqual([
+      "app.js",
+      "index.html",
+    ]);
+  });
+});
+
+describe("team choice", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-team-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  it("a single model builds directly: no planning call, no review", async () => {
+    const ws = await Workspace.open(dir, "solo");
+    const systems: string[] = [];
+    const p: Provider = {
+      editsFiles: false,
+      async generate(req, onDelta) {
+        systems.push(req.system);
+        const out = '<file path="index.html">\n<h1>Solo</h1>\n</file>';
+        onDelta(out);
+        return out;
+      },
+    };
+    const events: RunEvent[] = [];
+    const result = await runCrew({
+      prompt: "make a page\nwith a heading",
+      history: [],
+      workspace: ws,
+      roles: assignRoles([member("one", "builder", p)]),
+      settings: { maxReviewRounds: 3, dispatch: "smart" },
+      emit: (e) => events.push(e),
+      signal: new AbortController().signal,
+      solo: true,
+    });
+    expect(result.changedFiles).toEqual(["index.html"]);
+    expect(systems).toHaveLength(1);
+    expect(systems[0]).not.toContain("ARCHITECT");
+    expect(
+      events.some((e) => e.type === "phase" && e.phase === "planning"),
+    ).toBe(false);
+    expect(events.filter((e) => e.type === "review")).toHaveLength(0);
+    expect(events.find((e) => e.type === "plan")).toMatchObject({
+      plan: { tasks: [{ title: "make a page" }] },
+    });
+  });
+
+  it("auto ranks models: the strongest plans, the next reviews, the rest build", () => {
+    const c = (
+      id: string,
+      kind: Connection["kind"],
+      defaultModel?: string,
+    ): Connection => ({ id, kind, label: id, defaultModel });
+    const team = autoTeam([
+      c("free", "opencode-cli", "opencode/big-pickle"),
+      c("mid", "openai-compatible", "deepseek-chat"),
+      c("top", "claude-cli", "claude-opus-5-5"),
+      c("gpt", "codex-cli", "gpt-5"),
+    ]);
+    expect(team.map((m) => [m.connectionId, m.role])).toEqual([
+      ["top", "architect"],
+      ["gpt", "reviewer"],
+      ["mid", "builder"],
+      ["free", "builder"],
+    ]);
+    expect(
+      autoTeam([c("a", "gemini-cli"), c("b", "claude-cli")]).map((m) => [
+        m.connectionId,
+        m.role,
+      ]),
+    ).toEqual([
+      ["b", "architect"],
+      ["a", "builder"],
+    ]);
+    expect(modelStrength("openai", "gpt-5-mini")).toBe(1);
+    expect(modelStrength("anthropic", "claude-sonnet-4-5")).toBe(2);
+    expect(
+      modelStrength("openai-compatible", "openrouter/some-new-model"),
+    ).toBe(2);
+  });
+
+  it("validates the team in a request", () => {
+    const known = (id: string) =>
+      id === "c1"
+        ? ({ id, kind: "openai", label: "x" } as Connection)
+        : undefined;
+    expect(parseTeam(undefined, known)).toEqual({ kind: "crew" });
+    expect(parseTeam({ kind: "auto" }, known)).toEqual({ kind: "auto" });
+    expect(
+      parseTeam({ kind: "solo", connectionId: "c1", model: " gpt-5 " }, known),
+    ).toEqual({ kind: "solo", connectionId: "c1", model: "gpt-5" });
+    expect(() =>
+      parseTeam({ kind: "solo", connectionId: "nope" }, known),
+    ).toThrow();
+    expect(() => parseTeam({ kind: "everyone" }, known)).toThrow();
+    expect(
+      soloMember(
+        { id: "c1", kind: "claude-cli", label: "Claude Code" },
+        "claude-opus-5-5",
+      ),
+    ).toMatchObject({ name: "Claude Opus 5.5", role: "builder" });
   });
 });
 
@@ -218,7 +445,11 @@ describe("http guards", () => {
     dir = await mkdtemp(path.join(tmpdir(), "mc-http-"));
     const config = new ConfigStore(dir);
     await config.load();
-    const { app } = createApp({ config, projectsDir: path.join(dir, "projects"), providerFactory: () => fakeProvider({ review: [] }) });
+    const { app } = createApp({
+      config,
+      projectsDir: path.join(dir, "projects"),
+      providerFactory: () => fakeProvider({ review: [] }),
+    });
     const server = app.listen(0, "127.0.0.1");
     await new Promise((r) => server.once("listening", r));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -230,13 +461,21 @@ describe("http guards", () => {
   });
 
   it("rejects mutations without the CSRF header", async () => {
-    const r = await fetch(`${base}/api/projects`, { method: "POST", headers: { "content-type": "application/json" }, body: '{"name":"x"}' });
+    const r = await fetch(`${base}/api/projects`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: '{"name":"x"}',
+    });
     expect(r.status).toBe(403);
   });
 
   it("never returns API keys", async () => {
     const h = { "content-type": "application/json", "x-multicode": "1" };
-    const created = await fetch(`${base}/api/connections`, { method: "POST", headers: h, body: JSON.stringify({ kind: "anthropic", apiKey: "sk-secret-1234" }) });
+    const created = await fetch(`${base}/api/connections`, {
+      method: "POST",
+      headers: h,
+      body: JSON.stringify({ kind: "anthropic", apiKey: "sk-secret-1234" }),
+    });
     expect(created.status).toBe(201);
     const state = await (await fetch(`${base}/api/state`)).text();
     expect(state).not.toContain("sk-secret");
@@ -245,12 +484,23 @@ describe("http guards", () => {
 
   it("runs a crew end to end over HTTP + SSE", async () => {
     const h = { "content-type": "application/json", "x-multicode": "1" };
-    await fetch(`${base}/api/projects`, { method: "POST", headers: h, body: '{"name":"site"}' });
-    const run = await (await fetch(`${base}/api/projects/site/runs`, { method: "POST", headers: h, body: '{"prompt":"build"}' })).json();
+    await fetch(`${base}/api/projects`, {
+      method: "POST",
+      headers: h,
+      body: '{"name":"site"}',
+    });
+    const run = await (
+      await fetch(`${base}/api/projects/site/runs`, {
+        method: "POST",
+        headers: h,
+        body: '{"prompt":"build"}',
+      })
+    ).json();
     const res = await fetch(`${base}/api/runs/${run.id}/events`);
     const reader = res.body!.getReader();
     let text = "";
-    while (!text.includes("run.done") && !text.includes("run.error")) text += new TextDecoder().decode((await reader.read()).value);
+    while (!text.includes("run.done") && !text.includes("run.error"))
+      text += new TextDecoder().decode((await reader.read()).value);
     await reader.cancel();
     expect(text).toContain("run.done");
     const preview = await fetch(`${base}/preview/site/`);
@@ -270,8 +520,14 @@ describe("diffs", () => {
       await ws.write("keep.js", "a\nB\nc\nd\n");
       await ws.remove("gone.js");
       await ws.write("new.js", "n1\nn2\n");
-      const diffs = await diffChanges(ws, base, ["keep.js", "gone.js", "new.js"]);
-      expect(diffs.map((d) => [d.path, d.change, d.additions, d.deletions])).toEqual([
+      const diffs = await diffChanges(ws, base, [
+        "keep.js",
+        "gone.js",
+        "new.js",
+      ]);
+      expect(
+        diffs.map((d) => [d.path, d.change, d.additions, d.deletions]),
+      ).toEqual([
         ["gone.js", "deleted", 0, 1],
         ["keep.js", "modified", 2, 1],
         ["new.js", "added", 2, 0],
@@ -289,10 +545,19 @@ describe("run history", () => {
     try {
       const config = new ConfigStore(dir);
       await config.load();
-      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      await config.upsertConnection({
+        kind: "openai-compatible",
+        baseUrl: "http://x",
+        defaultModel: "m",
+      });
       const runsDir = path.join(dir, "runs");
       const factory = () => fakeProvider({ review: [] });
-      const first = new RunManager(config, path.join(dir, "projects"), factory, runsDir);
+      const first = new RunManager(
+        config,
+        path.join(dir, "projects"),
+        factory,
+        runsDir,
+      );
       await first.load();
       const run = await first.start("p1", "make a page");
       await new Promise<void>((resolve) => {
@@ -309,10 +574,21 @@ describe("run history", () => {
       const ghost = "00000000-0000-4000-8000-000000000000";
       await writeFile(
         path.join(runsDir, `${ghost}.json`),
-        JSON.stringify({ id: ghost, project: "p1", prompt: "old", status: "running", startedAt: 1 }),
+        JSON.stringify({
+          id: ghost,
+          project: "p1",
+          prompt: "old",
+          status: "running",
+          startedAt: 1,
+        }),
       );
 
-      const second = new RunManager(config, path.join(dir, "projects"), factory, runsDir);
+      const second = new RunManager(
+        config,
+        path.join(dir, "projects"),
+        factory,
+        runsDir,
+      );
       await second.load();
       const list = second.list("p1");
       expect(list.find((r) => r.id === run.id)?.status).toBe("done");
@@ -362,13 +638,28 @@ describe("harness sync", () => {
     try {
       const ws = await Workspace.open(dir, "s");
       await ws.write("CLAUDE.md", "# My notes\nkeep me\n");
-      await ws.write(".mcp.json", JSON.stringify({ mcpServers: { mine: { command: "x" } } }));
+      await ws.write(
+        ".mcp.json",
+        JSON.stringify({ mcpServers: { mine: { command: "x" } } }),
+      );
       const memory = new ProjectMemory(path.join(dir, "mem"));
-      await memory.add("s", { at: Date.UTC(2026, 10, 24), prompt: "make a timer", summary: "built it" });
+      await memory.add("s", {
+        at: Date.UTC(2026, 10, 24),
+        prompt: "make a timer",
+        summary: "built it",
+      });
       const sync = new HarnessSync(path.join(dir, "state"), memory);
       const cfg = {
         instructions: "Use TypeScript.",
-        mcpServers: [{ name: "docs", type: "stdio" as const, command: "npx", args: ["-y", "docs-mcp"], envNames: ["DOCS_TOKEN"] }],
+        mcpServers: [
+          {
+            name: "docs",
+            type: "stdio" as const,
+            command: "npx",
+            args: ["-y", "docs-mcp"],
+            envNames: ["DOCS_TOKEN"],
+          },
+        ],
         env: { DOCS_TOKEN: "secret-value" },
       };
       await sync.apply("s", ws, cfg);
@@ -377,21 +668,30 @@ describe("harness sync", () => {
       expect(claude).toContain("keep me");
       expect(claude).toContain("Use TypeScript.");
       expect(claude).toContain("make a timer → built it");
-      for (const f of ["AGENTS.md", "GEMINI.md", "QWEN.md"]) expect(await ws.read(f)).toContain("Use TypeScript.");
+      for (const f of ["AGENTS.md", "GEMINI.md", "QWEN.md"])
+        expect(await ws.read(f)).toContain("Use TypeScript.");
       const mcp = JSON.parse(await ws.read(".mcp.json"));
       expect(Object.keys(mcp.mcpServers).sort()).toEqual(["docs", "mine"]);
       expect(mcp.mcpServers.docs.env.DOCS_TOKEN).toBe("${DOCS_TOKEN}");
-      expect(JSON.parse(await ws.read("opencode.json")).mcp.docs.command).toEqual(["npx", "-y", "docs-mcp"]);
-      expect(JSON.parse(await ws.read(".gemini/settings.json")).mcpServers.docs.env.DOCS_TOKEN).toBe("$DOCS_TOKEN");
+      expect(
+        JSON.parse(await ws.read("opencode.json")).mcp.docs.command,
+      ).toEqual(["npx", "-y", "docs-mcp"]);
+      expect(
+        JSON.parse(await ws.read(".gemini/settings.json")).mcpServers.docs.env
+          .DOCS_TOKEN,
+      ).toBe("$DOCS_TOKEN");
       // Secrets never reach project files.
-      for (const f of await ws.list()) expect(await ws.read(f)).not.toContain("secret-value");
+      for (const f of await ws.list())
+        expect(await ws.read(f)).not.toContain("secret-value");
 
       // Removing everything cleans up after itself but keeps the user's content.
       await sync.apply("s", ws, { instructions: "", mcpServers: [], env: {} });
       await new ProjectMemory(path.join(dir, "mem")); // memory stays, so the block stays with memory only
       expect(await ws.read("CLAUDE.md")).toContain("keep me");
       expect(await ws.read("CLAUDE.md")).not.toContain("Use TypeScript.");
-      expect(JSON.parse(await ws.read(".mcp.json")).mcpServers).toEqual({ mine: { command: "x" } });
+      expect(JSON.parse(await ws.read(".mcp.json")).mcpServers).toEqual({
+        mine: { command: "x" },
+      });
       expect(await ws.tryRead("opencode.json")).toBeUndefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -405,7 +705,15 @@ describe("harness sync", () => {
   });
 
   it("passes MCP servers to Codex without secrets on the command line", () => {
-    const args = codexMcpArgs([{ name: "docs", type: "stdio", command: "npx", args: ["-y", "d"], envNames: ["TOKEN"] }]);
+    const args = codexMcpArgs([
+      {
+        name: "docs",
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "d"],
+        envNames: ["TOKEN"],
+      },
+    ]);
     expect(args).toEqual([
       "-c",
       'mcp_servers.docs.command="npx"',
@@ -423,11 +731,20 @@ describe("undo", () => {
     try {
       const config = new ConfigStore(dir);
       await config.load();
-      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      await config.upsertConnection({
+        kind: "openai-compatible",
+        baseUrl: "http://x",
+        defaultModel: "m",
+      });
       const projects = path.join(dir, "projects");
       const ws = await Workspace.open(projects, "u");
       await ws.write("index.html", "original\n");
-      const runs = new RunManager(config, projects, () => fakeProvider({ review: [] }), path.join(dir, "runs"));
+      const runs = new RunManager(
+        config,
+        projects,
+        () => fakeProvider({ review: [] }),
+        path.join(dir, "runs"),
+      );
       const finished = async () => {
         const r = await runs.start("u", "go");
         await new Promise<void>((resolve) => {
@@ -463,21 +780,57 @@ describe("verification and reassignment", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mc-retry-"));
     try {
       const ws = await Workspace.open(dir, "r");
-      const plan = JSON.stringify({ summary: "s", tasks: [{ title: "Logic", description: "", files: ["app.js"], assignee: "lazy", why: "fit" }] });
-      const lazy: Provider = { editsFiles: false, async generate(req) { return req.system.includes("ARCHITECT") ? plan : '<file path="other.txt">\nnot mine\n</file>'; } };
-      const good: Provider = { editsFiles: false, async generate() { return '<file path="app.js">\nok()\n</file>'; } };
+      const plan = JSON.stringify({
+        summary: "s",
+        tasks: [
+          {
+            title: "Logic",
+            description: "",
+            files: ["app.js"],
+            assignee: "lazy",
+            why: "fit",
+          },
+        ],
+      });
+      const lazy: Provider = {
+        editsFiles: false,
+        async generate(req) {
+          return req.system.includes("ARCHITECT")
+            ? plan
+            : '<file path="other.txt">\nnot mine\n</file>';
+        },
+      };
+      const good: Provider = {
+        editsFiles: false,
+        async generate() {
+          return '<file path="app.js">\nok()\n</file>';
+        },
+      };
       const events: RunEvent[] = [];
       await runCrew({
         prompt: "p",
         history: [],
         workspace: ws,
-        roles: assignRoles([member("arch", "architect", lazy), member("lazy", "builder", lazy), member("good", "builder", good)]),
+        roles: assignRoles([
+          member("arch", "architect", lazy),
+          member("lazy", "builder", lazy),
+          member("good", "builder", good),
+        ]),
         settings: { maxReviewRounds: 0, dispatch: "smart" },
         emit: (e) => events.push(e),
         signal: new AbortController().signal,
       });
-      const statuses = events.flatMap((e) => (e.type === "task.status" && e.status !== "queued" ? [`${e.taskId}:${e.status}:${e.memberId}`] : []));
-      expect(statuses).toEqual(["t1:running:lazy", "t1:failed:lazy", "t1-retry:running:good", "t1-retry:done:good"]);
+      const statuses = events.flatMap((e) =>
+        e.type === "task.status" && e.status !== "queued"
+          ? [`${e.taskId}:${e.status}:${e.memberId}`]
+          : [],
+      );
+      expect(statuses).toEqual([
+        "t1:running:lazy",
+        "t1:failed:lazy",
+        "t1-retry:running:good",
+        "t1-retry:done:good",
+      ]);
       expect(await ws.read("app.js")).toBe("ok()\n");
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -490,27 +843,52 @@ describe("watchdog", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mc-dog-"));
     try {
       const ws = await Workspace.open(dir, "w");
-      const plan = JSON.stringify({ summary: "s", tasks: [{ title: "Logic", description: "", files: ["app.js"], assignee: "stuck" }] });
+      const plan = JSON.stringify({
+        summary: "s",
+        tasks: [
+          {
+            title: "Logic",
+            description: "",
+            files: ["app.js"],
+            assignee: "stuck",
+          },
+        ],
+      });
       const stuck: Provider = {
         editsFiles: false,
         generate: (req, _d, signal) =>
           req.system.includes("ARCHITECT")
             ? Promise.resolve(plan)
-            : new Promise((_r, reject) => signal.addEventListener("abort", () => reject(new Error("Cancelled")))),
+            : new Promise((_r, reject) =>
+                signal.addEventListener("abort", () =>
+                  reject(new Error("Cancelled")),
+                ),
+              ),
       };
-      const good: Provider = { editsFiles: false, async generate() { return '<file path="app.js">\nok()\n</file>'; } };
+      const good: Provider = {
+        editsFiles: false,
+        async generate() {
+          return '<file path="app.js">\nok()\n</file>';
+        },
+      };
       const events: RunEvent[] = [];
       await runCrew({
         prompt: "p",
         history: [],
         workspace: ws,
-        roles: assignRoles([member("arch", "architect", stuck), member("stuck", "builder", stuck), member("good", "builder", good)]),
+        roles: assignRoles([
+          member("arch", "architect", stuck),
+          member("stuck", "builder", stuck),
+          member("good", "builder", good),
+        ]),
         settings: { maxReviewRounds: 0, dispatch: "smart" },
         emit: (e) => events.push(e),
         signal: new AbortController().signal,
         limits: { idleMs: 50, maxMs: 1000 },
       });
-      const failed = events.find((e) => e.type === "task.status" && e.status === "failed");
+      const failed = events.find(
+        (e) => e.type === "task.status" && e.status === "failed",
+      );
       expect(failed).toMatchObject({ memberId: "stuck" });
       expect((failed as { error: string }).error).toMatch(/went silent/);
       expect(await ws.read("app.js")).toBe("ok()\n");
@@ -524,13 +902,31 @@ describe("harness names", () => {
   it("names connections after the harness people know", () => {
     expect(connectionName("claude-cli")).toBe("Claude Code");
     expect(connectionName("codex-cli")).toBe("Codex");
-    expect(connectionName("opencode-cli", undefined, "opencode/big-pickle")).toBe("Big Pickle (free)");
-    expect(connectionName("anthropic", undefined, "claude-opus-5-5")).toBe("Claude Opus 5.5");
-    expect(connectionName("openai-compatible", "https://openrouter.ai/api/v1", "openai/gpt-5")).toBe("GPT-5");
-    expect(connectionName("openai-compatible", "https://openrouter.ai/api/v1")).toBe("OpenRouter");
-    expect(connectionName("openai-compatible", "http://localhost:11434/v1")).toBe("Ollama");
-    expect(connectionName("openai-compatible", "https://api.example.dev/v1")).toBe("api.example.dev");
-    expect(connectionName("openai-compatible", "http://127.0.0.1:8080/v1")).toBe("Local server");
+    expect(
+      connectionName("opencode-cli", undefined, "opencode/big-pickle"),
+    ).toBe("Big Pickle (free)");
+    expect(connectionName("anthropic", undefined, "claude-opus-5-5")).toBe(
+      "Claude Opus 5.5",
+    );
+    expect(
+      connectionName(
+        "openai-compatible",
+        "https://openrouter.ai/api/v1",
+        "openai/gpt-5",
+      ),
+    ).toBe("GPT-5");
+    expect(
+      connectionName("openai-compatible", "https://openrouter.ai/api/v1"),
+    ).toBe("OpenRouter");
+    expect(
+      connectionName("openai-compatible", "http://localhost:11434/v1"),
+    ).toBe("Ollama");
+    expect(
+      connectionName("openai-compatible", "https://api.example.dev/v1"),
+    ).toBe("api.example.dev");
+    expect(
+      connectionName("openai-compatible", "http://127.0.0.1:8080/v1"),
+    ).toBe("Local server");
   });
 });
 
@@ -540,21 +936,46 @@ describe("plugins", () => {
     try {
       const config = new ConfigStore(dir);
       await config.load();
-      const ids = () => enabledPlugins({ enabled: config.extensions.pluginsEnabled, disabled: config.extensions.pluginsDisabled }).map((p) => p.id);
+      const ids = () =>
+        enabledPlugins({
+          enabled: config.extensions.pluginsEnabled,
+          disabled: config.extensions.pluginsDisabled,
+        }).map((p) => p.id);
       expect(ids()).toEqual(["memory-graph", "browser"]);
-      await expect(config.setExtensions({ plugin: { id: "computer-use", enabled: true } })).rejects.toThrow(/Confirm the risk/);
-      await config.setExtensions({ plugin: { id: "computer-use", enabled: true, confirmRisk: true } });
+      await expect(
+        config.setExtensions({ plugin: { id: "computer-use", enabled: true } }),
+      ).rejects.toThrow(/Confirm the risk/);
+      await config.setExtensions({
+        plugin: { id: "computer-use", enabled: true, confirmRisk: true },
+      });
       await config.setExtensions({ plugin: { id: "browser", enabled: false } });
       expect(ids()).toEqual(["memory-graph", "computer-use"]);
 
-      const ctx = { project: "p", dataDir: "/data", previewOrigin: "http://localhost:4317", options: {} };
+      const ctx = {
+        project: "p",
+        dataDir: "/data",
+        previewOrigin: "http://localhost:4317",
+        options: {},
+      };
       const browser = PLUGINS.find((p) => p.id === "browser")!.server(ctx);
       expect(browser.args).toContain("--allowed-origins");
-      expect(PLUGINS.find((p) => p.id === "browser")!.server({ ...ctx, options: { browserAnyWebsite: true } }).args).not.toContain("--allowed-origins");
+      expect(
+        PLUGINS.find((p) => p.id === "browser")!.server({
+          ...ctx,
+          options: { browserAnyWebsite: true },
+        }).args,
+      ).not.toContain("--allowed-origins");
       const memory = PLUGINS.find((p) => p.id === "memory-graph")!.server(ctx);
-      expect(memory.fixedEnv?.MEMORY_FILE_PATH).toBe(path.join("/data", "graphs", "p.jsonl"));
+      expect(memory.fixedEnv?.MEMORY_FILE_PATH).toBe(
+        path.join("/data", "graphs", "p.jsonl"),
+      );
       // Every plugin pins an exact version.
-      for (const p of PLUGINS) expect(p.server(ctx).args?.find((a) => a.includes("@") && !a.startsWith("-"))).toMatch(/@\d+\.\d+\.\d+$/);
+      for (const p of PLUGINS)
+        expect(
+          p
+            .server(ctx)
+            .args?.find((a) => a.includes("@") && !a.startsWith("-")),
+        ).toMatch(/@\d+\.\d+\.\d+$/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -563,11 +984,14 @@ describe("plugins", () => {
 
 describe("skill packs", () => {
   it("picks packs from the request and project files", () => {
-    const ids = (r: string, f: string[] = [], m = {}) => selectPacks(m, r, f).map((a) => a.pack.id);
+    const ids = (r: string, f: string[] = [], m = {}) =>
+      selectPacks(m, r, f).map((a) => a.pack.id);
     expect(ids("make a landing page")).toEqual(["quality", "web"]);
     expect(ids("build a roblox obby")).toEqual(["quality", "roblox"]);
     expect(ids("refactor", ["src/game.luau"])).toEqual(["quality", "roblox"]);
-    expect(ids("anything", [], { quality: "off", python: "on" })).toEqual(["python"]);
+    expect(ids("anything", [], { quality: "off", python: "on" })).toEqual([
+      "python",
+    ]);
   });
 
   it("writes skills for every harness, keeps the user's own, and cleans up", async () => {
@@ -575,15 +999,31 @@ describe("skill packs", () => {
     try {
       const ws = await Workspace.open(dir, "s");
       await ws.write(".claude/skills/self-review/SKILL.md", "my own version\n");
-      const sync = new HarnessSync(path.join(dir, "state"), new ProjectMemory(path.join(dir, "mem")));
+      const sync = new HarnessSync(
+        path.join(dir, "state"),
+        new ProjectMemory(path.join(dir, "mem")),
+      );
       const skills = SKILL_PACKS.find((p) => p.id === "quality")!.skills;
       const cfg = { instructions: "", mcpServers: [], env: {} };
       await sync.apply("s", ws, cfg, { servers: [], instructions: [], skills });
-      for (const d of [".agents", ".gemini", ".qwen"]) expect(await ws.read(`${d}/skills/secure-coding/SKILL.md`)).toMatch(/^---\nname: secure-coding\n/);
-      expect(await ws.read(".claude/skills/self-review/SKILL.md")).toBe("my own version\n");
-      await sync.apply("s", ws, cfg, { servers: [], instructions: [], skills: [] });
-      expect(await ws.tryRead(".agents/skills/secure-coding/SKILL.md")).toBeUndefined();
-      expect(await ws.read(".claude/skills/self-review/SKILL.md")).toBe("my own version\n");
+      for (const d of [".agents", ".gemini", ".qwen"])
+        expect(await ws.read(`${d}/skills/secure-coding/SKILL.md`)).toMatch(
+          /^---\nname: secure-coding\n/,
+        );
+      expect(await ws.read(".claude/skills/self-review/SKILL.md")).toBe(
+        "my own version\n",
+      );
+      await sync.apply("s", ws, cfg, {
+        servers: [],
+        instructions: [],
+        skills: [],
+      });
+      expect(
+        await ws.tryRead(".agents/skills/secure-coding/SKILL.md"),
+      ).toBeUndefined();
+      expect(await ws.read(".claude/skills/self-review/SKILL.md")).toBe(
+        "my own version\n",
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -595,12 +1035,32 @@ describe("memory graph", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mc-graph-"));
     try {
       const file = path.join(dir, "g.jsonl");
-      const rec = { project: "p", prompt: "add login", summary: "done", files: ["auth.js"], agents: [{ name: "Codex", harness: "Codex", files: ["auth.js"] }], at: Date.UTC(2026, 10, 24) };
+      const rec = {
+        project: "p",
+        prompt: "add login",
+        summary: "done",
+        files: ["auth.js"],
+        agents: [{ name: "Codex", harness: "Codex", files: ["auth.js"] }],
+        at: Date.UTC(2026, 10, 24),
+      };
       await recordRun(file, rec);
       await recordRun(file, rec); // idempotent for identical facts
-      const lines = (await readFile(file, "utf8")).trim().split("\n").map((l) => JSON.parse(l));
-      expect(lines).toContainEqual({ type: "entity", name: "project:p", entityType: "project", observations: ['2026-11-24: "add login" → done'] });
-      expect(lines).toContainEqual({ type: "relation", from: "agent:Codex", to: "file:auth.js", relationType: "edited" });
+      const lines = (await readFile(file, "utf8"))
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      expect(lines).toContainEqual({
+        type: "entity",
+        name: "project:p",
+        entityType: "project",
+        observations: ['2026-11-24: "add login" → done'],
+      });
+      expect(lines).toContainEqual({
+        type: "relation",
+        from: "agent:Codex",
+        to: "file:auth.js",
+        relationType: "edited",
+      });
       expect(lines.filter((l) => l.type === "relation")).toHaveLength(3);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -613,7 +1073,13 @@ describe("free fallback", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mc-fb-"));
     try {
       const ws = await Workspace.open(dir, "f");
-      const plan = JSON.stringify({ summary: "s", tasks: [{ title: "A", description: "", files: ["a.js"] }, { title: "B", description: "", files: ["b.js"] }] });
+      const plan = JSON.stringify({
+        summary: "s",
+        tasks: [
+          { title: "A", description: "", files: ["a.js"] },
+          { title: "B", description: "", files: ["b.js"] },
+        ],
+      });
       let paidCalls = 0;
       const paid: Provider = {
         editsFiles: false,
@@ -631,7 +1097,16 @@ describe("free fallback", () => {
           return `<file path="${f}">\nok\n</file>`;
         },
       };
-      const fallback = { ...member("free-fallback", "builder", free), name: "Free", connection: { id: "free-fallback", kind: "openai-compatible" as const, label: "Free", baseUrl: "http://localhost:11434/v1" } };
+      const fallback = {
+        ...member("free-fallback", "builder", free),
+        name: "Free",
+        connection: {
+          id: "free-fallback",
+          kind: "openai-compatible" as const,
+          label: "Free",
+          baseUrl: "http://localhost:11434/v1",
+        },
+      };
       const events: RunEvent[] = [];
       const limited = new Map<string, number>();
       await runCrew({
@@ -639,7 +1114,14 @@ describe("free fallback", () => {
         history: [],
         workspace: ws,
         roles: assignRoles([member("paid", "builder", paid)]),
-        settings: { maxReviewRounds: 0, dispatch: "smart", safety: "direct", protectedPaths: [], economy: false, freeFallback: { enabled: true, model: "x" } },
+        settings: {
+          maxReviewRounds: 0,
+          dispatch: "smart",
+          safety: "direct",
+          protectedPaths: [],
+          economy: false,
+          freeFallback: { enabled: true, model: "x" },
+        },
         emit: (e) => events.push(e),
         signal: new AbortController().signal,
         fallback,
@@ -649,10 +1131,14 @@ describe("free fallback", () => {
       expect(await ws.read("b.js")).toBe("ok\n");
       const limit = events.find((e) => e.type === "member.limit");
       expect(limit).toMatchObject({ memberId: "paid", fallback: "Free" });
-      expect((limit as { until: number }).until - Date.now()).toBeGreaterThan(1.9 * 3600_000);
+      expect((limit as { until: number }).until - Date.now()).toBeGreaterThan(
+        1.9 * 3600_000,
+      );
       // Planning (1) + the first build attempt (1); the second task goes straight to the fallback.
       expect(paidCalls).toBe(2);
-      expect(events.filter((e) => e.type === "usage" && e.free)).toHaveLength(2);
+      expect(events.filter((e) => e.type === "usage" && e.free)).toHaveLength(
+        2,
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -689,7 +1175,11 @@ describe("file safety", () => {
         editsFiles: false,
         async generate(req) {
           if (req.prompt.includes("SECRET=1")) sawSecret = true;
-          if (req.system.includes("ARCHITECT")) return JSON.stringify({ summary: "s", tasks: [{ title: "T", description: "", files: ["app.js"] }] });
+          if (req.system.includes("ARCHITECT"))
+            return JSON.stringify({
+              summary: "s",
+              tasks: [{ title: "T", description: "", files: ["app.js"] }],
+            });
           return '<file path="app.js">\nx\n</file><file path=".env">\nSECRET=stolen\n</file><file path="cert.pem">\nk\n</file>';
         },
       };
@@ -749,18 +1239,35 @@ describe("sandbox and MultiDesign", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "mc-sb-"));
     const config = new ConfigStore(dir);
     await config.load();
-    const c1 = await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
-    const c2 = await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://y", defaultModel: "m" });
+    const c1 = await config.upsertConnection({
+      kind: "openai-compatible",
+      baseUrl: "http://x",
+      defaultModel: "m",
+    });
+    const c2 = await config.upsertConnection({
+      kind: "openai-compatible",
+      baseUrl: "http://y",
+      defaultModel: "m",
+    });
     await config.setSettings({ maxReviewRounds: 0 });
     await config.setSettings({ freeFallback: { enabled: false } });
     const memory = new ProjectMemory(path.join(dir, "memory"));
-    const runs = new RunManager(config, path.join(dir, "projects"), () => fakeProvider({ review: [] }), path.join(dir, "runs"), {
-      harness: new HarnessSync(path.join(dir, "sync"), memory),
-      memory,
-      dataDir: dir,
-      previewOrigin: "http://localhost:1",
-    });
-    const finished = async (prompt: string, mode: "build" | "design" = "build") => {
+    const runs = new RunManager(
+      config,
+      path.join(dir, "projects"),
+      () => fakeProvider({ review: [] }),
+      path.join(dir, "runs"),
+      {
+        harness: new HarnessSync(path.join(dir, "sync"), memory),
+        memory,
+        dataDir: dir,
+        previewOrigin: "http://localhost:1",
+      },
+    );
+    const finished = async (
+      prompt: string,
+      mode: "build" | "design" = "build",
+    ) => {
       const r = await runs.start("site", prompt, mode);
       await new Promise<void>((resolve) => {
         const off = runs.subscribe(r.id, (e) => {
@@ -772,7 +1279,14 @@ describe("sandbox and MultiDesign", () => {
       });
       return runs.get(r.id);
     };
-    return { dir, config, runs, finished, ws: await Workspace.open(path.join(dir, "projects"), "site"), ids: [c1.id, c2.id] };
+    return {
+      dir,
+      config,
+      runs,
+      finished,
+      ws: await Workspace.open(path.join(dir, "projects"), "site"),
+      ids: [c1.id, c2.id],
+    };
   };
 
   it("keeps the project untouched until you apply a sandbox run", async () => {
@@ -819,13 +1333,34 @@ describe("auto crew from one key", () => {
       new Response(
         JSON.stringify({
           data: [
-            { id: "anthropic/claude-x", context_length: 200000, pricing: { prompt: "0.000003", completion: "0.000015" } },
-            { id: "deepseek/deepseek-chat:free", context_length: 160000, pricing: { prompt: "0", completion: "0" } },
-            { id: "qwen/qwen-coder:free", context_length: 260000, pricing: { prompt: "0", completion: "0" } },
+            {
+              id: "anthropic/claude-x",
+              context_length: 200000,
+              pricing: { prompt: "0.000003", completion: "0.000015" },
+            },
+            {
+              id: "deepseek/deepseek-chat:free",
+              context_length: 160000,
+              pricing: { prompt: "0", completion: "0" },
+            },
+            {
+              id: "qwen/qwen-coder:free",
+              context_length: 260000,
+              pricing: { prompt: "0", completion: "0" },
+            },
           ],
         }),
       )) as typeof fetch;
-    const crew = await autoCrew({ id: "c", kind: "openai-compatible", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", apiKey: "k" }, fakeFetch);
+    const crew = await autoCrew(
+      {
+        id: "c",
+        kind: "openai-compatible",
+        label: "OpenRouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: "k",
+      },
+      fakeFetch,
+    );
     expect(crew.map((m) => [m.role, m.model])).toEqual([
       ["architect", "qwen/qwen-coder:free"],
       ["builder", "openrouter/auto"],

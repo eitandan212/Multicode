@@ -118,6 +118,19 @@ desktop shortcuts and an entry in *Apps & features*. Uninstalling removes the pr
 projects and settings in `%USERPROFILE%\.multicode` stay. The installer isn't code-signed, so
 Windows SmartScreen asks once: *More info → Run anyway*.
 
+## Who works: Auto, your crew, or one model
+
+The button next to *Send* chooses who works on the next request:
+
+* **Auto**: every connection joins. MultiCode ranks the models: the strongest plans, the next
+  strongest reviews, the rest build in parallel, and the dispatcher gives each task to the
+  best-fitting builder.
+* **My crew**: the agents and roles you set in *Edit crew*.
+* **Single model**: one model (for example Claude Opus 5.5 through Claude Code) builds the whole
+  request directly: no planning call and no review rounds, so it's the fastest and cheapest way.
+
+Your choice is remembered in this browser.
+
 ## Save credits, never stall
 
 * **Free fallback:** when a subscription or API key hits its usage limit (429, quota, "usage limit

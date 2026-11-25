@@ -3427,3 +3427,104 @@ pre,
   gap: 4px;
   vertical-align: -2px;
 }
+
+/* Team picker: Auto, my crew, or one model */
+.team-picker {
+  position: relative;
+  min-width: 0;
+}
+.crew-chip {
+  max-width: 280px;
+}
+.crew-chip.is-open {
+  background: var(--hover);
+}
+.team-label {
+  min-width: 0;
+}
+.team-chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 220ms var(--ease);
+}
+.crew-chip.is-open .team-chevron {
+  transform: rotate(180deg);
+}
+.team-pop {
+  left: auto;
+  right: 0;
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  gap: 2px;
+  text-align: left;
+}
+.team-head,
+.team-sep {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.team-sep {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.team-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-soft);
+}
+.team-item:hover,
+.team-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.team-item.is-active {
+  background: var(--accent-soft);
+}
+.team-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.team-item-top .crew-logo {
+  width: 20px;
+  height: 20px;
+}
+.team-item-top .link {
+  margin-left: auto;
+}
+.team-check {
+  flex: none;
+  margin-left: auto;
+  color: var(--focus);
+  animation: pop 280ms var(--ease);
+}
+.team-item-top .link + .team-check {
+  margin-left: 6px;
+}
+.team-solo {
+  min-width: 0;
+}
+.team-solo.is-active {
+  background: var(--accent-soft);
+}
+.team-via {
+  margin-left: auto;
+  flex: none;
+  max-width: 40%;
+}
+.team-solo .team-check {
+  margin-left: 6px;
+}
+.team-empty {
+  padding: 6px 10px;
+}
