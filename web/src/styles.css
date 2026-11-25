@@ -4843,3 +4843,27 @@ pre,
 @media (max-width: 560px) {
   .conn-row .row-actions { flex-basis: 100%; justify-content: flex-start; }
 }
+
+/* ---- Usage & limits ---- */
+.usage-dialog { width: min(640px, calc(100vw - 32px)); }
+.usage-body { display: grid; gap: 14px; }
+.usage-card { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.usage-card > header { display: flex; align-items: center; gap: 8px; }
+.usage-plan { padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--brand); font-size: 12px; font-weight: 500; }
+.usage-row { display: grid; gap: 5px; }
+.usage-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.usage-track { display: block; height: 7px; border-radius: 99px; background: var(--hover); overflow: hidden; }
+.usage-track > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width 400ms var(--ease); }
+.is-mid .usage-track > span { background: var(--warn); }
+.is-high .usage-track > span { background: var(--bad); }
+.is-high .usage-head strong { color: var(--bad); }
+.usage-checked { margin: 0; }
+.usage-empty { display: grid; gap: 10px; justify-items: start; }
+.usage-meter {
+  display: grid; gap: 4px; margin: 0 10px 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.usage-meter:hover { border-color: var(--line-strong); }
+.usage-meter-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; min-width: 0; }
+.usage-meter-head .truncate { flex: 1; min-width: 0; }
+.usage-meter .usage-track { height: 5px; }

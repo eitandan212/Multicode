@@ -592,3 +592,28 @@ export interface ConnectionHealth {
   /** The original error, for the curious. */
   detail?: string;
 }
+
+/** One usage window of a subscription (as Claude's /usage shows it). */
+export interface UsageWindow {
+  id: string;
+  /** e.g. "Session (5 hours)", "Weekly", "Weekly · Opus". */
+  label: string;
+  /** 0-100. */
+  usedPercent: number;
+  /** ISO time it resets. */
+  resetsAt?: string;
+}
+
+/** A subscription's limits right now. */
+export interface AccountUsage {
+  connectionId: string;
+  label: string;
+  kind: ProviderKind;
+  plan?: string;
+  windows: UsageWindow[];
+  /** Extra / pay-as-you-go credits, when the plan has them. */
+  extra?: string;
+  /** Why nothing could be read. */
+  error?: string;
+  checkedAt: number;
+}

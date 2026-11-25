@@ -261,7 +261,7 @@ export class ClaudeSdkProvider implements Provider {
  * The user's own `claude` (signed in to their subscription). The SDK's bundled native binaries
  * aren't shipped with MultiCode: an installer built on one OS would carry the wrong one.
  */
-async function installedClaude(): Promise<
+export async function installedClaude(): Promise<
   Pick<Options, "pathToClaudeCodeExecutable" | "executable">
 > {
   const bin = await findBinary("claude");

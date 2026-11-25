@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { UpdateButton } from "./UpdateButton";
+import { UsageMeter } from "./UsageMeter";
 import type {
   ConnectionView,
   ProjectInfo,
@@ -20,7 +21,7 @@ interface Props {
   onNewThread: () => void;
   onNewProject: () => void;
   onOpenSettings: (
-    section: "connections" | "safety" | "extensions" | "crew",
+    section: "connections" | "safety" | "extensions" | "crew" | "usage",
   ) => void;
   onCollapse: () => void;
 }
@@ -304,6 +305,7 @@ export function Sidebar(p: Props) {
         {showSettled && <div className="sb-settled">{done.map(card)}</div>}
       </div>
 
+      <UsageMeter onOpen={() => p.onOpenSettings("usage")} />
       <UpdateButton />
       <div className="sb-foot">
         <button

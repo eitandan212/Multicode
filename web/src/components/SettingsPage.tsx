@@ -7,6 +7,7 @@ export type SettingsSection =
   | "connections"
   | "crew"
   | "safety"
+  | "usage"
   | "extensions"
   | "sync";
 
@@ -23,6 +24,7 @@ const NAV: {
     items: [
       { id: "connections", label: "Connections", icon: "plug" },
       { id: "crew", label: "Crew & agents", icon: "users" },
+      { id: "usage", label: "Usage & limits", icon: "graph" },
       { id: "safety", label: "Savings & safety", icon: "shield" },
     ],
   },

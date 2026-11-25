@@ -86,6 +86,22 @@ export function codexItemLabel(item: ThreadItem): string | undefined {
 
 type Client = CodexClient.CodexAppServerClient["Service"];
 
+export interface CodexRateWindow {
+  usedPercent: number;
+  windowDurationMins?: number | null;
+  /** Unix seconds. */
+  resetsAt?: number | null;
+}
+export interface CodexRateLimits {
+  rateLimits: {
+    planType?: string | null;
+    primary?: CodexRateWindow | null;
+    secondary?: CodexRateWindow | null;
+    credits?: { hasCredits?: boolean; unlimited?: boolean; balance?: string | null } | null;
+    rateLimitReachedType?: string | null;
+  };
+}
+
 export class CodexAppServerProvider implements Provider {
   readonly editsFiles = true;
 
@@ -318,6 +334,17 @@ export class CodexAppServerProvider implements Provider {
     } catch (err) {
       await close();
       throw err;
+    }
+  }
+
+  /** The ChatGPT plan's usage windows, as Codex's own apps read them (account/rateLimits/read). */
+  async rateLimits(): Promise<CodexRateLimits> {
+    const cwd = path.join(tmpdir(), "multicode-codex-probe");
+    const { client, close } = await this.open(cwd, { mode: "text" }, () => Effect.void, false);
+    try {
+      return (await run(client.request("account/rateLimits/read", null as never))) as CodexRateLimits;
+    } finally {
+      await close();
     }
   }
 

@@ -55,7 +55,7 @@ async function request<T>(
   return data as T;
 }
 
-import type { AgentAccess, ConnectionHealth, SignInFlow } from "../../server/shared";
+import type { AccountUsage, AgentAccess, ConnectionHealth, SignInFlow } from "../../server/shared";
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
 export const api = {
@@ -115,6 +115,7 @@ export const api = {
       entities: { name: string; entityType: string; observations: string[] }[];
       relations: { from: string; to: string; relationType: string }[];
     }>("GET", `/api/projects/${project}/memory`),
+  usage: (fresh = false) => request<AccountUsage[]>("GET", `/api/usage${fresh ? "?fresh=1" : ""}`),
   checkConnection: (id: string) => request<ConnectionHealth>("GET", `/api/connections/${id}/check`),
   agentAccess: (kind: string) => request<AgentAccess>("GET", `/api/agents/${kind}/access`),
   installAgent: (kind: string) =>

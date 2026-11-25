@@ -21,6 +21,7 @@ import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
+import { accountUsage, USAGE_KINDS } from "./usage.js";
 import { CLI_SPECS } from "./providers/cli.js";
 import { enabledPlugins, memoryGraphFile, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
@@ -343,6 +344,17 @@ export function createApp(opts: AppOptions) {
   );
   // One-click agent setup: install, sign in, and who you're signed in as.
   const signIn = new SignIn();
+  // Subscription limits (as Claude's /usage shows them): how much is used and when it resets.
+  api.get(
+    "/usage",
+    wrap(async (req, res) => {
+      const fresh = req.query.fresh === "1";
+      const conns = config.connections.filter((c) =>
+        (USAGE_KINDS as readonly string[]).includes(c.kind),
+      );
+      res.json(await Promise.all(conns.map((c) => accountUsage(c, fresh))));
+    }),
+  );
   // A connection's health: free and fast (no model is asked anything).
   api.get(
     "/connections/:id/check",

@@ -35,6 +35,7 @@ import { LogoLoader, LogoMark } from "./components/Logo";
 import { SettingsPage } from "./components/SettingsPage";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { SetupWizard } from "./components/SetupWizard";
+import { UsageDialog } from "./components/UsageDialog";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { usePresence } from "./motion";
 import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
@@ -90,6 +91,7 @@ export function App() {
     | "extensions"
     | "appearance"
     | "safety"
+    | "usage"
     | "project"
     | null
   >(null);
@@ -423,6 +425,14 @@ export function App() {
         icon: "users",
         group: "Actions",
         run: () => setDialog("crew"),
+      },
+      {
+        id: "usage",
+        label: "Usage & limits",
+        hint: "how much of each subscription is used, and when it resets",
+        icon: "graph",
+        group: "Actions",
+        run: () => setDialog("usage"),
       },
       {
         id: "safety",
@@ -976,6 +986,8 @@ export function App() {
             switch (section) {
               case "extensions":
                 return <ExtensionsDialog onClose={done} />;
+              case "usage":
+                return <UsageDialog onClose={done} onConnect={() => setDialog("connections")} />;
               case "safety":
                 return (
                   <SafetyDialog
