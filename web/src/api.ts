@@ -1,5 +1,6 @@
 import type {
   AcpAgentView,
+  ManagerView,
   TeamChoice,
   ConnectionView,
   CrewMember,
@@ -26,6 +27,7 @@ export interface AppState {
   connections: ConnectionView[];
   crew: CrewMember[];
   effectiveCrew: CrewMember[];
+  manager: ManagerView | null;
   settings: Settings;
   projects: ProjectInfo[];
   clis: CliStatus[];

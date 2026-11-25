@@ -5,6 +5,7 @@ import type {
   RunMode,
   Settings,
   TeamChoice,
+  ManagerView,
 } from "../../../server/shared";
 import { Icon } from "./Icon";
 import { TeamPicker } from "./TeamPicker";
@@ -14,6 +15,7 @@ interface Props {
   connections: ConnectionView[];
   team: TeamChoice;
   onTeam: (t: TeamChoice) => void;
+  manager?: ManagerView | null;
   settings: Settings;
   project: string;
   canRun: boolean;
@@ -120,6 +122,7 @@ export function Composer(p: Props) {
             connections={p.connections}
             onTeam={p.onTeam}
             onEditCrew={p.onOpenCrew}
+            manager={p.manager}
           />
           {p.running ? (
             <button

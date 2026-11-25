@@ -34,7 +34,9 @@ export interface Started {
 }
 
 /** Starts MultiCode's local server (used by `npm start` and by the desktop app). */
-export async function startServer(opts: { port?: number; strictPort?: boolean } = {}): Promise<Started> {
+export async function startServer(
+  opts: { port?: number; strictPort?: boolean } = {},
+): Promise<Started> {
   const preferred = opts.port ?? 4317;
   const port = opts.strictPort ? preferred : await freePort(preferred);
   const config = new ConfigStore();

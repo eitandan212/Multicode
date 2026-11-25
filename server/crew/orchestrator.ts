@@ -17,7 +17,7 @@ import {
 } from "../shared.js";
 import { Workspace, type FileSnapshot } from "../workspace.js";
 import { captureBaseline, diffChanges } from "./diff.js";
-import { parseFileOps, parsePlan, parseReview } from "./parse.js";
+import { extractJson, parseFileOps, parsePlan, parseReview } from "./parse.js";
 import * as P from "./prompts.js";
 
 export interface ResolvedMember extends CrewMember {
@@ -122,6 +122,13 @@ export interface RunOptions {
   limited?: Map<string, number>;
   /** Paths agents must never read or change. */
   isProtected?: (rel: string) => boolean;
+  /**
+   * A free or cheap model that runs the crew: it assigns every task (so the architect only
+   * thinks and plans) and, when `managerPicksTeam` is set (Auto), chooses who plans, builds
+   * and reviews. Its calls never fail the run: on any problem the defaults stand.
+   */
+  manager?: ResolvedMember;
+  managerPicksTeam?: boolean;
 }
 
 /** What the run changed, so it can be undone later. */
@@ -283,7 +290,8 @@ function agentKit(o: KitOptions) {
 
 /** Plans, builds in parallel, reviews and fixes. */
 export async function runCrew(o: RunOptions): Promise<RunResult> {
-  const { workspace: ws, roles, emit, signal } = o;
+  const { workspace: ws, emit, signal } = o;
+  let roles = o.roles;
   const { call, withFallback } = agentKit(o);
   const isProtected = o.isProtected ?? (() => false);
   const economy = o.settings.economy;
@@ -327,27 +335,95 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
   const digest = (maxChars: number, focus: string[] = []) =>
     ws.contextDigest(maxChars, focus, isProtected);
 
+  // A manager call is advice: if it fails or answers nonsense, the run carries on without it.
+  const ask = async (
+    title: string,
+    system: string,
+    prompt: string,
+  ): Promise<unknown> => {
+    if (!o.manager) return undefined;
+    try {
+      return extractJson(
+        await call(o.manager, ws, title, system, prompt, "text"),
+      );
+    } catch (err) {
+      if (signal.aborted) throw err;
+      return undefined;
+    }
+  };
+
+  // 0. Auto: the manager staffs the request from every connection.
+  if (o.manager && o.managerPicksTeam) {
+    const pool = [
+      ...new Map(
+        [roles.architect, roles.reviewer, ...roles.builders].map((m) => [
+          m.id,
+          m,
+        ]),
+      ).values(),
+    ];
+    if (pool.length >= 2) {
+      emit({ type: "phase", phase: "planning", round: 0 });
+      const pick = (await ask(
+        "Choosing the team",
+        P.managerTeamSystem(economy),
+        P.managerTeamPrompt(o.prompt, pool),
+      )) as
+        | { architect?: unknown; reviewer?: unknown; builders?: unknown }
+        | undefined;
+      const byId = (id: unknown) => pool.find((m) => m.id === id);
+      const builders = Array.isArray(pick?.builders)
+        ? pick.builders.map(byId).filter((m): m is ResolvedMember => Boolean(m))
+        : [];
+      const architect = byId(pick?.architect);
+      if (architect && builders.length)
+        roles = {
+          architect,
+          reviewer: byId(pick?.reviewer) ?? architect,
+          builders: [...new Set(builders)],
+        };
+    }
+  }
+
   // 1. Plan (always: even a single model thinks the work through before it builds)
   emit({ type: "phase", phase: "planning", round: 0 });
   const archCtx = await digest(0);
   const smart = o.settings.dispatch === "smart" && roles.builders.length > 1;
+  // With a manager, the architect only thinks; the manager assigns the tasks afterwards.
+  const architectDispatches = smart && !o.manager;
   const builderIds = new Set(roles.builders.map((b) => b.id));
   const planText = await withFallback(roles.architect, (m) =>
     call(
       m,
       ws,
-      smart ? "Planning and dispatching" : "Planning the work",
-      P.architectSystem(smart, economy),
+      architectDispatches ? "Planning and dispatching" : "Planning the work",
+      P.architectSystem(architectDispatches, economy),
       P.architectPrompt(
         o.prompt,
         archCtx.tree,
         o.history,
-        smart ? P.roster(roles.builders) : "",
+        architectDispatches ? P.roster(roles.builders) : "",
       ),
       "text",
     ),
   );
   const plan: Plan = parsePlan(planText, o.prompt);
+  if (smart && o.manager && plan.tasks.length) {
+    const answer = (await ask(
+      "Assigning the tasks",
+      P.managerDispatchSystem(economy),
+      P.managerDispatchPrompt(plan, roles.builders),
+    )) as { assignments?: unknown } | undefined;
+    for (const a of Array.isArray(answer?.assignments)
+      ? answer.assignments
+      : []) {
+      const { task, assignee, why } = (a ?? {}) as Record<string, unknown>;
+      const t = plan.tasks.find((x) => x.id === task);
+      if (!t || typeof assignee !== "string") continue;
+      t.assignee = assignee;
+      if (typeof why === "string" && why) t.why = why.slice(0, 120);
+    }
+  }
   for (const t of plan.tasks) {
     if (!smart || !t.assignee || !builderIds.has(t.assignee)) {
       delete t.assignee;

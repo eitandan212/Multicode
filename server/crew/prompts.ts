@@ -1,5 +1,11 @@
 import type { ResolvedMember } from "./orchestrator.js";
-import { AGENT_KINDS, type Plan, type PlanTask, type ReviewIssue } from "../shared.js";
+import {
+  AGENT_KINDS,
+  type Plan,
+  type PlanTask,
+  type ReviewIssue,
+} from "../shared.js";
+import { modelStrength } from "../team.js";
 
 const TEAM = `You are part of MultiCode, a crew of AI engineers from different vendors building one project together.
 Write production-quality, complete code — never placeholders or "TODO: implement".
@@ -37,8 +43,13 @@ Reply with ONLY a JSON object:
 export function costTier(m: ResolvedMember): string {
   const model = (m.model || m.connection.defaultModel || "").toLowerCase();
   const url = (m.connection.baseUrl ?? "").toLowerCase();
-  if (/(-free|big-pickle|:free)$/.test(model) || /localhost|127\.0\.0\.1/.test(url)) return "free";
-  if (AGENT_KINDS.includes(m.connection.kind)) return "subscription (flat rate)";
+  if (
+    /(-free|big-pickle|:free)$/.test(model) ||
+    /localhost|127\.0\.0\.1/.test(url)
+  )
+    return "free";
+  if (AGENT_KINDS.includes(m.connection.kind))
+    return "subscription (flat rate)";
   return "pay per token";
 }
 
@@ -46,16 +57,26 @@ export function roster(builders: ResolvedMember[]): string {
   return builders
     .map((m) => {
       const model = m.model || m.connection.defaultModel || "default model";
-      const agents = m.agents && m.agents > 1 ? `, ${m.agents} parallel agents` : "";
-      const spec = m.instructions ? `; specialty: ${m.instructions.replace(/\s+/g, " ").slice(0, 240)}` : "";
+      const agents =
+        m.agents && m.agents > 1 ? `, ${m.agents} parallel agents` : "";
+      const spec = m.instructions
+        ? `; specialty: ${m.instructions.replace(/\s+/g, " ").slice(0, 240)}`
+        : "";
       return `- id "${m.id}": ${m.name} (${m.connection.label}, ${model}; cost: ${costTier(m)}${agents}${spec})`;
     })
     .join("\n");
 }
 
-export function architectPrompt(request: string, tree: string, history: string[], crew = ""): string {
+export function architectPrompt(
+  request: string,
+  tree: string,
+  history: string[],
+  crew = "",
+): string {
   return [
-    history.length ? `Earlier requests in this project (oldest first):\n${history.map((h) => `- ${h}`).join("\n")}` : "",
+    history.length
+      ? `Earlier requests in this project (oldest first):\n${history.map((h) => `- ${h}`).join("\n")}`
+      : "",
     crew ? `Your crew of builders:\n${crew}` : "",
     `Current project files:\n${tree}`,
     `New request:\n${request}`,
@@ -77,7 +98,9 @@ To delete a file: <delete path="relative/path.ext"/>
 Outside these blocks write at most 3 short sentences. Never output partial files or diffs.`;
   return `${TEAM}
 Your role: BUILDER. Implement exactly your assigned task, consistent with the plan and the other tasks' interfaces.${
-    specialty ? `\nYour specialty and standing instructions from the user: ${specialty}` : ""
+    specialty
+      ? `\nYour specialty and standing instructions from the user: ${specialty}`
+      : ""
   }
 ${output}`;
 }
@@ -115,7 +138,12 @@ Reply with ONLY a JSON object:
  "issues": [{"file": "path", "problem": "...", "fix": "<concrete instruction>"}]}`;
 }
 
-export function reviewerPrompt(request: string, plan: Plan, tree: string, files: string): string {
+export function reviewerPrompt(
+  request: string,
+  plan: Plan,
+  tree: string,
+  files: string,
+): string {
   return `User request:\n${request}\n\nPlan:\n${plan.summary}\n\nProject files:\n${tree}\n\nContents:\n${files}`;
 }
 
@@ -128,12 +156,17 @@ export function fixTasks(issues: ReviewIssue[], round: number): PlanTask[] {
   return [...byFile.entries()].slice(0, 8).map(([file, list], n) => ({
     id: `r${round}-${n + 1}`,
     title: `Fix ${file}`,
-    description: list.map((i, k) => `${k + 1}. Problem: ${i.problem}\n   Fix: ${i.fix}`).join("\n"),
+    description: list
+      .map((i, k) => `${k + 1}. Problem: ${i.problem}\n   Fix: ${i.fix}`)
+      .join("\n"),
     files: file === "(general)" ? [] : [file],
   }));
 }
 
-export function designerSystem(editsFiles: boolean, specialty?: string): string {
+export function designerSystem(
+  editsFiles: boolean,
+  specialty?: string,
+): string {
   return `${builderSystem(editsFiles, specialty)}
 
 You are a DESIGNER in a design competition: several models each design their own version and the
@@ -141,7 +174,12 @@ user picks one. Make yours distinctive, polished and complete. Keep every featur
 difference between versions is the visual design, layout, typography, colour and motion.`;
 }
 
-export function designerPrompt(request: string, direction: string, tree: string, files: string): string {
+export function designerPrompt(
+  request: string,
+  direction: string,
+  tree: string,
+  files: string,
+): string {
   return [
     `Design request:\n${request}`,
     `YOUR DIRECTION: ${direction}`,
@@ -151,4 +189,69 @@ export function designerPrompt(request: string, direction: string, tree: string,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+// ---- Manager: a free or cheap model that staffs the work and routes tasks ----
+
+const STRENGTH_LABEL = ["", "light", "strong", "frontier"];
+
+/** Candidates for the manager, with strength and cost, so it can staff sensibly. */
+export function candidates(members: ResolvedMember[]): string {
+  return members
+    .map((m) => {
+      const model = m.model || m.connection.defaultModel || "";
+      const tier =
+        STRENGTH_LABEL[modelStrength(m.connection.kind, model)] ?? "strong";
+      const spec = m.instructions
+        ? `; specialty: ${m.instructions.replace(/\s+/g, " ").slice(0, 160)}`
+        : "";
+      return `- id "${m.id}": ${m.name} (${m.connection.label}, ${model || "default model"}; strength: ${tier}; cost: ${costTier(m)}${spec})`;
+    })
+    .join("\n");
+}
+
+export function managerTeamSystem(economy = false): string {
+  return `${TEAM}
+Your role: MANAGER. You do not plan or write code; you choose who does, from the candidates.
+- ARCHITECT thinks the request through and plans it: pick the strongest reasoning model.
+- REVIEWER checks the result: pick a strong model, ideally from a different vendor than the architect.
+- BUILDERS write the code: include models that fit the work. Simple or mechanical work suits free
+  and subscription models; keep pay-per-token frontier models for the hard parts. A small request
+  needs only one or two builders.${economy ? "\nECONOMY MODE: prefer free and subscription models wherever they can do the job." : ""}
+Reply with ONLY a JSON object:
+{"architect": "<id>", "reviewer": "<id>", "builders": ["<id>", ...], "why": "<one short sentence>"}`;
+}
+
+export function managerTeamPrompt(
+  request: string,
+  pool: ResolvedMember[],
+): string {
+  return `The request:\n${request}\n\nCandidates:\n${candidates(pool)}`;
+}
+
+export function managerDispatchSystem(economy = false): string {
+  return `${TEAM}
+Your role: MANAGER. The architect has planned the work. Assign every task to the builder that fits
+best: match the task to each builder's strength and specialty; give simple work to free or
+subscription builders and keep pay-per-token ones for the hardest tasks; spread tasks so builders
+work in parallel (a builder with N agents can take N tasks at once).${
+    economy
+      ? "\nECONOMY MODE: give every task you reasonably can to free builders."
+      : ""
+  }
+Reply with ONLY a JSON object:
+{"assignments": [{"task": "<task id>", "assignee": "<builder id>", "why": "<under 12 words>"}]}`;
+}
+
+export function managerDispatchPrompt(
+  plan: Plan,
+  builders: ResolvedMember[],
+): string {
+  const tasks = plan.tasks
+    .map(
+      (t) =>
+        `- ${t.id}: ${t.title}${t.files.length ? ` [files: ${t.files.join(", ")}]` : ""}\n  ${t.description.replace(/\s+/g, " ").slice(0, 400)}`,
+    )
+    .join("\n");
+  return `Tasks:\n${tasks}\n\nBuilders:\n${candidates(builders)}`;
 }

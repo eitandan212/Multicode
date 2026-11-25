@@ -13,10 +13,22 @@ export type ProviderKind =
   /** Any agent that speaks the Agent Client Protocol (from the ACP registry or a custom command). */
   | "acp";
 
-export const API_KINDS: ProviderKind[] = ["anthropic", "openai", "gemini", "openai-compatible"];
-export const SUBSCRIPTION_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "gemini-cli"];
+export const API_KINDS: ProviderKind[] = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "openai-compatible",
+];
+export const SUBSCRIPTION_KINDS: ProviderKind[] = [
+  "claude-cli",
+  "codex-cli",
+  "gemini-cli",
+];
 export const OPEN_SOURCE_KINDS: ProviderKind[] = ["opencode-cli", "qwen-cli"];
-export const CLI_KINDS: ProviderKind[] = [...SUBSCRIPTION_KINDS, ...OPEN_SOURCE_KINDS];
+export const CLI_KINDS: ProviderKind[] = [
+  ...SUBSCRIPTION_KINDS,
+  ...OPEN_SOURCE_KINDS,
+];
 /** Kinds whose agent works in the project folder and edits files itself. */
 export const AGENT_KINDS: ProviderKind[] = [...CLI_KINDS, "acp"];
 
@@ -80,27 +92,39 @@ const BRANDS: Record<string, string> = {
  * "deepseek-v4.1-flash-free" → "DeepSeek V4.1 Flash", "openrouter/auto" → "Auto Router".
  */
 export function modelDisplayName(model: string): string {
-  const id = model.trim().split("/").pop()!.replace(/:free$|-free$/i, "");
+  const id = model
+    .trim()
+    .split("/")
+    .pop()!
+    .replace(/:free$|-free$/i, "");
   if (!id) return model;
   if (/^auto$/i.test(id)) return "Auto Router";
   const out: string[] = [];
   for (const raw of id.split(/[-_\s]+/).filter(Boolean)) {
     const t = raw.toLowerCase();
     const prev = out[out.length - 1];
-    if (/^\d+$/.test(t) && prev && /^\d+(\.\d+)?$/.test(prev) && !prev.includes(".") && t.length <= 2) {
+    if (
+      /^\d+$/.test(t) &&
+      prev &&
+      /^\d+(\.\d+)?$/.test(prev) &&
+      !prev.includes(".") &&
+      t.length <= 2
+    ) {
       out[out.length - 1] = `${prev}.${t}`; // "5", "5" → "5.5"
     } else if (/^\d+(\.\d+)?$/.test(t) && prev === "GPT") {
       out[out.length - 1] = `GPT-${t}`;
     } else if (BRANDS[t]) out.push(BRANDS[t]);
     else if (/^v\d/.test(t)) out.push(t.toUpperCase());
     else if (/^\d+(\.\d+)?[bkm]$/.test(t)) out.push(t.toUpperCase());
-    else if (/^o\d/.test(t)) out.push(t); // OpenAI o-series stays lowercase
+    else if (/^o\d/.test(t))
+      out.push(t); // OpenAI o-series stays lowercase
     else out.push(t.charAt(0).toUpperCase() + t.slice(1));
   }
   return out.join(" ");
 }
 
-export const isFreeModel = (model?: string) => Boolean(model && /(-free|:free|big-pickle)$/i.test(model));
+export const isFreeModel = (model?: string) =>
+  Boolean(model && /(-free|:free|big-pickle)$/i.test(model));
 
 /** The service behind a connection: the harness, or the brand of an OpenAI-compatible endpoint. */
 export function serviceName(kind: ProviderKind, baseUrl?: string): string {
@@ -117,8 +141,13 @@ export function serviceName(kind: ProviderKind, baseUrl?: string): string {
 }
 
 /** Default name for a connection or agent: its model, or the harness when no model is set. */
-export function connectionName(kind: ProviderKind, baseUrl?: string, model?: string): string {
-  if (model) return `${modelDisplayName(model)}${isFreeModel(model) ? " (free)" : ""}`;
+export function connectionName(
+  kind: ProviderKind,
+  baseUrl?: string,
+  model?: string,
+): string {
+  if (model)
+    return `${modelDisplayName(model)}${isFreeModel(model) ? " (free)" : ""}`;
   return serviceName(kind, baseUrl);
 }
 
@@ -183,6 +212,29 @@ export interface Settings {
   freeFallback: { enabled: boolean; model: string };
   /** smart: the dispatcher assigns each task to the best-fitting agent. balanced: first free agent. */
   dispatch: DispatchMode;
+  /**
+   * A free or cheap model that runs the crew: it picks the team in Auto and assigns every task,
+   * so the strong models spend their effort on thinking and building. auto: use a free
+   * connection, else the free OpenCode model. pick: this connection. off: the planner dispatches.
+   */
+  manager: ManagerSetting;
+}
+
+/** The manager a run would get right now (null in state when there is none). */
+export interface ManagerView {
+  name: string;
+  kind: ProviderKind;
+  /** Missing for MultiCode's built-in free OpenCode model. */
+  connectionId?: string;
+  model?: string;
+  baseUrl?: string;
+  free: boolean;
+}
+
+export interface ManagerSetting {
+  mode: "auto" | "pick" | "off";
+  connectionId?: string;
+  model?: string;
 }
 
 /** An MCP server shared with every harness that supports MCP. */
@@ -307,27 +359,68 @@ export interface DesignVariant {
 }
 
 export type RunEvent =
-  | { type: "run.started"; runId: string; project: string; prompt: string; at: number }
-  | { type: "phase"; phase: "planning" | "building" | "reviewing" | "fixing"; round: number }
+  | {
+      type: "run.started";
+      runId: string;
+      project: string;
+      prompt: string;
+      at: number;
+    }
+  | {
+      type: "phase";
+      phase: "planning" | "building" | "reviewing" | "fixing";
+      round: number;
+    }
   | { type: "plan"; plan: Plan }
   | {
       type: "context";
       skills: string[];
       plugins: string[];
       fallback?: { id: string; name: string };
+      manager?: {
+        id: string;
+        name: string;
+        connectionId?: string;
+        model?: string;
+      };
       safety?: SafetyMode;
       economy?: boolean;
     }
   | { type: "tasks.added"; tasks: PlanTask[]; round: number }
-  | { type: "task.status"; taskId: string; status: TaskStatus; memberId?: string; error?: string }
+  | {
+      type: "task.status";
+      taskId: string;
+      status: TaskStatus;
+      memberId?: string;
+      error?: string;
+    }
   | { type: "agent.start"; streamId: string; memberId: string; title: string }
   | { type: "agent.delta"; streamId: string; text: string }
   | { type: "agent.end"; streamId: string; ok: boolean; error?: string }
-  | { type: "file.changed"; path: string; change: "write" | "delete"; memberId: string }
+  | {
+      type: "file.changed";
+      path: string;
+      change: "write" | "delete";
+      memberId: string;
+    }
   | { type: "review"; review: Review; round: number }
   | { type: "run.diff"; files: FileDiff[] }
-  | { type: "usage"; streamId: string; memberId: string; input: number; output: number; costUsd: number; free: boolean }
-  | { type: "member.limit"; memberId: string; until: number; reason: string; fallback: string }
+  | {
+      type: "usage";
+      streamId: string;
+      memberId: string;
+      input: number;
+      output: number;
+      costUsd: number;
+      free: boolean;
+    }
+  | {
+      type: "member.limit";
+      memberId: string;
+      until: number;
+      reason: string;
+      fallback: string;
+    }
   | { type: "protected"; paths: string[] }
   | { type: "variants"; variants: DesignVariant[] }
   | { type: "approval"; kind: "sandbox" | "design" }
@@ -335,7 +428,10 @@ export type RunEvent =
   | { type: "run.error"; error: string; at: number };
 
 /** Who works on a run: MultiCode's automatic team, your crew, or one model alone. */
-export type TeamChoice = { kind: "auto" } | { kind: "crew" } | { kind: "solo"; connectionId: string; model?: string };
+export type TeamChoice =
+  | { kind: "auto" }
+  | { kind: "crew" }
+  | { kind: "solo"; connectionId: string; model?: string };
 
 export interface RunSummary {
   id: string;

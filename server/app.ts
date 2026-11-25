@@ -108,6 +108,7 @@ export function createApp(opts: AppOptions) {
         connections: config.views(),
         crew: config.crew,
         effectiveCrew: runs.effectiveCrew(),
+        manager: await runs.managerView(),
         settings: config.settings,
         projects: await listProjects(projectsDir),
         limits: runs.limitsView(),

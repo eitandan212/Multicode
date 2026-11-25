@@ -82,6 +82,7 @@ function emptyConfig(): ConfigData {
       protectedPaths: DEFAULT_PROTECTED,
       economy: false,
       freeFallback: { enabled: true, model: "opencode/big-pickle" },
+      manager: { mode: "auto" },
     },
     sync: { instructions: "", mcpServers: [], env: {} },
     extensions: {
@@ -344,6 +345,26 @@ export class ConfigStore {
       const model =
         str(f.model, "freeFallback.model", 200) ?? next.freeFallback.model;
       next.freeFallback = { enabled: f.enabled !== false, model };
+    }
+    if (input.manager !== undefined) {
+      const m = (input.manager ?? {}) as Record<string, unknown>;
+      if (!["auto", "pick", "off"].includes(String(m.mode)))
+        throw new HttpError(400, "manager.mode must be auto, pick or off");
+      if (m.mode === "pick") {
+        const connectionId = str(
+          m.connectionId,
+          "manager.connectionId",
+          100,
+          true,
+        )!;
+        if (!this.connection(connectionId))
+          throw new HttpError(400, "manager.connectionId is unknown");
+        next.manager = {
+          mode: "pick",
+          connectionId,
+          model: str(m.model, "manager.model", 200),
+        };
+      } else next.manager = { mode: m.mode as "auto" | "off" };
     }
     if (input.dispatch !== undefined) {
       if (input.dispatch !== "smart" && input.dispatch !== "balanced")

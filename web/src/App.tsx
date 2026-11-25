@@ -461,6 +461,7 @@ export function App() {
       connections={state.connections}
       team={team}
       onTeam={chooseTeam}
+      manager={state.manager}
       settings={state.settings}
       project={project}
       canRun={canRun}

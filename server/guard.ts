@@ -28,14 +28,27 @@ export function makeProtector(patterns: string[]): (rel: string) => boolean {
   };
 }
 
-const SKIP = new Set(["node_modules", ".git", "dist", "build", ".next", ".venv", "__pycache__", ".cache"]);
+const SKIP = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  ".venv",
+  "__pycache__",
+  ".cache",
+]);
 const MAX_SANDBOX_BYTES = 300_000_000;
 
 /**
  * Copies a project into a sandbox folder. Protected files and heavy folders are left out,
  * so agents in the sandbox can't read secrets and nothing they do reaches the real project.
  */
-export async function copyToSandbox(src: string, dest: string, isProtected: (rel: string) => boolean): Promise<void> {
+export async function copyToSandbox(
+  src: string,
+  dest: string,
+  isProtected: (rel: string) => boolean,
+): Promise<void> {
   await rm(dest, { recursive: true, force: true });
   await mkdir(dest, { recursive: true });
   let bytes = 0;
@@ -48,7 +61,10 @@ export async function copyToSandbox(src: string, dest: string, isProtected: (rel
         await walk(path.join(dir, e.name), r);
       } else if (e.isFile() && !isProtected(r)) {
         bytes += (await stat(path.join(dir, e.name))).size;
-        if (bytes > MAX_SANDBOX_BYTES) throw new Error("This project is too large to copy into a sandbox (over 300 MB without node_modules).");
+        if (bytes > MAX_SANDBOX_BYTES)
+          throw new Error(
+            "This project is too large to copy into a sandbox (over 300 MB without node_modules).",
+          );
         await cp(path.join(dir, e.name), path.join(dest, r));
       }
     }

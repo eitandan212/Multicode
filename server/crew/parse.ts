@@ -12,7 +12,8 @@ export interface FileOp {
  */
 export function parseFileOps(text: string): FileOp[] {
   const ops = new Map<string, FileOp>();
-  const re = /<file\s+path\s*=\s*["']([^"']+)["']\s*>([\s\S]*?)<\/file>|<delete\s+path\s*=\s*["']([^"']+)["']\s*\/?>/g;
+  const re =
+    /<file\s+path\s*=\s*["']([^"']+)["']\s*>([\s\S]*?)<\/file>|<delete\s+path\s*=\s*["']([^"']+)["']\s*\/?>/g;
   for (const m of text.matchAll(re)) {
     if (m[1] !== undefined) {
       let body = m[2] ?? "";
@@ -20,7 +21,11 @@ export function parseFileOps(text: string): FileOp[] {
       const fenced = body.match(/^\s*```[^\n]*\n([\s\S]*?)\n?```\s*$/);
       if (fenced) body = fenced[1]!;
       if (body.length && !body.endsWith("\n")) body += "\n";
-      ops.set(m[1].trim(), { path: m[1].trim(), change: "write", content: body });
+      ops.set(m[1].trim(), {
+        path: m[1].trim(),
+        change: "write",
+        content: body,
+      });
     } else if (m[3] !== undefined) {
       ops.set(m[3].trim(), { path: m[3].trim(), change: "delete" });
     }
@@ -61,10 +66,13 @@ export function extractJson(text: string): unknown {
   return undefined;
 }
 
-const asString = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : fallback);
+const asString = (v: unknown, fallback = ""): string =>
+  typeof v === "string" ? v : fallback;
 
 export function parsePlan(text: string, request: string): Plan {
-  const raw = extractJson(text) as { summary?: unknown; tasks?: unknown } | undefined;
+  const raw = extractJson(text) as
+    | { summary?: unknown; tasks?: unknown }
+    | undefined;
   const tasks: PlanTask[] = [];
   if (raw && Array.isArray(raw.tasks)) {
     raw.tasks.slice(0, 12).forEach((t: unknown, i: number) => {
@@ -75,34 +83,66 @@ export function parsePlan(text: string, request: string): Plan {
         id: `t${i + 1}`,
         title: title.slice(0, 120),
         description: asString(o.description).slice(0, 4000),
-        files: Array.isArray(o.files) ? o.files.filter((f): f is string => typeof f === "string").slice(0, 30) : [],
-        ...(typeof o.assignee === "string" && o.assignee ? { assignee: o.assignee } : {}),
-        ...(typeof o.why === "string" && o.why ? { why: o.why.slice(0, 120) } : {}),
+        files: Array.isArray(o.files)
+          ? o.files
+              .filter((f): f is string => typeof f === "string")
+              .slice(0, 30)
+          : [],
+        ...(typeof o.assignee === "string" && o.assignee
+          ? { assignee: o.assignee }
+          : {}),
+        ...(typeof o.why === "string" && o.why
+          ? { why: o.why.slice(0, 120) }
+          : {}),
       });
     });
   }
   if (!tasks.length) {
     // Architect failed to produce a usable plan: fall back to a single task.
     return {
-      summary: asString(raw?.summary) || "Build the requested change in one pass.",
-      tasks: [{ id: "t1", title: "Implement the request", description: request, files: [] }],
+      summary:
+        asString(raw?.summary) || "Build the requested change in one pass.",
+      tasks: [
+        {
+          id: "t1",
+          title: "Implement the request",
+          description: request,
+          files: [],
+        },
+      ],
     };
   }
   return { summary: asString(raw?.summary).slice(0, 2000), tasks };
 }
 
 export function parseReview(text: string): Review {
-  const raw = extractJson(text) as { approved?: unknown; summary?: unknown; issues?: unknown } | undefined;
-  if (!raw) return { approved: true, summary: "Reviewer gave no structured verdict; accepting.", issues: [] };
+  const raw = extractJson(text) as
+    | { approved?: unknown; summary?: unknown; issues?: unknown }
+    | undefined;
+  if (!raw)
+    return {
+      approved: true,
+      summary: "Reviewer gave no structured verdict; accepting.",
+      issues: [],
+    };
   const issues: ReviewIssue[] = Array.isArray(raw.issues)
     ? raw.issues
         .map((x: unknown) => {
           const o = (x ?? {}) as Record<string, unknown>;
-          return { file: asString(o.file), problem: asString(o.problem), fix: asString(o.fix) };
+          return {
+            file: asString(o.file),
+            problem: asString(o.problem),
+            fix: asString(o.fix),
+          };
         })
         .filter((i) => i.problem)
         .slice(0, 20)
     : [];
-  const approved = raw.approved === true || (raw.approved !== false && issues.length === 0);
-  return { approved, summary: asString(raw.summary).slice(0, 2000), issues: approved ? [] : issues };
+  const approved =
+    raw.approved === true || (raw.approved !== false && issues.length === 0);
+  return {
+    approved,
+    summary: asString(raw.summary).slice(0, 2000),
+    issues: approved ? [] : issues,
+  };
 }

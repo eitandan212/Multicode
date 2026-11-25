@@ -3,6 +3,7 @@ import {
   connectionName,
   serviceName,
   type ConnectionView,
+  type ManagerView,
   type CrewMember,
   type TeamChoice,
 } from "../../../server/shared";
@@ -16,6 +17,7 @@ interface Props {
   connections: ConnectionView[];
   onTeam: (t: TeamChoice) => void;
   onEditCrew: () => void;
+  manager?: ManagerView | null;
 }
 
 interface SoloOption {
@@ -142,6 +144,23 @@ export function TeamPicker(p: Props) {
           inert={!open}
         >
           <div className="team-head">Who works on this</div>
+          {p.manager && (
+            <div className="team-manager small">
+              <ProviderLogo
+                kind={p.manager.kind}
+                baseUrl={p.manager.baseUrl}
+                model={p.manager.model}
+                size={13}
+              />
+              <span className="truncate">
+                Managed by <b>{p.manager.name}</b>
+                {p.manager.free && !/\(free\)/.test(p.manager.name)
+                  ? " (free)"
+                  : ""}{" "}
+                · assigns the tasks
+              </span>
+            </div>
+          )}
           <TeamItem
             active={p.team.kind === "auto"}
             title="Auto"

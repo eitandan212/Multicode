@@ -23,7 +23,13 @@ import {
 import { copyToSandbox, makeProtector } from "./guard.js";
 import { CLI_BINARIES, findBinary } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
-import type { CrewMember, RunEvent, RunSummary } from "./shared.js";
+import type {
+  CrewMember,
+  ManagerView,
+  RunEvent,
+  RunSummary,
+  Settings,
+} from "./shared.js";
 import type { HarnessSync, ProjectMemory, SyncExtras } from "./sync.js";
 import {
   memoryGraphFile,
@@ -36,6 +42,7 @@ import { autoTeam, soloMember } from "./team.js";
 import {
   connectionName,
   HARNESS_NAMES,
+  isFreeModel,
   type TeamChoice,
   type McpServer,
   type RunMode,
@@ -357,6 +364,64 @@ export class RunManager {
     };
   }
 
+  /**
+   * The model that runs the crew. auto: a connection on a free model (or a local server), else
+   * the free OpenCode model; none if neither exists. pick: the chosen connection. off: none.
+   */
+  async manager(
+    settings: Settings,
+    fallback?: ResolvedMember,
+  ): Promise<ResolvedMember | undefined> {
+    const m = settings.manager ?? { mode: "auto" };
+    if (m.mode === "off") return undefined;
+    const asManager = (
+      connection: Connection,
+      model?: string,
+    ): ResolvedMember => ({
+      id: "manager",
+      name: `${model || connection.defaultModel ? connectionName(connection.kind, connection.baseUrl, model || connection.defaultModel) : connection.label} · manager`,
+      role: "architect",
+      connectionId: connection.id,
+      connection,
+      model,
+      provider: this.providerFactory(connection),
+      agents: 1,
+    });
+    if (m.mode === "pick") {
+      const conn = m.connectionId
+        ? this.config.connection(m.connectionId)
+        : undefined;
+      return conn ? asManager(conn, m.model) : undefined;
+    }
+    const free = this.config.connections.find(
+      (c) =>
+        isFreeModel(c.defaultModel) ||
+        /localhost|127\.0\.0\.1/.test(c.baseUrl ?? ""),
+    );
+    if (free) return asManager(free);
+    return fallback ? asManager(fallback.connection) : undefined;
+  }
+
+  /** The manager the next run would get, for the UI. */
+  async managerView(): Promise<ManagerView | null> {
+    const m = await this.manager(
+      this.config.settings,
+      await this.freeFallback(),
+    );
+    if (!m) return null;
+    return {
+      name: m.name.replace(/ · manager$/, ""),
+      kind: m.connection.kind,
+      connectionId:
+        m.connection.id === "free-fallback" ? undefined : m.connection.id,
+      model: m.model || m.connection.defaultModel,
+      baseUrl: m.connection.baseUrl,
+      free:
+        isFreeModel(m.model || m.connection.defaultModel) ||
+        /localhost|127\.0\.0\.1/.test(m.connection.baseUrl ?? ""),
+    };
+  }
+
   /** Accounts currently out of quota: connectionId -> reset time. */
   limitsView(): Record<string, number> {
     const now = Date.now();
@@ -436,6 +501,7 @@ export class RunManager {
       }
     })();
     const fallback = await this.freeFallback();
+    const manager = await this.manager(settings, fallback);
     const isProtected = makeProtector(settings.protectedPaths);
 
     const history = this.list(project)
@@ -495,6 +561,14 @@ export class RunManager {
       skills: ctx.packs.flatMap((p) => p.pack.skills.map((s) => s.name)),
       plugins: ctx.pluginNames,
       fallback: fallback ? { id: fallback.id, name: fallback.name } : undefined,
+      manager: manager
+        ? {
+            id: manager.id,
+            name: manager.name,
+            connectionId: manager.connectionId,
+            model: manager.model || manager.connection.defaultModel,
+          }
+        : undefined,
       safety: settings.safety,
       economy: settings.economy,
     });
@@ -527,6 +601,8 @@ export class RunManager {
       env: ctx.env,
       skillText: inlineSkills(ctx.packs),
       fallback,
+      manager,
+      managerPicksTeam: team.kind === "auto",
       limited: this.limited,
       isProtected,
       emit: (e: RunEvent) => {

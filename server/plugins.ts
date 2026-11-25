@@ -21,7 +21,8 @@ export interface PluginContext {
   options: { browserAnyWebsite?: boolean };
 }
 
-export const memoryGraphFile = (dataDir: string, project: string) => path.join(dataDir, "graphs", `${project}.jsonl`);
+export const memoryGraphFile = (dataDir: string, project: string) =>
+  path.join(dataDir, "graphs", `${project}.jsonl`);
 
 export const PLUGINS: PluginDef[] = [
   {
@@ -65,7 +66,12 @@ export const PLUGINS: PluginDef[] = [
         // Screenshots and snapshots go to MultiCode's data folder, not into the project.
         "--output-dir",
         path.join(c.dataDir, "browser", c.project),
-        ...(c.options.browserAnyWebsite ? [] : ["--allowed-origins", `${c.previewOrigin};${c.previewOrigin.replace("localhost", "127.0.0.1")}`]),
+        ...(c.options.browserAnyWebsite
+          ? []
+          : [
+              "--allowed-origins",
+              `${c.previewOrigin};${c.previewOrigin.replace("localhost", "127.0.0.1")}`,
+            ]),
       ],
     }),
     instructions: (c) =>
@@ -75,29 +81,44 @@ export const PLUGINS: PluginDef[] = [
     id: "devtools",
     name: "Chrome DevTools",
     category: "browser",
-    description: "Performance traces, network requests and console logs from Chrome, for debugging what the browser shows.",
+    description:
+      "Performance traces, network requests and console logs from Chrome, for debugging what the browser shows.",
     risk: "medium",
     defaultOn: false,
     source: "chrome-devtools-mcp@1.14.0 (Google)",
-    server: () => ({ name: "chrome-devtools", type: "stdio", command: "npx", args: ["-y", "chrome-devtools-mcp@1.14.0", "--headless", "--isolated"] }),
+    server: () => ({
+      name: "chrome-devtools",
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "chrome-devtools-mcp@1.14.0", "--headless", "--isolated"],
+    }),
   },
   {
     id: "context7",
     name: "Live library docs (Context7)",
     category: "knowledge",
-    description: "Up-to-date documentation and code examples for thousands of libraries, so agents don't code against stale APIs.",
+    description:
+      "Up-to-date documentation and code examples for thousands of libraries, so agents don't code against stale APIs.",
     risk: "low",
     defaultOn: false,
     source: "@upstash/context7-mcp@4.8.0",
     optionalEnv: ["CONTEXT7_API_KEY"],
-    server: () => ({ name: "context7", type: "stdio", command: "npx", args: ["-y", "@upstash/context7-mcp@4.8.0"], envNames: ["CONTEXT7_API_KEY"] }),
-    instructions: "Library docs: when you use a third-party library, check its current API with the Context7 tools first.",
+    server: () => ({
+      name: "context7",
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@upstash/context7-mcp@4.8.0"],
+      envNames: ["CONTEXT7_API_KEY"],
+    }),
+    instructions:
+      "Library docs: when you use a third-party library, check its current API with the Context7 tools first.",
   },
   {
     id: "sequential-thinking",
     name: "Sequential thinking",
     category: "reasoning",
-    description: "A scratchpad tool for breaking hard problems into revisable steps. Helps smaller models plan.",
+    description:
+      "A scratchpad tool for breaking hard problems into revisable steps. Helps smaller models plan.",
     risk: "low",
     defaultOn: false,
     source: "@modelcontextprotocol/server-sequential-thinking@2.2.0",
@@ -117,7 +138,12 @@ export const PLUGINS: PluginDef[] = [
     risk: "high",
     defaultOn: false,
     source: "computer-use-mcp@2.0.0",
-    server: () => ({ name: "computer", type: "stdio", command: "npx", args: ["-y", "computer-use-mcp@2.0.0"] }),
+    server: () => ({
+      name: "computer",
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "computer-use-mcp@2.0.0"],
+    }),
   },
   {
     id: "desktop-commander",
@@ -128,21 +154,42 @@ export const PLUGINS: PluginDef[] = [
     risk: "high",
     defaultOn: false,
     source: "@wonderwhy-er/desktop-commander@0.3.4",
-    server: () => ({ name: "desktop-commander", type: "stdio", command: "npx", args: ["-y", "@wonderwhy-er/desktop-commander@0.3.4"] }),
+    server: () => ({
+      name: "desktop-commander",
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@wonderwhy-er/desktop-commander@0.3.4"],
+    }),
   },
 ];
 
 export const pluginById = (id: string) => PLUGINS.find((p) => p.id === id);
 
-export function enabledPlugins(state: { enabled?: string[]; disabled?: string[] }): PluginDef[] {
-  return PLUGINS.filter((p) => (p.defaultOn ? !state.disabled?.includes(p.id) : state.enabled?.includes(p.id)));
+export function enabledPlugins(state: {
+  enabled?: string[];
+  disabled?: string[];
+}): PluginDef[] {
+  return PLUGINS.filter((p) =>
+    p.defaultOn
+      ? !state.disabled?.includes(p.id)
+      : state.enabled?.includes(p.id),
+  );
 }
 
 /** MCP servers and extra instructions contributed by the enabled plugins. */
-export function pluginContributions(state: { enabled?: string[]; disabled?: string[] }, ctx: PluginContext) {
+export function pluginContributions(
+  state: { enabled?: string[]; disabled?: string[] },
+  ctx: PluginContext,
+) {
   const on = enabledPlugins(state);
   return {
     servers: on.map((p) => p.server(ctx)),
-    instructions: on.map((p) => (typeof p.instructions === "function" ? p.instructions(ctx) : p.instructions)).filter((t): t is string => Boolean(t)),
+    instructions: on
+      .map((p) =>
+        typeof p.instructions === "function"
+          ? p.instructions(ctx)
+          : p.instructions,
+      )
+      .filter((t): t is string => Boolean(t)),
   };
 }

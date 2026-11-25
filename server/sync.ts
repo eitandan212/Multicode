@@ -82,13 +82,20 @@ function oneLine(s: string, max: number): string {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
-export function renderBlock(instructions: string, memory: MemoryEntry[]): string {
+export function renderBlock(
+  instructions: string,
+  memory: MemoryEntry[],
+): string {
   const parts: string[] = [];
-  if (instructions.trim()) parts.push(`## Shared instructions\n\n${instructions.trim()}`);
+  if (instructions.trim())
+    parts.push(`## Shared instructions\n\n${instructions.trim()}`);
   if (memory.length) {
     const lines = memory
       .slice(-MAX_MEMORY)
-      .map((m) => `- ${new Date(m.at).toISOString().slice(0, 10)}: ${oneLine(m.prompt, 140)} → ${oneLine(m.summary, 220)}`);
+      .map(
+        (m) =>
+          `- ${new Date(m.at).toISOString().slice(0, 10)}: ${oneLine(m.prompt, 140)} → ${oneLine(m.summary, 220)}`,
+      );
     parts.push(`## Project memory (recent crew work)\n\n${lines.join("\n")}`);
   }
   if (!parts.length) return "";
@@ -96,15 +103,22 @@ export function renderBlock(instructions: string, memory: MemoryEntry[]): string
 }
 
 /** Replaces (or removes) MultiCode's block, leaving the rest of the file untouched. */
-export function upsertBlock(existing: string | undefined, block: string): string | undefined {
+export function upsertBlock(
+  existing: string | undefined,
+  block: string,
+): string | undefined {
   const text = existing ?? "";
   const start = text.indexOf(BEGIN);
   const end = text.indexOf(END);
   const hasBlock = start >= 0 && end > start;
   let next: string;
-  if (hasBlock) next = text.slice(0, start) + block + text.slice(end + END.length);
+  if (hasBlock)
+    next = text.slice(0, start) + block + text.slice(end + END.length);
   else if (!block) return existing;
-  else next = text.trim() ? `${text.replace(/\s*$/, "")}\n\n${block}\n` : `${block}\n`;
+  else
+    next = text.trim()
+      ? `${text.replace(/\s*$/, "")}\n\n${block}\n`
+      : `${block}\n`;
   next = next.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
   return next ? `${next}\n` : "";
 }
@@ -117,15 +131,25 @@ const envRef = {
 
 /** Env for a server: fixed values literally, secrets as references. */
 const envFor = (s: McpServer, ref: (n: string) => string) =>
-  Object.fromEntries((s.envNames ?? []).map((n) => [n, s.fixedEnv?.[n] ?? ref(n)]));
+  Object.fromEntries(
+    (s.envNames ?? []).map((n) => [n, s.fixedEnv?.[n] ?? ref(n)]),
+  );
 
 function claudeEntry(s: McpServer) {
   if (s.type === "http") return { type: "http", url: s.url };
-  return { command: s.command, args: s.args ?? [], env: envFor(s, envRef.claude) };
+  return {
+    command: s.command,
+    args: s.args ?? [],
+    env: envFor(s, envRef.claude),
+  };
 }
 function geminiEntry(s: McpServer) {
   if (s.type === "http") return { httpUrl: s.url };
-  return { command: s.command, args: s.args ?? [], env: envFor(s, envRef.gemini) };
+  return {
+    command: s.command,
+    args: s.args ?? [],
+    env: envFor(s, envRef.gemini),
+  };
 }
 function opencodeEntry(s: McpServer) {
   if (s.type === "http") return { type: "remote", url: s.url, enabled: true };
@@ -149,11 +173,21 @@ export function codexMcpArgs(servers: McpServer[]): string[] {
   return servers.flatMap((s) => {
     const key = `mcp_servers.${s.name}`;
     if (s.type === "http") return ["-c", `${key}.url=${toml(s.url!)}`];
-    const out = ["-c", `${key}.command=${toml(s.command!)}`, "-c", `${key}.args=[${(s.args ?? []).map(toml).join(",")}]`];
+    const out = [
+      "-c",
+      `${key}.command=${toml(s.command!)}`,
+      "-c",
+      `${key}.args=[${(s.args ?? []).map(toml).join(",")}]`,
+    ];
     const fixed = Object.entries(s.fixedEnv ?? {});
     const secret = (s.envNames ?? []).filter((n) => !(n in (s.fixedEnv ?? {})));
-    if (fixed.length) out.push("-c", `${key}.env={${fixed.map(([k, v]) => `${k}=${toml(v)}`).join(",")}}`);
-    if (secret.length) out.push("-c", `${key}.env_vars=[${secret.map(toml).join(",")}]`);
+    if (fixed.length)
+      out.push(
+        "-c",
+        `${key}.env={${fixed.map(([k, v]) => `${k}=${toml(v)}`).join(",")}}`,
+      );
+    if (secret.length)
+      out.push("-c", `${key}.env_vars=[${secret.map(toml).join(",")}]`);
     return out;
   });
 }
@@ -167,10 +201,31 @@ interface JsonTarget {
 }
 
 const JSON_TARGETS: JsonTarget[] = [
-  { file: ".mcp.json", harness: "Claude Code", key: "mcpServers", entry: claudeEntry },
-  { file: ".gemini/settings.json", harness: "Gemini CLI", key: "mcpServers", entry: geminiEntry },
-  { file: ".qwen/settings.json", harness: "Qwen Code", key: "mcpServers", entry: geminiEntry },
-  { file: "opencode.json", harness: "OpenCode", key: "mcp", entry: opencodeEntry, base: { $schema: "https://opencode.ai/config.json" } },
+  {
+    file: ".mcp.json",
+    harness: "Claude Code",
+    key: "mcpServers",
+    entry: claudeEntry,
+  },
+  {
+    file: ".gemini/settings.json",
+    harness: "Gemini CLI",
+    key: "mcpServers",
+    entry: geminiEntry,
+  },
+  {
+    file: ".qwen/settings.json",
+    harness: "Qwen Code",
+    key: "mcpServers",
+    entry: geminiEntry,
+  },
+  {
+    file: "opencode.json",
+    harness: "OpenCode",
+    key: "mcp",
+    entry: opencodeEntry,
+    base: { $schema: "https://opencode.ai/config.json" },
+  },
 ];
 
 export class HarnessSync {
@@ -186,21 +241,38 @@ export class HarnessSync {
   private async state(project: string): Promise<SyncState> {
     try {
       const s = JSON.parse(await readFile(this.stateFile(project), "utf8"));
-      return { managedServers: s.managedServers ?? [], createdFiles: s.createdFiles ?? [], managedSkills: s.managedSkills ?? [] };
+      return {
+        managedServers: s.managedServers ?? [],
+        createdFiles: s.createdFiles ?? [],
+        managedSkills: s.managedSkills ?? [],
+      };
     } catch {
       return { managedServers: [], createdFiles: [], managedSkills: [] };
     }
   }
 
   /** Writes the shared state into every harness file of the project. */
-  async apply(project: string, ws: Workspace, cfg: SyncConfig, extras: SyncExtras = { servers: [], instructions: [], skills: [] }): Promise<HarnessSyncStatus[]> {
+  async apply(
+    project: string,
+    ws: Workspace,
+    cfg: SyncConfig,
+    extras: SyncExtras = { servers: [], instructions: [], skills: [] },
+  ): Promise<HarnessSyncStatus[]> {
     const state = await this.state(project);
     const created = new Set(state.createdFiles);
-    const instructions = [cfg.instructions.trim(), ...extras.instructions].filter(Boolean).join("\n\n");
+    const instructions = [cfg.instructions.trim(), ...extras.instructions]
+      .filter(Boolean)
+      .join("\n\n");
     const block = renderBlock(instructions, await this.memory.read(project));
-    const servers = [...cfg.mcpServers, ...extras.servers.filter((p) => !cfg.mcpServers.some((u) => u.name === p.name))];
+    const servers = [
+      ...cfg.mcpServers,
+      ...extras.servers.filter(
+        (p) => !cfg.mcpServers.some((u) => u.name === p.name),
+      ),
+    ];
     const status = new Map<string, Set<string>>();
-    const touch = (harness: string, file: string) => status.set(harness, (status.get(harness) ?? new Set()).add(file));
+    const touch = (harness: string, file: string) =>
+      status.set(harness, (status.get(harness) ?? new Set()).add(file));
 
     for (const file of INSTRUCTION_FILES) {
       const before = await ws.tryRead(file);
@@ -228,15 +300,23 @@ export class HarnessSync {
       let doc: Record<string, unknown>;
       try {
         doc = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-        if (typeof doc !== "object" || doc === null || Array.isArray(doc)) throw new Error("not an object");
+        if (typeof doc !== "object" || doc === null || Array.isArray(doc))
+          throw new Error("not an object");
       } catch {
-        status.set(t.harness, new Set([`${t.file} (not updated: it isn't valid JSON)`]));
+        status.set(
+          t.harness,
+          new Set([`${t.file} (not updated: it isn't valid JSON)`]),
+        );
         continue;
       }
       const section = { ...((doc[t.key] as Record<string, unknown>) ?? {}) };
-      for (const old of state.managedServers) if (!names.includes(old)) delete section[old];
+      for (const old of state.managedServers)
+        if (!names.includes(old)) delete section[old];
       for (const s of servers) section[s.name] = t.entry(s);
-      const next: Record<string, unknown> = { ...(raw ? {} : t.base ?? {}), ...doc };
+      const next: Record<string, unknown> = {
+        ...(raw ? {} : (t.base ?? {})),
+        ...doc,
+      };
       if (Object.keys(section).length) next[t.key] = section;
       else delete next[t.key];
 
@@ -274,15 +354,27 @@ export class HarnessSync {
         touch(harness, `${dir}/ (${extras.skills.length} skills)`);
       }
     }
-    if (extras.skills.length) touch("OpenCode", ".claude/skills + .agents/skills");
-    for (const rel of state.managedSkills) if (!wanted.has(rel)) await rm(ws.abs(rel), { recursive: true, force: true });
+    if (extras.skills.length)
+      touch("OpenCode", ".claude/skills + .agents/skills");
+    for (const rel of state.managedSkills)
+      if (!wanted.has(rel))
+        await rm(ws.abs(rel), { recursive: true, force: true });
 
     await mkdir(this.stateDir, { recursive: true });
-    await writeFile(this.stateFile(project), JSON.stringify({ managedServers: names, createdFiles: [...created], managedSkills: [...wanted] }));
+    await writeFile(
+      this.stateFile(project),
+      JSON.stringify({
+        managedServers: names,
+        createdFiles: [...created],
+        managedSkills: [...wanted],
+      }),
+    );
     return [...status.entries()].map(([harness, files]) => ({
       harness,
       files: [...files],
-      ...(userOwned.length && harness === "Claude Code" ? { note: `Kept your own: ${userOwned.join(", ")}` } : {}),
+      ...(userOwned.length && harness === "Claude Code"
+        ? { note: `Kept your own: ${userOwned.join(", ")}` }
+        : {}),
     }));
   }
 }

@@ -33,7 +33,8 @@ export const SKILL_PACKS: SkillPack[] = [
     skills: [
       {
         name: "self-review",
-        description: "Checklist to run before reporting a task as done: requirements, wiring between files, errors, edge cases.",
+        description:
+          "Checklist to run before reporting a task as done: requirements, wiring between files, errors, edge cases.",
         body: `# Self-review before you finish
 
 Work through this list and fix what fails before you report back:
@@ -47,7 +48,8 @@ Work through this list and fix what fails before you report back:
       },
       {
         name: "secure-coding",
-        description: "Rules that prevent the common vulnerabilities in generated code: injection, XSS, secrets, unsafe input handling.",
+        description:
+          "Rules that prevent the common vulnerabilities in generated code: injection, XSS, secrets, unsafe input handling.",
         body: `# Secure coding rules
 
 - Never insert untrusted text with \`innerHTML\`, \`document.write\` or template strings into HTML. Use \`textContent\` or create elements.
@@ -63,12 +65,14 @@ Work through this list and fix what fails before you report back:
     id: "web",
     name: "Web craft",
     description: "Accessible, responsive, polished web UI.",
-    keywords: /\b(web|site|page|landing|html|css|ui|frontend|front-end|react|vue|svelte|dashboard|form|button|app)\b/i,
+    keywords:
+      /\b(web|site|page|landing|html|css|ui|frontend|front-end|react|vue|svelte|dashboard|form|button|app)\b/i,
     files: /\.(html|css|jsx|tsx|vue|svelte)$/i,
     skills: [
       {
         name: "frontend-quality",
-        description: "Use when building or changing web UI: semantic HTML, accessibility, responsive layout, design tokens.",
+        description:
+          "Use when building or changing web UI: semantic HTML, accessibility, responsive layout, design tokens.",
         body: `# Frontend quality
 
 **Structure.** Use semantic elements (\`header\`, \`main\`, \`nav\`, \`button\`, \`label\`). Every input has a label; every icon-only button has an \`aria-label\`.
@@ -85,7 +89,8 @@ Work through this list and fix what fails before you report back:
       },
       {
         name: "verify-in-browser",
-        description: "Use after UI changes when a browser tool is available: load the preview, check the console, click the main flow.",
+        description:
+          "Use after UI changes when a browser tool is available: load the preview, check the console, click the main flow.",
         body: `# Verify in the browser
 
 If you have browser tools:
@@ -106,7 +111,8 @@ Report what you verified in one or two sentences.`,
     skills: [
       {
         name: "write-tests",
-        description: "Use when adding features or fixing bugs: test the behaviour, cover edge cases, keep tests fast and deterministic.",
+        description:
+          "Use when adding features or fixing bugs: test the behaviour, cover edge cases, keep tests fast and deterministic.",
         body: `# Writing tests
 
 - Test behaviour through the public interface, not private internals.
@@ -127,7 +133,8 @@ Report what you verified in one or two sentences.`,
     skills: [
       {
         name: "typescript-practices",
-        description: "Use when writing TypeScript or Node.js: strict types, error handling, async safety, small modules.",
+        description:
+          "Use when writing TypeScript or Node.js: strict types, error handling, async safety, small modules.",
         body: `# TypeScript and Node practices
 
 - Keep \`strict\` on. No \`any\`; use \`unknown\` and narrow. Model data with types and discriminated unions.
@@ -148,7 +155,8 @@ Report what you verified in one or two sentences.`,
     skills: [
       {
         name: "python-practices",
-        description: "Use when writing Python: type hints, standard library first, clear errors, tests with pytest.",
+        description:
+          "Use when writing Python: type hints, standard library first, clear errors, tests with pytest.",
         body: `# Python practices
 
 - Type-hint public functions; run the code mentally against \`mypy --strict\`.
@@ -168,7 +176,8 @@ Report what you verified in one or two sentences.`,
     skills: [
       {
         name: "roblox-luau",
-        description: "Use when writing Roblox Luau: server authority, RemoteEvent validation, strict typing, performance and mobile.",
+        description:
+          "Use when writing Roblox Luau: server authority, RemoteEvent validation, strict typing, performance and mobile.",
         body: `# Roblox and Luau
 
 **Authority.** The server owns game state. Clients send intents through RemoteEvents/RemoteFunctions; the server validates every argument (type, range, ownership, rate) and never trusts client-sent values for currency, damage or position.
@@ -193,15 +202,21 @@ export interface ActivePack {
 }
 
 /** Which packs a request needs, given the user's per-pack modes. */
-export function selectPacks(modes: Record<string, SkillMode>, request: string, files: string[]): ActivePack[] {
+export function selectPacks(
+  modes: Record<string, SkillMode>,
+  request: string,
+  files: string[],
+): ActivePack[] {
   const out: ActivePack[] = [];
   for (const pack of SKILL_PACKS) {
     const mode = modes[pack.id] ?? "auto";
     if (mode === "off") continue;
     if (mode === "on") out.push({ pack, reason: "on" });
     else if (pack.core) out.push({ pack, reason: "core" });
-    else if (pack.keywords?.test(request)) out.push({ pack, reason: "request" });
-    else if (pack.files && files.some((f) => pack.files!.test(f))) out.push({ pack, reason: "project" });
+    else if (pack.keywords?.test(request))
+      out.push({ pack, reason: "request" });
+    else if (pack.files && files.some((f) => pack.files!.test(f)))
+      out.push({ pack, reason: "project" });
   }
   return out;
 }

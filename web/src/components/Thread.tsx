@@ -79,20 +79,55 @@ export function Thread({
     wasRunning.current = running;
   }, [running, run.diff]);
 
-  const name = (id?: string) =>
-    crew.find((m) => m.id === id)?.name ??
-    (id === run.context?.fallback?.id ? run.context!.fallback!.name : "Agent");
-  const logo = (id?: string) => {
-    if (id === run.context?.fallback?.id)
-      return <ProviderLogo kind="opencode-cli" size={14} />;
+  /** Who an id is: a crew member, an Auto/single-model member, the manager or the fallback. */
+  const who = (
+    id?: string,
+  ):
+    | {
+        name: string;
+        kind?: ConnectionView["kind"];
+        conn?: ConnectionView;
+        model?: string;
+      }
+    | undefined => {
+    if (!id) return undefined;
     const m = crew.find((x) => x.id === id);
-    const c = m && connections.find((x) => x.id === m.connectionId);
-    return c ? (
+    if (m) {
+      const c = connections.find((x) => x.id === m.connectionId);
+      return {
+        name: m.name,
+        kind: c?.kind,
+        conn: c,
+        model: m.model || c?.defaultModel,
+      };
+    }
+    const mgr = run.context?.manager;
+    if (mgr && id === mgr.id) {
+      const c = connections.find((x) => x.id === mgr.connectionId);
+      return {
+        name: mgr.name,
+        kind: c?.kind ?? "opencode-cli",
+        conn: c,
+        model: mgr.model,
+      };
+    }
+    if (id === run.context?.fallback?.id)
+      return { name: run.context!.fallback!.name, kind: "opencode-cli" };
+    const auto = /^(?:auto|solo)-(.+)$/.exec(id);
+    const c = auto ? connections.find((x) => x.id === auto[1]) : undefined;
+    return c
+      ? { name: c.label, kind: c.kind, conn: c, model: c.defaultModel }
+      : undefined;
+  };
+  const name = (id?: string) => who(id)?.name ?? "Agent";
+  const logo = (id?: string) => {
+    const w = who(id);
+    return w?.kind ? (
       <ProviderLogo
-        kind={c.kind}
-        acp={c.acp}
-        baseUrl={c.baseUrl}
-        model={m.model || c.defaultModel}
+        kind={w.kind}
+        acp={w.conn?.acp}
+        baseUrl={w.conn?.baseUrl}
+        model={w.model}
         size={14}
       />
     ) : null;

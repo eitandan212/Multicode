@@ -1,4 +1,12 @@
-import type { DesignVariant, FileDiff, Plan, Review, RunEvent, SafetyMode, TaskStatus } from "../../server/shared";
+import type {
+  DesignVariant,
+  FileDiff,
+  Plan,
+  Review,
+  RunEvent,
+  SafetyMode,
+  TaskStatus,
+} from "../../server/shared";
 
 export interface StreamState {
   id: string;
@@ -37,9 +45,26 @@ export interface RunView {
   endedAt?: number;
   diff?: FileDiff[];
   /** Skills and plugins active for this thread. */
-  context?: { skills: string[]; plugins: string[]; fallback?: { id: string; name: string }; safety?: SafetyMode; economy?: boolean };
+  context?: {
+    skills: string[];
+    plugins: string[];
+    fallback?: { id: string; name: string };
+    manager?: {
+      id: string;
+      name: string;
+      connectionId?: string;
+      model?: string;
+    };
+    safety?: SafetyMode;
+    economy?: boolean;
+  };
   usage: { input: number; output: number; costUsd: number; freeTokens: number };
-  limits: { memberId: string; until: number; reason: string; fallback: string }[];
+  limits: {
+    memberId: string;
+    until: number;
+    reason: string;
+    fallback: string;
+  }[];
   protectedHits: string[];
   variants?: DesignVariant[];
   approval?: "sandbox" | "design";
@@ -68,7 +93,17 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
     case "run.started":
       return { ...s, prompt: e.prompt, startedAt: e.at };
     case "context":
-      return { ...s, context: { skills: e.skills, plugins: e.plugins, fallback: e.fallback, safety: e.safety, economy: e.economy } };
+      return {
+        ...s,
+        context: {
+          skills: e.skills,
+          plugins: e.plugins,
+          fallback: e.fallback,
+          manager: e.manager,
+          safety: e.safety,
+          economy: e.economy,
+        },
+      };
     case "usage":
       return {
         ...s,
@@ -80,14 +115,37 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
         },
       };
     case "member.limit":
-      return { ...s, limits: [...s.limits, { memberId: e.memberId, until: e.until, reason: e.reason, fallback: e.fallback }] };
+      return {
+        ...s,
+        limits: [
+          ...s.limits,
+          {
+            memberId: e.memberId,
+            until: e.until,
+            reason: e.reason,
+            fallback: e.fallback,
+          },
+        ],
+      };
     case "protected":
-      return { ...s, protectedHits: [...new Set([...s.protectedHits, ...e.paths])] };
+      return {
+        ...s,
+        protectedHits: [...new Set([...s.protectedHits, ...e.paths])],
+      };
     case "variants":
       return {
         ...s,
         variants: e.variants,
-        tasks: e.variants.map((v): TaskState => ({ id: v.id, title: v.title, files: [], status: "queued", memberId: v.memberId, why: v.direction })),
+        tasks: e.variants.map(
+          (v): TaskState => ({
+            id: v.id,
+            title: v.title,
+            files: [],
+            status: "queued",
+            memberId: v.memberId,
+            why: v.direction,
+          }),
+        ),
       };
     case "approval":
       return { ...s, approval: e.kind };
@@ -97,30 +155,70 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
       return {
         ...s,
         plan: e.plan,
-        tasks: e.plan.tasks.map((t): TaskState => ({ id: t.id, title: t.title, files: t.files, status: "queued", memberId: t.assignee, why: t.why })),
+        tasks: e.plan.tasks.map(
+          (t): TaskState => ({
+            id: t.id,
+            title: t.title,
+            files: t.files,
+            status: "queued",
+            memberId: t.assignee,
+            why: t.why,
+          }),
+        ),
       };
     case "tasks.added":
       return {
         ...s,
         tasks: [
           ...s.tasks,
-          ...e.tasks.map((t): TaskState => ({ id: t.id, title: t.title, files: t.files, status: "queued", fix: true, memberId: t.assignee, why: t.why })),
+          ...e.tasks.map(
+            (t): TaskState => ({
+              id: t.id,
+              title: t.title,
+              files: t.files,
+              status: "queued",
+              fix: true,
+              memberId: t.assignee,
+              why: t.why,
+            }),
+          ),
         ],
       };
     case "task.status":
       return {
         ...s,
         tasks: s.tasks.map((t) =>
-          t.id === e.taskId ? { ...t, status: e.status, memberId: e.memberId ?? t.memberId, error: e.error } : t,
+          t.id === e.taskId
+            ? {
+                ...t,
+                status: e.status,
+                memberId: e.memberId ?? t.memberId,
+                error: e.error,
+              }
+            : t,
         ),
       };
     case "agent.start":
-      return { ...s, streams: [...s.streams, { id: e.streamId, memberId: e.memberId, title: e.title, text: "", status: "live" }] };
+      return {
+        ...s,
+        streams: [
+          ...s.streams,
+          {
+            id: e.streamId,
+            memberId: e.memberId,
+            title: e.title,
+            text: "",
+            status: "live",
+          },
+        ],
+      };
     case "agent.delta":
       return {
         ...s,
         streams: s.streams.map((st) =>
-          st.id === e.streamId && st.text.length < MAX_STREAM_CHARS ? { ...st, text: st.text + e.text } : st,
+          st.id === e.streamId && st.text.length < MAX_STREAM_CHARS
+            ? { ...st, text: st.text + e.text }
+            : st,
         ),
       };
     case "agent.end":
@@ -132,14 +230,31 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
         }),
       };
     case "file.changed":
-      return s.changed.includes(e.path) ? s : { ...s, changed: [...s.changed, e.path] };
+      return s.changed.includes(e.path)
+        ? s
+        : { ...s, changed: [...s.changed, e.path] };
     case "review":
-      return { ...s, reviews: [...s.reviews, { round: e.round, review: e.review }] };
+      return {
+        ...s,
+        reviews: [...s.reviews, { round: e.round, review: e.review }],
+      };
     case "run.diff":
       return { ...s, diff: e.files };
     case "run.done":
-      return { ...s, status: "done", phase: "done", summary: e.summary, endedAt: e.at };
+      return {
+        ...s,
+        status: "done",
+        phase: "done",
+        summary: e.summary,
+        endedAt: e.at,
+      };
     case "run.error":
-      return { ...s, status: "error", phase: "stopped", error: e.error, endedAt: e.at };
+      return {
+        ...s,
+        status: "error",
+        phase: "stopped",
+        error: e.error,
+        endedAt: e.at,
+      };
   }
 }

@@ -9,8 +9,8 @@ import { colorFor, ROLE_HINT, ROLE_LABEL } from "../crewColors";
 import { Icon } from "./Icon";
 import { ProviderLogo } from "./ProviderLogo";
 
-/** A free OpenCode model: good enough to plan and dispatch, costs nothing. */
-const FREE_DISPATCHER = { model: "opencode/big-pickle" };
+/** A free OpenCode model: plenty for coordinating the crew, and it costs nothing. */
+const FREE_MANAGER = { model: "opencode/big-pickle" };
 
 interface Props {
   state: AppState;
@@ -39,37 +39,23 @@ export function CrewDialog({
   const [dispatch, setDispatch] = useState(state.settings.dispatch);
   const [adding, setAdding] = useState(false);
   const opencode = state.clis.find((c) => c.kind === "opencode-cli");
-  const dispatcher = crew.find((m) => m.role === "architect");
-  const dispatcherConn = dispatcher
-    ? state.connections.find((c) => c.id === dispatcher.connectionId)
-    : undefined;
-  const dispatcherIsFree = /(-free|big-pickle)$/.test(
-    dispatcher?.model || dispatcherConn?.defaultModel || "",
+  const [manager, setManager] = useState(
+    state.settings.manager ?? { mode: "auto" as const },
   );
+  const managerKey = (m: typeof manager) =>
+    m.mode === "pick" ? `pick:${m.connectionId}` : m.mode;
+  const live = state.manager;
 
-  /** Creates a free OpenCode connection and makes it the dispatcher. */
-  const addFreeDispatcher = async () => {
+  /** Adds a free OpenCode connection; in Auto it becomes the manager at once. */
+  const addFreeManager = async () => {
     setAdding(true);
     setError("");
     try {
-      const conn = await api.addConnection({
+      await api.addConnection({
         kind: "opencode-cli",
-        defaultModel: FREE_DISPATCHER.model,
+        defaultModel: FREE_MANAGER.model,
       });
       await onChanged();
-      setCrew([
-        {
-          id: crypto.randomUUID(),
-          name: conn.label,
-          role: "architect",
-          connectionId: conn.id,
-          model: FREE_DISPATCHER.model,
-          agents: 1,
-        },
-        ...crew.map((m) =>
-          m.role === "architect" ? { ...m, role: "builder" as Role } : m,
-        ),
-      ]);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -89,8 +75,12 @@ export function CrewDialog({
     setSaving(true);
     try {
       await api.saveCrew(crew);
-      if (dispatch !== state.settings.dispatch)
-        await api.saveSettings({ dispatch });
+      if (
+        dispatch !== state.settings.dispatch ||
+        managerKey(manager) !==
+          managerKey(state.settings.manager ?? { mode: "auto" })
+      )
+        await api.saveSettings({ dispatch, manager });
       await onChanged();
       ref.current?.close();
     } catch (e) {
@@ -140,15 +130,50 @@ export function CrewDialog({
           <>
             <section className="dispatch-box">
               <div className="dispatch-head">
-                <Icon name="spark" />
+                {live && manager.mode !== "off" ? (
+                  <ProviderLogo
+                    kind={live.kind}
+                    baseUrl={live.baseUrl}
+                    model={live.model}
+                    size={18}
+                  />
+                ) : (
+                  <Icon name="spark" />
+                )}
                 <div>
-                  <b>Dispatcher</b>
+                  <b>Manager</b>
                   <p className="muted small">
-                    {dispatcher
-                      ? `${dispatcher.name} plans each request and ${dispatch === "smart" ? "picks the best agent for every task by specialty and cost" : "hands tasks to the first free agent"}.`
-                      : "Nobody has the Dispatcher role, so the first member plans."}
+                    {manager.mode === "off"
+                      ? "Off: the planner also decides who builds each task."
+                      : live
+                        ? `${live.name}${live.free && !/\(free\)/.test(live.name) ? " (free)" : ""} runs the crew: it assigns every task and, in Auto, picks who plans, builds and reviews. Your strongest model still does the thinking and planning.`
+                        : "No free model yet. Add one below, or pick a cheap connection."}
                   </p>
                 </div>
+                <select
+                  className="manager-select"
+                  value={managerKey(manager)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setManager(
+                      v.startsWith("pick:")
+                        ? { mode: "pick", connectionId: v.slice(5) }
+                        : { mode: v as "auto" | "off" },
+                    );
+                  }}
+                  aria-label="Manager model"
+                >
+                  <option value="auto">Auto (a free model)</option>
+                  {state.connections.map((c) => (
+                    <option key={c.id} value={`pick:${c.id}`}>
+                      {c.label}
+                    </option>
+                  ))}
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <div className="dispatch-tip">
+                <span className="small muted">Task routing</span>
                 <div
                   className="seg mini"
                   role="radiogroup"
@@ -171,28 +196,25 @@ export function CrewDialog({
                     Balanced
                   </button>
                 </div>
-              </div>
-              {!dispatcherIsFree && (
-                <div className="dispatch-tip">
-                  <ProviderLogo kind="opencode-cli" />
-                  <span className="small">
-                    Planning needs little power. A free OpenCode model can
-                    dispatch, so paid models spend their time building.
-                  </span>
+                {manager.mode === "auto" && !live?.free && (
                   <button
-                    className="btn small"
-                    onClick={addFreeDispatcher}
+                    className="btn small push-right"
+                    onClick={addFreeManager}
                     disabled={adding || !opencode?.installed}
-                    title={opencode?.installed ? "" : opencode?.hint}
+                    title={
+                      opencode?.installed
+                        ? "Adds OpenCode's free Big Pickle model"
+                        : opencode?.hint
+                    }
                   >
                     {adding
                       ? "Adding…"
                       : opencode?.installed
-                        ? "Use free dispatcher"
-                        : "Install OpenCode first"}
+                        ? "Add free manager"
+                        : "Install OpenCode for a free manager"}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </section>
             {crew.map((m, i) => (
               <div

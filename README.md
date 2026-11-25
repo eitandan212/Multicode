@@ -132,6 +132,15 @@ The button next to *Send* chooses who works on the next request:
 
 Your choice is remembered in this browser.
 
+### The manager (free)
+
+A free or cheap **manager** model runs the crew, so your strong models spend their effort on
+thinking and building: it assigns every task to the builder that fits best (with a reason you can
+see), and in **Auto** it chooses who plans, builds and reviews. The planning itself always stays
+with the strongest model. By default MultiCode uses a connection on a free model or a local
+server, otherwise OpenCode's free *Big Pickle*; pick another or turn it off in *Crew → Manager*.
+If the manager fails or answers nonsense, the run simply continues with the defaults.
+
 ## Save credits, never stall
 
 * **Free fallback:** when a subscription or API key hits its usage limit (429, quota, "usage limit

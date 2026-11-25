@@ -128,6 +128,11 @@ describe("cli adapters", () => {
     expect(buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x")).toEqual(
       expect.arrayContaining(["--agent", "plan", "--dir", "/p"]),
     );
+    // OpenCode 2: no --dir, a private server, edits approved only in edit tasks.
+    const v2edit = buildCliArgs("opencode-cli", { ...req, mode: "edit" }, "x", 2);
+    expect(v2edit).toEqual(expect.arrayContaining(["--standalone", "--agent", "build", "--auto"]));
+    expect(v2edit).not.toContain("--dir");
+    expect(buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x", 2)).not.toContain("--auto");
     expect(buildCliArgs("qwen-cli", { ...req, mode: "text" }, "x")).toEqual(
       expect.arrayContaining(["--approval-mode", "plan"]),
     );
@@ -432,6 +437,135 @@ describe("team choice", () => {
         "claude-opus-5-5",
       ),
     ).toMatchObject({ name: "Claude Opus 5.5", role: "builder" });
+  });
+});
+
+describe("manager model", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-mgr-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  /** A cheap manager that answers with fixed JSON (or garbage). */
+  const managerProvider = (
+    answers: { team?: unknown; dispatch?: unknown },
+    seen: string[],
+  ): Provider => ({
+    editsFiles: false,
+    async generate(req, onDelta) {
+      seen.push(req.system.includes("choose who does") ? "team" : "dispatch");
+      const out = req.system.includes("choose who does")
+        ? JSON.stringify(answers.team)
+        : JSON.stringify(answers.dispatch);
+      onDelta(out);
+      return out;
+    },
+  });
+
+  it("assigns tasks so the architect only plans", async () => {
+    const ws = await Workspace.open(dir, "dispatch");
+    const systems: string[] = [];
+    const base = fakeProvider({ review: [] });
+    const spy: Provider = {
+      editsFiles: false,
+      generate: (req, d, s) => (
+        systems.push(req.system),
+        base.generate(req, d, s)
+      ),
+    };
+    const seen: string[] = [];
+    const manager = member(
+      "manager",
+      "architect",
+      managerProvider(
+        {
+          dispatch: {
+            assignments: [
+              { task: "t1", assignee: "b1", why: "markup" },
+              { task: "t2", assignee: "b2", why: "logic" },
+            ],
+          },
+        },
+        seen,
+      ),
+    );
+    const events: RunEvent[] = [];
+    await runCrew({
+      prompt: "make a page",
+      history: [],
+      workspace: ws,
+      roles: assignRoles([
+        member("arch", "architect", spy),
+        member("b1", "builder", spy),
+        member("b2", "builder", spy),
+        member("rev", "reviewer", spy),
+      ]),
+      settings: { maxReviewRounds: 0, dispatch: "smart" },
+      emit: (e) => events.push(e),
+      signal: new AbortController().signal,
+      manager,
+    });
+    expect(seen).toEqual(["dispatch"]);
+    expect(systems.find((s) => s.includes("ARCHITECT"))).not.toContain(
+      "DISPATCHER",
+    );
+    const ran = (id: string) =>
+      events.find(
+        (e) =>
+          e.type === "task.status" && e.taskId === id && e.status === "running",
+      );
+    expect(ran("t1")).toMatchObject({ memberId: "b1" });
+    expect(ran("t2")).toMatchObject({ memberId: "b2" });
+    expect(events.find((e) => e.type === "plan")).toMatchObject({
+      plan: { tasks: [{ why: "markup" }, { why: "logic" }] },
+    });
+  });
+
+  it("staffs Auto, and a confused manager never breaks the run", async () => {
+    const p = fakeProvider({ review: [] });
+    const roles = assignRoles([
+      member("a", "architect", p),
+      member("b", "builder", p),
+      member("c", "builder", p),
+    ]);
+    for (const [answers, architect] of [
+      [
+        {
+          team: { architect: "c", reviewer: "a", builders: ["b", "a"] },
+          dispatch: { assignments: [] },
+        },
+        "c",
+      ],
+      [
+        {
+          team: "nonsense",
+          dispatch: { assignments: [{ task: "t9", assignee: "zzz" }] },
+        },
+        "a",
+      ],
+    ] as const) {
+      const ws = await Workspace.open(dir, `auto-${architect}`);
+      const seen: string[] = [];
+      const events: RunEvent[] = [];
+      const result = await runCrew({
+        prompt: "make a page",
+        history: [],
+        workspace: ws,
+        roles,
+        settings: { maxReviewRounds: 0, dispatch: "smart" },
+        emit: (e) => events.push(e),
+        signal: new AbortController().signal,
+        manager: member("manager", "architect", managerProvider(answers, seen)),
+        managerPicksTeam: true,
+      });
+      expect(seen[0]).toBe("team");
+      const planner = events.find(
+        (e) => e.type === "agent.start" && e.title === "Planning the work",
+      );
+      expect(planner).toMatchObject({ memberId: architect });
+      expect(result.changedFiles.length).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -15,8 +15,13 @@ interface CliSpec {
   binary: string;
   install: string;
   output: OutputParser;
-  /** argv for one headless call. The prompt is a single argv entry; no shell is involved. */
-  args(req: GenerateRequest, prompt: string): string[];
+  /**
+   * argv for one headless call. The prompt is a single argv entry; no shell is involved.
+   * `major` is the CLI's major version when `versioned` is set (0 if it couldn't be read).
+   */
+  args(req: GenerateRequest, prompt: string, major: number): string[];
+  /** The CLI's flags differ between major versions: read `--version` once before calling. */
+  versioned?: boolean;
   /** Extra environment for the child process (permission hardening). */
   env?(req: GenerateRequest): Record<string, string>;
   /** argv that prints one model id per line, when the CLI supports listing. */
@@ -72,17 +77,33 @@ export const CLI_SPECS: Record<CliKind, CliSpec> = {
     binary: "opencode",
     install: "npm i -g opencode-ai  →  free models work right away; run `opencode auth login` for your own accounts",
     output: "opencode-json",
-    args: (req, prompt) => [
-      "run",
-      "--format",
-      "json",
-      "--dir",
-      req.cwd,
-      "--agent",
-      req.mode === "edit" ? "build" : "plan",
-      ...modelArg(req, "-m"),
-      prompt,
-    ],
+    versioned: true,
+    // OpenCode 2 dropped --dir (it follows the working folder), shares one background service
+    // unless --standalone, and asks before editing unless --auto (shell and web stay denied below).
+    args: (req, prompt, major) =>
+      major >= 2
+        ? [
+            "run",
+            "--format",
+            "json",
+            "--standalone",
+            "--agent",
+            req.mode === "edit" ? "build" : "plan",
+            ...(req.mode === "edit" ? ["--auto"] : []),
+            ...modelArg(req, "-m"),
+            prompt,
+          ]
+        : [
+            "run",
+            "--format",
+            "json",
+            "--dir",
+            req.cwd,
+            "--agent",
+            req.mode === "edit" ? "build" : "plan",
+            ...modelArg(req, "-m"),
+            prompt,
+          ],
     // Inline config: shell and web tools removed entirely, so the agent can only read and edit files.
     env: () => ({ OPENCODE_CONFIG_CONTENT: JSON.stringify({ permission: { bash: "deny", webfetch: "deny" } }) }),
     listModels: ["models"],
@@ -100,6 +121,24 @@ export const CLI_INSTALL_HINTS = Object.fromEntries(Object.entries(CLI_SPECS).ma
   CliKind,
   string
 >;
+
+const majors = new Map<string, Promise<number>>();
+
+/** The major version a CLI reports for `--version` ("v2.4.1" -> 2); 0 when unknown. Cached. */
+export function cliMajor(launch: Launch): Promise<number> {
+  const key = [launch.command, ...launch.prefix].join(" ");
+  let p = majors.get(key);
+  if (!p) {
+    p = new Promise<number>((resolve) => {
+      execFile(launch.command, [...launch.prefix, "--version"], { timeout: 15_000, env: { ...process.env, ...launch.env, NO_COLOR: "1" }, windowsHide: true }, (err, stdout) => {
+        const m = /(\d+)\.\d+/.exec(String(stdout ?? ""));
+        resolve(err || !m ? 0 : Number(m[1]));
+      });
+    });
+    majors.set(key, p);
+  }
+  return p;
+}
 
 export async function findBinary(name: string): Promise<string | undefined> {
   const exts = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD").split(";") : [""];
@@ -150,8 +189,8 @@ export function parseCmdShim(shim: string): string | undefined {
 }
 
 /** Builds argv for one headless CLI call. */
-export function buildCliArgs(kind: CliKind, req: GenerateRequest, prompt: string): string[] {
-  return CLI_SPECS[kind].args(req, prompt);
+export function buildCliArgs(kind: CliKind, req: GenerateRequest, prompt: string, major = 1): string[] {
+  return CLI_SPECS[kind].args(req, prompt, major);
 }
 
 export interface ParsedLine {
@@ -261,12 +300,13 @@ export class CliProvider implements Provider {
   async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
     const launch = await resolveLaunch(await this.binary());
     const spec = this.spec;
+    const major = spec.versioned ? await cliMajor(launch) : 0;
     const call = { ...req, model: req.model || this.conn.defaultModel };
     const prompt = `${req.system}\n\n---\n\n${req.prompt}`;
     const parse = spec.output === "claude-stream" ? parseClaudeStreamLine : spec.output === "opencode-json" ? parseOpenCodeLine : null;
 
     return new Promise<string>((resolve, reject) => {
-      const child = spawn(launch.command, [...launch.prefix, ...spec.args(call, prompt)], {
+      const child = spawn(launch.command, [...launch.prefix, ...spec.args(call, prompt, major)], {
         cwd: req.cwd,
         // PWD too: some agents (OpenCode) resolve their project from it rather than the real cwd.
         env: { ...process.env, ...(launch.env ?? {}), ...(req.env ?? {}), PWD: req.cwd, NO_COLOR: "1", FORCE_COLOR: "0", ...(spec.env?.(call) ?? {}) },
