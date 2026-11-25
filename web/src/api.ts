@@ -107,6 +107,10 @@ export const api = {
     ),
   createProject: (name: string) =>
     request<{ name: string }>("POST", "/api/projects", { name }),
+  saveFile: (project: string, path: string, content: string) =>
+    request<{ ok: boolean }>("PUT", `/api/projects/${project}/file`, { path, content }),
+  deleteFile: (project: string, path: string) =>
+    request<void>("DELETE", `/api/projects/${project}/file?path=${encodeURIComponent(path)}`),
   files: (project: string) =>
     request<string[]>("GET", `/api/projects/${project}/files`),
   file: (project: string, path: string) =>

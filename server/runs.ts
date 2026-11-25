@@ -291,6 +291,11 @@ export class RunManager {
     }));
   }
 
+  /** True while a crew is changing this project's files (so the IDE doesn't write over it). */
+  isWorking(project: string): boolean {
+    return [...this.runs.values()].some((r) => r.project === project && r.status === "running");
+  }
+
   list(project?: string): RunSummary[] {
     return [...this.runs.values()]
       .filter((r) => !project || r.project === project)

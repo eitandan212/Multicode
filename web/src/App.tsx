@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -28,7 +30,7 @@ import { Splash } from "./components/Splash";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
-import { LogoMark } from "./components/Logo";
+import { LogoLoader, LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
 import { usePresence } from "./motion";
 import { ProjectForm, Tutorial } from "./components/Tutorial";
@@ -38,6 +40,9 @@ import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
 import { emptyRun, reduceRun, type RunView } from "./runState";
+
+/** The IDE (Monaco) loads only when you open it, so Chat view stays light. */
+const Ide = lazy(() => import("./components/ide/Ide"));
 
 type RunAction =
   | { kind: "reset"; run: RunView | null }
@@ -137,6 +142,15 @@ export function App() {
     if (teamPref && teamPref.kind !== "solo") return teamPref;
     return state?.crew.length ? { kind: "crew" } : { kind: "auto" };
   })();
+
+  // Chat or IDE (VS Code-like editor with the crew docked beside it), remembered per browser.
+  const [view, setViewState] = useState<"chat" | "ide">(() =>
+    store.get("view") === "ide" ? "ide" : "chat",
+  );
+  const setView = (v: "chat" | "ide") => {
+    setViewState(v);
+    store.set("view", v);
+  };
 
   // Sidebar and panel stay mounted while they slide out.
   const sidebarPresence = usePresence(sidebarOpen);
@@ -300,6 +314,14 @@ export function App() {
         icon: "compose",
         group: "Actions",
         run: () => dispatch({ kind: "reset", run: null }),
+      },
+      {
+        id: "toggle-ide",
+        label: view === "ide" ? "Switch to Chat view" : "Switch to IDE view",
+        hint: "editor, explorer and tabs with the crew beside you",
+        icon: view === "ide" ? "compose" : "terminal",
+        group: "View",
+        run: () => setView(view === "ide" ? "chat" : "ide"),
       },
       {
         id: "tutorial",
@@ -495,6 +517,97 @@ export function App() {
     />
   );
 
+  // The conversation with the crew: full width in Chat view, docked beside the editor in IDE view.
+  const chatView =
+    run && project ? (
+      <>
+        <div className="scroll">
+          <Thread
+            run={run}
+            crew={crew}
+            connections={state.connections}
+            undo={{
+              can: Boolean(runs.find((r) => r.id === run.id)?.canUndo),
+              undoneAt: runs.find((r) => r.id === run.id)?.undoneAt,
+            }}
+            review={{
+              pending: runs.find((r) => r.id === run.id)?.pending,
+              resolution: runs.find((r) => r.id === run.id)?.resolution,
+            }}
+            onApply={async (variant, force) => {
+              const r = await api.apply(run.id, variant, force);
+              if (!r.conflicts.length) {
+                await reload();
+                setRefreshKey((k) => k + 1);
+              }
+              return r;
+            }}
+            onDiscard={async () => {
+              await api.discard(run.id);
+              await reload();
+            }}
+            onShowChanges={showChanges}
+            onUndo={async (force) => {
+              const r = await api.undo(run.id, force);
+              if (!r.conflicts.length) {
+                await reload();
+                setRefreshKey((k) => k + 1);
+              }
+              return r;
+            }}
+          />
+        </div>
+        <div className="dock">{composer}</div>
+      </>
+    ) : tutorial || !project ? (
+      <div className="hero">
+        <Ribbons />
+        {tutorial ? (
+          <Tutorial
+            hasConnection={state.connections.length > 0}
+            crewSize={crew.length}
+            hasProject={Boolean(project)}
+            hasRun={runs.length > 0}
+            onConnect={() => setDialog("connections")}
+            onEditCrew={() => setDialog("crew")}
+            onCreateProject={createFirstProject}
+            onExample={(text) =>
+              setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }))
+            }
+            onSkip={endTutorial}
+          />
+        ) : (
+          <section className="tutorial">
+            <LogoMark size={40} className="hero-mark" />
+            <h1>Create a project to start</h1>
+            <p className="muted">
+              A folder on this computer where the crew writes the code.
+            </p>
+            <ProjectForm onCreate={createFirstProject} />
+          </section>
+        )}
+        {composer}
+      </div>
+    ) : (
+      <div className="hero">
+        <Ribbons />
+        <LogoMark size={40} className="hero-mark" />
+        <h1>
+          What should the crew build in <b>{project}</b>?
+        </h1>
+        <p className="muted">
+          {state.connections.length === 0 ? (
+            <button className="link" onClick={() => setDialog("connections")}>
+              Connect an AI to get started
+            </button>
+          ) : (
+            `${crew.length} agent${crew.length === 1 ? "" : "s"} ready: they plan, build in parallel and review each other.`
+          )}
+        </p>
+        {composer}
+      </div>
+    );
+
   return (
     <div
       className={`shell ${sidebarOpen ? "with-sidebar" : ""} ${panelOpen ? "with-panel" : ""}`}
@@ -563,6 +676,30 @@ export function App() {
               <span>Getting started</span>
             )}
           </div>
+          {project && (
+            <div
+              className="seg mini view-switch"
+              role="radiogroup"
+              aria-label="View"
+            >
+              <button
+                role="radio"
+                aria-checked={view === "chat"}
+                className={view === "chat" ? "is-active" : ""}
+                onClick={() => setView("chat")}
+              >
+                <Icon name="compose" size={13} /> Chat
+              </button>
+              <button
+                role="radio"
+                aria-checked={view === "ide"}
+                className={view === "ide" ? "is-active" : ""}
+                onClick={() => setView("ide")}
+              >
+                <Icon name="terminal" size={13} /> IDE
+              </button>
+            </div>
+          )}
           <button
             className="kbd-btn"
             onClick={() => setDialog("palette")}
@@ -587,96 +724,24 @@ export function App() {
           </button>
         </header>
 
-        {run && project ? (
-          <>
-            <div className="scroll">
-              <Thread
-                run={run}
-                crew={crew}
-                connections={state.connections}
-                undo={{
-                  can: Boolean(runs.find((r) => r.id === run.id)?.canUndo),
-                  undoneAt: runs.find((r) => r.id === run.id)?.undoneAt,
-                }}
-                review={{
-                  pending: runs.find((r) => r.id === run.id)?.pending,
-                  resolution: runs.find((r) => r.id === run.id)?.resolution,
-                }}
-                onApply={async (variant, force) => {
-                  const r = await api.apply(run.id, variant, force);
-                  if (!r.conflicts.length) {
-                    await reload();
-                    setRefreshKey((k) => k + 1);
-                  }
-                  return r;
-                }}
-                onDiscard={async () => {
-                  await api.discard(run.id);
-                  await reload();
-                }}
-                onShowChanges={showChanges}
-                onUndo={async (force) => {
-                  const r = await api.undo(run.id, force);
-                  if (!r.conflicts.length) {
-                    await reload();
-                    setRefreshKey((k) => k + 1);
-                  }
-                  return r;
-                }}
-              />
-            </div>
-            <div className="dock">{composer}</div>
-          </>
-        ) : tutorial || !project ? (
-          <div className="hero">
-            <Ribbons />
-            {tutorial ? (
-              <Tutorial
-                hasConnection={state.connections.length > 0}
-                crewSize={crew.length}
-                hasProject={Boolean(project)}
-                hasRun={runs.length > 0}
-                onConnect={() => setDialog("connections")}
-                onEditCrew={() => setDialog("crew")}
-                onCreateProject={createFirstProject}
-                onExample={(text) =>
-                  setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }))
-                }
-                onSkip={endTutorial}
-              />
-            ) : (
-              <section className="tutorial">
-                <LogoMark size={40} className="hero-mark" />
-                <h1>Create a project to start</h1>
-                <p className="muted">
-                  A folder on this computer where the crew writes the code.
-                </p>
-                <ProjectForm onCreate={createFirstProject} />
-              </section>
-            )}
-            {composer}
-          </div>
+        {view === "ide" && project ? (
+          <Suspense
+            fallback={
+              <div className="ide-loading">
+                <LogoLoader size={22} /> Loading the editor…
+              </div>
+            }
+          >
+            <Ide
+              project={project}
+              refreshKey={refreshKey}
+              changed={run?.changed ?? []}
+              busy={runs.some((r) => r.project === project && r.status === "running")}
+              chat={chatView}
+            />
+          </Suspense>
         ) : (
-          <div className="hero">
-            <Ribbons />
-            <LogoMark size={40} className="hero-mark" />
-            <h1>
-              What should the crew build in <b>{project}</b>?
-            </h1>
-            <p className="muted">
-              {state.connections.length === 0 ? (
-                <button
-                  className="link"
-                  onClick={() => setDialog("connections")}
-                >
-                  Connect an AI to get started
-                </button>
-              ) : (
-                `${crew.length} agent${crew.length === 1 ? "" : "s"} ready: they plan, build in parallel and review each other.`
-              )}
-            </p>
-            {composer}
-          </div>
+          chatView
         )}
       </main>
 

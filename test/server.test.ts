@@ -703,6 +703,46 @@ describe("http guards", () => {
     expect(r.status).toBe(403);
   });
 
+  it("IDE saves and deletes files inside the project only", async () => {
+    const h = { "content-type": "application/json", "x-multicode": "1" };
+    await fetch(`${base}/api/projects`, {
+      method: "POST",
+      headers: h,
+      body: '{"name":"ide"}',
+    });
+    const put = (p: string, content: unknown = "x") =>
+      fetch(`${base}/api/projects/ide/file`, {
+        method: "PUT",
+        headers: h,
+        body: JSON.stringify({ path: p, content }),
+      });
+    expect((await put("src/a.js", "let a = 1;\n")).status).toBe(200);
+    expect(
+      await readFile(path.join(dir, "projects", "ide", "src", "a.js"), "utf8"),
+    ).toBe("let a = 1;\n");
+    for (const bad of [
+      "../escape.txt",
+      "/etc/passwd",
+      ".git/config",
+      "node_modules/x.js",
+    ])
+      expect((await put(bad)).status).toBe(400);
+    expect((await put("b.txt", 42)).status).toBe(400);
+    const noCsrf = await fetch(`${base}/api/projects/ide/file`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: '{"path":"c.txt","content":""}',
+    });
+    expect(noCsrf.status).toBe(403);
+    const del = await fetch(`${base}/api/projects/ide/file?path=src%2Fa.js`, {
+      method: "DELETE",
+      headers: h,
+    });
+    expect(del.status).toBe(204);
+    const files = await (await fetch(`${base}/api/projects/ide/files`)).json();
+    expect(files).not.toContain("src/a.js");
+  });
+
   it("never returns API keys", async () => {
     const h = { "content-type": "application/json", "x-multicode": "1" };
     const created = await fetch(`${base}/api/connections`, {

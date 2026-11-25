@@ -150,6 +150,17 @@ with the strongest model. By default MultiCode uses a connection on a free model
 server, otherwise OpenCode's free *Big Pickle*; pick another or turn it off in *Crew → Manager*.
 If the manager fails or answers nonsense, the run simply continues with the defaults.
 
+## IDE view
+
+Switch between **Chat** and **IDE** at the top (or `Ctrl K` → *Switch to IDE view*). The IDE is
+built on [Monaco](https://github.com/microsoft/monaco-editor) (MIT), the editor inside VS Code,
+bundled locally so it works offline: file explorer, tabs with unsaved markers, syntax
+highlighting and IntelliSense for web languages, find/replace, minimap, sticky scroll and the F1
+command list. `Ctrl S` saves. The crew stays docked on the right, so you can edit and ask in the
+same place. Files the crew changes are marked **M** and open tabs update live; if you edited a
+file the crew also changed, you choose whose version to keep. While the crew is working on the
+project the editor is read-only, so nobody overwrites anybody.
+
 ## Save credits, never stall
 
 * **Free fallback:** when a subscription or API key hits its usage limit (429, quota, "usage limit

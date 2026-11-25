@@ -83,7 +83,7 @@ export function createApp(opts: AppOptions) {
     next();
   });
 
-  app.use("/api", express.json({ limit: "1mb" }));
+  app.use("/api", express.json({ limit: "2mb" }));
   // CSRF guard: a custom header forces a CORS preflight, which we never approve.
   app.use("/api", (req, res, next) => {
     if (req.method !== "GET" && req.headers["x-multicode"] !== "1")
@@ -329,6 +329,36 @@ export function createApp(opts: AppOptions) {
         path: req.query.path,
         content: await ws.read(String(req.query.path ?? "")),
       });
+    }),
+  );
+  // IDE: save and delete files. Refused while a crew works on the same project.
+  const editable = async (name: string, rel: unknown) => {
+    const project = validateProjectName(name);
+    if (runs.isWorking(project))
+      throw new HttpError(
+        409,
+        "the crew is working on this project; save again when it's done",
+      );
+    if (typeof rel !== "string" || !rel.trim())
+      throw new HttpError(400, "path is required");
+    return { ws: await Workspace.open(projectsDir, project), rel: rel.trim() };
+  };
+  api.put(
+    "/projects/:name/file",
+    wrap(async (req, res) => {
+      const { ws, rel } = await editable(param(req, "name"), req.body?.path);
+      if (typeof req.body?.content !== "string")
+        throw new HttpError(400, "content must be text");
+      await ws.write(rel, req.body.content);
+      res.json({ ok: true, path: rel });
+    }),
+  );
+  api.delete(
+    "/projects/:name/file",
+    wrap(async (req, res) => {
+      const { ws, rel } = await editable(param(req, "name"), req.query.path);
+      await ws.remove(rel);
+      res.status(204).end();
     }),
   );
   api.get("/runs", (_req, res) => res.json(runs.list()));

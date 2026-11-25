@@ -3646,3 +3646,391 @@ pre,
 .agent-gallery-head > .icon-btn {
   order: 2;
 }
+
+/* ---- IDE view (VS Code-like) ------------------------------------------- */
+.view-switch {
+  margin-right: 4px;
+}
+.view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ide-loading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  grid-auto-flow: column;
+  gap: 10px;
+  color: var(--muted);
+}
+.ide {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr) minmax(320px, 400px);
+  animation: fade-in 260ms var(--ease) both;
+}
+.ide-explorer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--sidebar);
+}
+.ide-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 6px 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ide-project {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px 6px;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.ide-new {
+  padding: 2px 8px 6px;
+}
+.ide-new input {
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--focus);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  font: 12.5px var(--mono);
+  outline: none;
+}
+.ide-tree {
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+.ide-empty {
+  padding: 8px 12px;
+}
+.ide-file {
+  position: relative;
+}
+.ide-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding-right: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  animation: row-in 240ms var(--ease) both;
+}
+.ide-row svg {
+  flex: none;
+  color: var(--muted);
+}
+.ide-row:hover {
+  background: var(--hover);
+}
+.ide-file.is-active > .ide-row {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--focus);
+}
+.ide-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text);
+  margin-left: auto;
+}
+.ide-badge {
+  flex: none;
+  margin-left: auto;
+  font: 600 10.5px var(--mono);
+  color: var(--amber);
+}
+.ide-dot + .ide-badge {
+  margin-left: 4px;
+}
+.ide-del {
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  height: 20px;
+  min-width: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-soft);
+}
+.ide-file:hover .ide-del,
+.ide-del:focus-visible,
+.ide-del.is-confirm {
+  opacity: 1;
+}
+.ide-del:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.ide-del.is-confirm {
+  background: var(--bad);
+  color: #fff;
+}
+.ide-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--card);
+}
+.ide-tabs {
+  display: flex;
+  min-height: 36px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--sidebar);
+  scrollbar-width: thin;
+}
+.ide-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 0 6px 0 12px;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  animation: tab-in 220ms var(--ease) both;
+  transition:
+    background-color 140ms var(--ease-soft),
+    color 140ms var(--ease-soft);
+}
+.ide-tab:hover {
+  color: var(--text);
+}
+.ide-tab.is-active {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: inset 0 2px 0 var(--focus);
+}
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.ide-tab-x {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+}
+.ide-tab:hover .ide-tab-x,
+.ide-tab.is-active .ide-tab-x {
+  opacity: 1;
+}
+.ide-tab-x:hover {
+  background: var(--hover);
+}
+/* Unsaved: a dot that turns into × on hover, as in VS Code. */
+.ide-tab-x.is-dirty {
+  opacity: 1;
+  position: relative;
+}
+.ide-tab-x.is-dirty svg {
+  opacity: 0;
+}
+.ide-tab-x.is-dirty::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ide-tab-x.is-dirty:hover svg {
+  opacity: 1;
+}
+.ide-tab-x.is-dirty:hover::after {
+  display: none;
+}
+.ide-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--amber-soft);
+  font-size: 13px;
+  animation: enter 280ms var(--ease) both;
+}
+.ide-banner.is-info {
+  background: var(--accent-soft);
+}
+.ide-editor-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.ide-editor {
+  position: absolute;
+  inset: 0;
+}
+.ide-welcome {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  background: var(--card);
+  color: var(--muted);
+  text-align: center;
+  animation: fade-in 300ms var(--ease) both;
+}
+.ide-welcome p {
+  margin: 0;
+}
+.ide-welcome kbd,
+.ide-status kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font: 11px var(--mono);
+}
+.ide-status {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 6px;
+  border-top: 1px solid var(--line);
+  background: var(--sidebar);
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 0;
+}
+.ide-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  white-space: nowrap;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.ide-status-item.is-ok {
+  color: var(--ok);
+  animation: fade-in 200ms ease-out;
+}
+.ide-status-item.is-bad {
+  color: var(--bad);
+  animation: fade-in 200ms ease-out;
+}
+.ide-save {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ide-save:not(:disabled):hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.ide-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ide-chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg);
+}
+.ide-chat .scroll {
+  padding: 8px 14px 14px;
+}
+.ide-chat .dock {
+  padding: 0 10px 10px;
+}
+.ide-chat .hero {
+  padding: 16px 12px;
+  justify-content: flex-end;
+}
+.ide-chat .hero h1 {
+  font-size: 18px;
+}
+.ide-chat .hero-mark,
+.ide-chat .hero > p.muted {
+  display: none;
+}
+.ide-chat .tutorial h1 {
+  font-size: 20px;
+}
+@media (max-width: 1100px) {
+  .ide {
+    grid-template-columns: 200px minmax(0, 1fr) minmax(280px, 340px);
+  }
+}
+@media (max-width: 900px) {
+  .ide {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(320px, 1fr) auto;
+    overflow-y: auto;
+  }
+  .ide-explorer {
+    max-height: 28vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .ide-chat {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    min-height: 50vh;
+  }
+  .view-switch button svg {
+    display: none;
+  }
+}
+/* The docked chat is narrow: the team chip keeps its logos, the composer row wraps if needed. */
+.ide-chat .composer-bar {
+  flex-wrap: wrap;
+}
+.ide-chat .team-label {
+  display: none;
+}
+.ide-chat .crew-chip {
+  max-width: none;
+}
