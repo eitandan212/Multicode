@@ -1,7 +1,7 @@
 {
   "name": "multicode",
   "version": "0.1.0",
-  "description": "Connect your AI subscriptions and API keys — and let them build together as a crew.",
+  "description": "Connect your AI subscriptions and API keys \u2014 and let them build together as a crew.",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -15,7 +15,10 @@
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "desktop": "npm run build && electron .",
+    "icons": "node scripts/icons.mjs",
+    "dist:win": "npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.13.0",
@@ -32,11 +35,62 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "concurrently": "^10.0.7",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "resedit": "^3.1.1",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"
+  },
+  "main": "desktop/main.js",
+  "author": "MultiCode",
+  "homepage": "https://github.com/eitandan212/multicode",
+  "build": {
+    "appId": "com.multicode.desktop",
+    "productName": "MultiCode",
+    "copyright": "Copyright \u00a9 2026 MultiCode",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/main.js",
+      "build/icon.ico",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "afterPack": "desktop/afterPack.cjs",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MultiCode",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "artifactName": "MultiCode-Setup-${version}.exe",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

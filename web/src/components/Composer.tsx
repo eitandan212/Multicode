@@ -87,7 +87,7 @@ export function Composer(p: Props) {
                 <span key={m.id} style={{ background: colorFor(p.crew, m.id) }} />
               ))}
             </span>
-            {p.crew.length === 1 ? p.crew[0]!.name : `Crew of ${p.crew.length}`}
+            {p.crew.length === 0 ? "No crew yet" : p.crew.length === 1 ? p.crew[0]!.name : `Crew of ${p.crew.length}`}
           </button>
           {p.running ? (
             <button type="button" className="send stop" onClick={p.onStop} aria-label="Stop the crew" title="Stop">

@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Connection } from "../config.js";
 import type { ProviderKind } from "../shared.js";
@@ -118,6 +118,37 @@ export async function findBinary(name: string): Promise<string | undefined> {
   return undefined;
 }
 
+export interface Launch {
+  command: string;
+  /** Arguments that go before the CLI's own arguments (e.g. the script for node). */
+  prefix: string[];
+  env?: Record<string, string>;
+}
+
+/**
+ * How to start a CLI without a shell. On Windows, npm installs CLIs as `.cmd` shims, which
+ * Node refuses to spawn without `cmd.exe` (and passing a prompt through cmd.exe would be an
+ * injection risk). So we read the shim, find the JavaScript entry it points to, and run that
+ * with Node directly.
+ */
+export async function resolveLaunch(bin: string): Promise<Launch> {
+  if (!/\.(cmd|bat)$/i.test(bin)) return { command: bin, prefix: [] };
+  const shim = await readFile(bin, "utf8");
+  const target = parseCmdShim(shim);
+  if (!target) throw new ProviderError(`Can't start ${path.basename(bin)}: it isn't a standard npm launcher. Reinstall it with npm.`);
+  const script = path.resolve(path.dirname(bin), target);
+  const node = await findBinary("node");
+  if (node) return { command: node, prefix: [script] };
+  // No Node on PATH: inside the desktop app, Electron's own runtime can run the script.
+  return { command: process.execPath, prefix: [script], env: process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : undefined };
+}
+
+/** The script path inside an npm `.cmd` shim, relative to the shim's folder. */
+export function parseCmdShim(shim: string): string | undefined {
+  const m = /"%(?:~?dp0%?|dp0%)\\([^"]+?\.(?:c?js|mjs))"/i.exec(shim);
+  return m ? m[1]!.replace(/\\/g, "/") : undefined;
+}
+
 /** Builds argv for one headless CLI call. */
 export function buildCliArgs(kind: CliKind, req: GenerateRequest, prompt: string): string[] {
   return CLI_SPECS[kind].args(req, prompt);
@@ -213,9 +244,9 @@ export class CliProvider implements Provider {
 
   async listModels(signal: AbortSignal): Promise<string[]> {
     if (!this.spec.listModels) return [];
-    const bin = await this.binary();
+    const launch = await resolveLaunch(await this.binary());
     return new Promise((resolve, reject) => {
-      execFile(bin, this.spec.listModels!, { signal, maxBuffer: 4_000_000, env: { ...process.env, NO_COLOR: "1" } }, (err, stdout) => {
+      execFile(launch.command, [...launch.prefix, ...this.spec.listModels!], { signal, maxBuffer: 4_000_000, env: { ...process.env, ...launch.env, NO_COLOR: "1" } }, (err, stdout) => {
         if (err) return reject(new ProviderError(err.message));
         resolve(
           stdout
@@ -228,17 +259,17 @@ export class CliProvider implements Provider {
   }
 
   async generate(req: GenerateRequest, onDelta: DeltaHandler, signal: AbortSignal): Promise<string> {
-    const bin = await this.binary();
+    const launch = await resolveLaunch(await this.binary());
     const spec = this.spec;
     const call = { ...req, model: req.model || this.conn.defaultModel };
     const prompt = `${req.system}\n\n---\n\n${req.prompt}`;
     const parse = spec.output === "claude-stream" ? parseClaudeStreamLine : spec.output === "opencode-json" ? parseOpenCodeLine : null;
 
     return new Promise<string>((resolve, reject) => {
-      const child = spawn(bin, spec.args(call, prompt), {
+      const child = spawn(launch.command, [...launch.prefix, ...spec.args(call, prompt)], {
         cwd: req.cwd,
         // PWD too: some agents (OpenCode) resolve their project from it rather than the real cwd.
-        env: { ...process.env, ...(req.env ?? {}), PWD: req.cwd, NO_COLOR: "1", FORCE_COLOR: "0", ...(spec.env?.(call) ?? {}) },
+        env: { ...process.env, ...(launch.env ?? {}), ...(req.env ?? {}), PWD: req.cwd, NO_COLOR: "1", FORCE_COLOR: "0", ...(spec.env?.(call) ?? {}) },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
@@ -249,7 +280,12 @@ export class CliProvider implements Provider {
       let finalResult: string | undefined;
       let cliError: string | undefined;
 
-      const onAbort = () => child.kill("SIGTERM");
+      // On Windows, kill the whole tree: npm launchers start the real CLI as a child process.
+      const onAbort = () => {
+        if (process.platform === "win32" && child.pid)
+          spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }).on("error", () => child.kill());
+        else child.kill("SIGTERM");
+      };
       signal.addEventListener("abort", onAbort, { once: true });
 
       child.stdout.setEncoding("utf8");

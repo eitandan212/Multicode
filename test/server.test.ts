@@ -8,7 +8,7 @@ import { ConfigStore, type Connection } from "../server/config.js";
 import { captureBaseline, diffChanges } from "../server/crew/diff.js";
 import { assignRoles, runCrew, scheduleTasks, type ResolvedMember } from "../server/crew/orchestrator.js";
 import { extractJson, parseFileOps, parsePlan, parseReview } from "../server/crew/parse.js";
-import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
+import { buildCliArgs, CLI_SPECS, parseClaudeStreamLine, parseCmdShim, parseOpenCodeLine, type CliKind } from "../server/providers/cli.js";
 import { isLimitError, limitCooldownMs, type GenerateRequest, type Provider } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
@@ -77,6 +77,21 @@ describe("cli adapters", () => {
     expect(ocEnv.permission.bash).toBe("deny");
     expect(buildCliArgs("codex-cli", { ...req, mode: "text" }, "x")).toContain("read-only");
     expect(buildCliArgs("claude-cli", { ...req, mode: "text" }, "x")).toContain("plan");
+  });
+  it("finds the script inside a Windows npm .cmd shim", () => {
+    const shim = [
+      "@ECHO off",
+      "GOTO start",
+      ":find_dp0",
+      "SET dp0=%~dp0",
+      "EXIT /b",
+      ":start",
+      "SETLOCAL",
+      "CALL :find_dp0",
+      'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*',
+    ].join("\r\n");
+    expect(parseCmdShim(shim)).toBe("node_modules/@anthropic-ai/claude-code/cli.js");
+    expect(parseCmdShim("@echo hello")).toBeUndefined();
   });
   it("parses Claude Code stream-json", () => {
     expect(parseClaudeStreamLine('{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}')).toEqual({ text: "hi" });
