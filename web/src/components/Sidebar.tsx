@@ -9,6 +9,7 @@ import type {
 import { Icon, Spinner } from "./Icon";
 import { Lockup } from "./Logo";
 import { ProviderLogo } from "./ProviderLogo";
+import { plainPrompt } from "./PromptText";
 
 interface Props {
   projects: ProjectInfo[];
@@ -191,7 +192,7 @@ export function Sidebar(p: Props) {
       <button
         className="sb-card-main"
         onClick={() => p.onSelectRun(r)}
-        title={threadOf(r)?.first.prompt ?? r.prompt}
+        title={plainPrompt(threadOf(r)?.first.prompt ?? r.prompt)}
       >
         <span className="sb-card-top">
           <ProjectBadge name={r.project} size={16} />
@@ -202,8 +203,8 @@ export function Sidebar(p: Props) {
               : ago(r.endedAt ?? r.startedAt, now)}
           </span>
         </span>
-        <span className="sb-card-title truncate">
-          {threadOf(r)?.first.prompt ?? r.prompt}
+        <span className="sb-card-title">
+          <span className="truncate">{plainPrompt(threadOf(r)?.first.prompt ?? r.prompt)}</span>
           {(threadOf(r)?.turns ?? 1) > 1 && (
             <span className="sb-turns" title={`${threadOf(r)!.turns} messages in this thread`}>
               {threadOf(r)!.turns}

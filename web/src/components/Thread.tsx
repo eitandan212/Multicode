@@ -1,3 +1,4 @@
+import { PromptText } from "./PromptText";
 import type { RunSummary } from "../../../server/shared";
 import { useEffect, useRef, useState } from "react";
 import { SignInDialog } from "./AgentSetup";
@@ -26,6 +27,8 @@ interface ThreadProps {
   run: RunView;
   /** Earlier turns of this thread, oldest first. */
   earlier?: RunSummary[];
+  /** The project, for attached pictures. */
+  project?: string;
   crew: CrewMember[];
   connections: ConnectionView[];
   undo: { can: boolean; undoneAt?: number };
@@ -61,6 +64,7 @@ const fmt = (n: number) =>
 export function Thread({
   run,
   earlier = [],
+  project,
   crew,
   connections,
   undo,
@@ -161,7 +165,7 @@ export function Thread({
         <div key={t.id} className="turn-earlier">
           <div className="msg-user-wrap">
             <div className="msg-user">
-              <p>{t.prompt}</p>
+              <PromptText text={t.prompt} project={project} />
             </div>
           </div>
           <div className={`msg-agent ${t.status === "error" ? "is-failed" : ""}`}>
@@ -181,7 +185,7 @@ export function Thread({
       ))}
       <div className="msg-user-wrap enter">
         <div className="msg-user">
-          <p>{run.prompt}</p>
+          <PromptText text={run.prompt} project={project} />
         </div>
         <div className="msg-actions">
           <CopyButton text={run.prompt} />

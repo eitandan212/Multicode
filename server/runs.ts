@@ -10,7 +10,8 @@ import {
 import path from "node:path";
 import type { ConfigStore, Connection } from "./config.js";
 import { HttpError } from "./config.js";
-import { rm } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
+import type { ImageInput } from "./providers/types.js";
 import {
   assignRoles,
   DESIGN_DIRECTIONS,
@@ -109,11 +110,28 @@ export async function readMentions(
   ws: Workspace,
   prompt: string,
   isProtected: (p: string) => boolean,
-): Promise<string> {
+): Promise<{ text: string; images: ImageInput[] }> {
   const names = [...new Set([...prompt.matchAll(/(?:^|\s)@([^\s@]+)/g)].map((m) => m[1]!.replace(/[.,;:!?)]+$/, "")))];
   const out: string[] = [];
+  const images: ImageInput[] = [];
   let budget = 16_000;
-  for (const name of names.slice(0, 6)) {
+  for (const name of names.slice(0, 8)) {
+    const type = IMAGE_TYPES[path.extname(name).toLowerCase()];
+    if (type) {
+      // Pictures go to the model as images (at most 4, 5 MB each), never as text.
+      if (images.length >= 4 || isProtected(name)) continue;
+      const full = (() => {
+        try {
+          return ws.abs(name);
+        } catch {
+          return undefined;
+        }
+      })();
+      const s = full ? await stat(full).catch(() => null) : null;
+      if (!full || !s?.isFile() || s.size > MAX_IMAGE_BYTES) continue;
+      images.push({ mediaType: type, data: (await readFile(full)).toString("base64") });
+      continue;
+    }
     // Secrets never go to a model, even when named (and even with protection turned off).
     if (budget <= 0 || isProtected(name) || /(^|\/)(\.env(\..*)?|id_[a-z0-9]+|.*\.(pem|key|p12|pfx))$/i.test(name)) continue;
     const text = await ws.tryRead(name).catch(() => undefined);
@@ -122,8 +140,17 @@ export async function readMentions(
     budget -= body.length;
     out.push(`<file path="${name}">\n${body}\n</file>`);
   }
-  return out.join("\n");
+  return { text: out.join("\n"), images };
 }
+
+export const IMAGE_TYPES: Record<string, ImageInput["mediaType"]> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export interface UndoResult {
   restored: string[];
@@ -677,11 +704,12 @@ export class RunManager {
       );
     };
 
-    const mentions = await readMentions(projectWs, run.prompt, isProtected);
+    const mentioned = await readMentions(projectWs, run.prompt, isProtected);
     const common = {
       prompt: run.prompt,
       history,
-      ...(mentions ? { mentions } : {}),
+      ...(mentioned.text ? { mentions: mentioned.text } : {}),
+      ...(mentioned.images.length ? { images: mentioned.images } : {}),
       roles,
       settings,
       mcpServers: ctx.servers,

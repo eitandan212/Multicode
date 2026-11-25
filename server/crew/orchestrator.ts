@@ -11,6 +11,7 @@ import type { Connection } from "../config.js";
 import {
   isLimitError,
   limitCooldownMs,
+  type ImageInput,
   type Provider,
 } from "../providers/types.js";
 import {
@@ -120,6 +121,8 @@ export interface RunOptions {
   history: string[];
   /** Files the request names with @path, read for the architect (trimmed). */
   mentions?: string;
+  /** Pictures attached to the request, shown to the architect. */
+  images?: ImageInput[];
   workspace: Workspace;
   roles: CrewRoles;
   settings: Settings;
@@ -201,6 +204,7 @@ function agentKit(o: KitOptions) {
     mode: "text" | "edit",
     /** Collects what the user approved (project files) or declined during this call. */
     track?: { approved: Set<string>; declined: boolean },
+    images?: ImageInput[],
   ) => {
     const streamId = randomUUID();
     emit({ type: "agent.start", streamId, memberId: member.id, title });
@@ -259,6 +263,7 @@ function agentKit(o: KitOptions) {
           mode,
           mcpServers: o.mcpServers,
           env: o.env,
+          ...(images?.length ? { images } : {}),
           ...(approve ? { approve } : {}),
           onUsage: (u) =>
             emit({
@@ -466,6 +471,8 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         o.mentions,
       ),
       "text",
+      undefined,
+      o.images,
     ),
   );
   const plan: Plan = parsePlan(planText, o.prompt);

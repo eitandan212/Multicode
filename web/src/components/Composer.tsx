@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadPrefs } from "../prefs";
+import { api } from "../api";
 import type {
   ConnectionView,
   CrewMember,
@@ -46,13 +47,36 @@ export function Composer(p: Props) {
   const [mode, setMode] = useState<RunMode>("build");
   const [error, setError] = useState("");
 
+  // Pictures pasted, dropped or picked: saved in the project and mentioned with @path.
+  const [pics, setPics] = useState<{ path: string; url: string }[]>([]);
+  const [uploading, setUploading] = useState(0);
+  const filePick = useRef<HTMLInputElement>(null);
+  const addPictures = async (files: Iterable<File>) => {
+    const list = [...files].filter((f) => f.type.startsWith("image/")).slice(0, Math.max(0, 4 - pics.length));
+    for (const f of list) {
+      setUploading((n) => n + 1);
+      try {
+        const { path } = await api.attach(p.project, f);
+        setPics((x) => [...x, { path, url: api.attachmentUrl(p.project, path) }]);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  };
+
   const submit = async () => {
-    if (!prompt.trim() || (p.running && !p.sleep) || !p.canRun) return;
+    if ((!prompt.trim() && !pics.length) || (p.running && !p.sleep) || !p.canRun || uploading) return;
     setSending(true);
     setError("");
     try {
-      await p.onSubmit(prompt.trim(), mode);
+      const text = [prompt.trim() || "Look at this picture.", pics.map((x) => `@${x.path}`).join(" ")]
+        .filter(Boolean)
+        .join("\n\n");
+      await p.onSubmit(text, mode);
       setPrompt("");
+      setPics([]);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -106,6 +130,15 @@ export function Composer(p: Props) {
     <div className="composer-wrap">
       <form
         className={`composer ${p.running ? "is-running" : ""}`}
+        onDragOver={(e) => {
+          if ([...e.dataTransfer.items].some((i) => i.type.startsWith("image/"))) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/"));
+          if (!files.length || !p.canRun) return;
+          e.preventDefault();
+          void addPictures(files);
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
@@ -131,8 +164,32 @@ export function Composer(p: Props) {
             title={trigger.kind === "slash" ? "Commands" : "Mention a file"}
           />
         )}
+        {(pics.length > 0 || uploading > 0) && (
+          <div className="composer-pics">
+            {pics.map((x) => (
+              <span key={x.path} className="composer-pic pop-in">
+                <img src={x.url} alt="Attached picture" />
+                <button
+                  type="button"
+                  className="composer-pic-x"
+                  aria-label="Remove picture"
+                  onClick={() => setPics((all) => all.filter((y) => y.path !== x.path))}
+                >
+                  <Icon name="x" size={11} />
+                </button>
+              </span>
+            ))}
+            {uploading > 0 && <span className="composer-pic is-loading" aria-label="Uploading" />}
+          </div>
+        )}
         <textarea
           ref={box}
+          onPaste={(e) => {
+            const files = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+            if (!files.length) return;
+            e.preventDefault();
+            void addPictures(files);
+          }}
           value={prompt}
           onChange={(e) => {
             setPrompt(e.target.value);
@@ -174,6 +231,27 @@ export function Composer(p: Props) {
           aria-label="Message the crew"
         />
         <div className="composer-bar">
+          <input
+            ref={filePick}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) void addPictures(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            className="icon-btn attach-btn"
+            onClick={() => filePick.current?.click()}
+            disabled={!p.canRun || pics.length >= 4}
+            title="Attach a picture (or paste / drop one)"
+            aria-label="Attach a picture"
+          >
+            <Icon name="paperclip" size={15} />
+          </button>
           <div
             className="seg mini mode-switch"
             role="radiogroup"
@@ -230,7 +308,7 @@ export function Composer(p: Props) {
           {p.running && p.sleep && (
             <button
               className="send"
-              disabled={!p.canRun || !prompt.trim() || sending}
+              disabled={!p.canRun || (!prompt.trim() && !pics.length) || sending || uploading > 0}
               aria-label="Queue"
               title="Queue: runs after the crew finishes (Enter)"
             >
@@ -250,7 +328,7 @@ export function Composer(p: Props) {
           ) : (
             <button
               className="send"
-              disabled={!p.canRun || !prompt.trim() || sending}
+              disabled={!p.canRun || (!prompt.trim() && !pics.length) || sending || uploading > 0}
               aria-label="Send"
               title="Send (Enter)"
             >

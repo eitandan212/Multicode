@@ -5114,3 +5114,55 @@ pre,
 .suggest li.is-active svg{ color: var(--brand); }
 .suggest-label{ font-weight: 550; white-space: nowrap; }
 .suggest-hint{ color: var(--muted); font-size: 12.5px; min-width: 0; }
+
+/* Attached pictures: in the message box and in your messages. */
+.composer-pics{ display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px 0; }
+.composer-pic{
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--hover);
+}
+.composer-pic img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.composer-pic.is-loading{
+  background: linear-gradient(100deg, var(--hover) 30%, color-mix(in srgb, var(--brand) 18%, var(--hover)) 50%, var(--hover) 70%);
+  background-size: 200% 100%;
+  animation: pic-load 1s linear infinite;
+}
+@keyframes pic-load { to { background-position: -200% 0; } }
+.composer-pic-x{
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms var(--ease-soft);
+}
+.composer-pic:hover .composer-pic-x,
+.composer-pic-x:focus-visible{ opacity: 1; }
+@media (hover: none) { .composer-pic-x{ opacity: 1; } }
+.attach-btn{ flex: none; }
+.prompt-pics{ display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+.prompt-pics img{
+  display: block;
+  max-width: 180px;
+  max-height: 140px;
+  border-radius: 10px;
+  object-fit: cover;
+  transition: transform 260ms var(--spring);
+}
+.prompt-pics a:hover img{ transform: scale(1.03); }
+.sb-card-title:has(> .sb-turns){ display: flex; align-items: center; min-width: 0; }
+.sb-card-title > .truncate{ min-width: 0; }
+.sb-card-title > .sb-turns{ flex: none; }

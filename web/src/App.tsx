@@ -44,6 +44,7 @@ import { ProjectEmojis, Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
+import { plainPrompt } from "./components/PromptText";
 import { AboutDialog, GeneralDialog, KeybindingsDialog, ProjectsDialog } from "./components/PreferencesDialogs";
 import { chime, loadPrefs, notify } from "./prefs";
 import { emptyRun, reduceRun, type RunView } from "./runState";
@@ -645,7 +646,7 @@ export function App() {
             <ol className="sleep-queue">
               {queued.map((q) => (
                 <li key={q.id}>
-                  <span className="truncate">{q.prompt}</span>
+                  <span className="truncate">{plainPrompt(q.prompt)}</span>
                   <button
                     className="icon-btn small-btn"
                     aria-label="Remove from the queue"
@@ -746,6 +747,7 @@ export function App() {
         }}>
           <Thread
             earlier={earlierTurns}
+            project={project ?? undefined}
             onAnswer={async (id, allow, always) => {
               await api.approve(run.id, id, allow, always);
             }}
@@ -923,7 +925,7 @@ export function App() {
                 />
                 <span className="muted sep">/</span>
                 <span className="truncate">
-                  {run ? run.prompt : "New thread"}
+                  {run ? plainPrompt(earlierTurns[0]?.prompt ?? run.prompt) : "New thread"}
                 </span>
               </>
             ) : (

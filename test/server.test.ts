@@ -2161,11 +2161,17 @@ describe("@ mentions", () => {
       const ws = await Workspace.open(dir, "p");
       await ws.write("src/app.ts", "export const a = 1;\n");
       await ws.write(".env", "SECRET=1\n");
-      const text = await readMentions(
+      await mkdir(path.join(ws.root, ".attachments"), { recursive: true });
+      const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+      await writeFile(path.join(ws.root, ".attachments", "abcd1234.png"), png);
+      const { text, images } = await readMentions(
         ws,
-        "Fix @src/app.ts, see @.env and @../../etc/passwd and @missing.js.",
+        "Fix @src/app.ts, see @.env and @../../etc/passwd and @missing.js. @.attachments/abcd1234.png",
         makeProtector([]),
       );
+      expect(images).toEqual([{ mediaType: "image/png", data: png.toString("base64") }]);
+      expect(text).not.toContain("abcd1234");
+      expect(await ws.list()).not.toContain(".attachments/abcd1234.png");
       expect(text).toContain('<file path="src/app.ts">');
       expect(text).toContain("export const a = 1;");
       expect(text).not.toContain("SECRET");

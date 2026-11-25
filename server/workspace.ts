@@ -14,6 +14,7 @@ import type { ProjectInfo } from "./shared.js";
 // Harness folders (skills, settings) are managed by MultiCode's sync; keep them out of
 // file listings, snapshots and prompts.
 const IGNORED_DIRS = new Set([
+  ".attachments",
   "node_modules",
   ".git",
   "dist",

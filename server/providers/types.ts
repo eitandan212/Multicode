@@ -1,5 +1,11 @@
 import type { ApprovalAsk, McpServer } from "../shared.js";
 
+export interface ImageInput {
+  mediaType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+  /** Base64, no data: prefix. */
+  data: string;
+}
+
 export interface GenerateRequest {
   system: string;
   prompt: string;
@@ -15,6 +21,8 @@ export interface GenerateRequest {
   mcpServers?: McpServer[];
   /** Extra environment for agent processes (e.g. MCP server secrets). */
   env?: Record<string, string>;
+  /** Pictures for the model to look at (API models with vision; agents open the files themselves). */
+  images?: ImageInput[];
   /** Called with token usage when the provider reports it. */
   onUsage?: (u: Usage) => void;
   /**

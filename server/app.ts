@@ -1,4 +1,5 @@
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import express, {
   type NextFunction,
   type Request,
@@ -15,7 +16,7 @@ import {
   type CliKind,
 } from "./providers/cli.js";
 import type { ProviderFactory } from "./providers/registry.js";
-import { RunManager } from "./runs.js";
+import { IMAGE_TYPES, RunManager } from "./runs.js";
 import { autoCrew } from "./autocrew.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
@@ -442,6 +443,36 @@ export function createApp(opts: AppOptions) {
     wrap(async (req, res) => {
       await setProjectEmoji(projectsDir, param(req, "name"), req.body?.emoji ?? null);
       res.status(204).end();
+    }),
+  );
+  // Pictures you paste or drop into the message box: saved in the project's .attachments folder
+  // (hidden from the file tree and the crew's change list), then mentioned as @path.
+  api.post(
+    "/projects/:name/attachments",
+    express.raw({ type: "image/*", limit: "5mb" }),
+    wrap(async (req, res) => {
+      const type = String(req.headers["content-type"] ?? "").split(";")[0]!.trim();
+      const ext = Object.entries(IMAGE_TYPES).find(([, t]) => t === type)?.[0];
+      if (!ext) throw new HttpError(415, "attach a PNG, JPEG, WebP or GIF picture");
+      if (!Buffer.isBuffer(req.body) || !req.body.length) throw new HttpError(400, "the picture is empty");
+      const ws = await Workspace.open(projectsDir, validateProjectName(param(req, "name")));
+      const rel = `.attachments/${randomUUID().slice(0, 8)}${ext === ".jpeg" ? ".jpg" : ext}`;
+      await mkdir(path.dirname(ws.abs(rel)), { recursive: true });
+      await writeFile(ws.abs(rel), req.body);
+      res.status(201).json({ path: rel });
+    }),
+  );
+  api.get(
+    "/projects/:name/attachments/:file",
+    wrap(async (req, res) => {
+      const file = param(req, "file");
+      if (!/^[0-9a-f]{8}\.(png|jpg|webp|gif)$/.test(file)) throw new HttpError(404, "no such picture");
+      const ws = await Workspace.open(projectsDir, validateProjectName(param(req, "name")));
+      const full = ws.abs(`.attachments/${file}`);
+      if (!existsSync(full)) throw new HttpError(404, "no such picture");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.sendFile(full, { dotfiles: "allow" });
     }),
   );
   api.post(

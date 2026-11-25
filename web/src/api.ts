@@ -59,6 +59,19 @@ import type { AccountUsage, AgentAccess, ConnectionHealth, SignInFlow } from "..
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
 export const api = {
+  /** Saves a pasted or dropped picture in the project; mention the returned path with @. */
+  attach: async (project: string, file: Blob): Promise<{ path: string }> => {
+    const res = await fetch(`/api/projects/${project}/attachments`, {
+      method: "POST",
+      headers: { "content-type": file.type, "x-multicode": "1" },
+      body: file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as { error?: string }).error ?? `Upload failed (${res.status})`);
+    return data as { path: string };
+  },
+  attachmentUrl: (project: string, rel: string) =>
+    `/api/projects/${project}/attachments/${rel.replace(/^\.attachments\//, "")}`,
   state: () => request<AppState>("GET", "/api/state"),
   addConnection: (body: Record<string, unknown>) =>
     request<ConnectionView>("POST", "/api/connections", body),

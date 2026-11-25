@@ -51,8 +51,22 @@ export class AnthropicProvider implements Provider {
       {
         model,
         max_tokens: MAX_OUTPUT_TOKENS,
-        system: req.system,
-        messages: [{ role: "user", content: req.prompt }],
+        // The system text is fixed per role, so it is cached across calls (~90% cheaper on a hit).
+        system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
+        messages: [
+          {
+            role: "user",
+            content: req.images?.length
+              ? [
+                  ...req.images.map((im) => ({
+                    type: "image" as const,
+                    source: { type: "base64" as const, media_type: im.mediaType, data: im.data },
+                  })),
+                  { type: "text" as const, text: req.prompt },
+                ]
+              : req.prompt,
+          },
+        ],
         ...(fallback
           ? {
               betas: ["server-side-fallback-2026-07-01"],
@@ -112,7 +126,20 @@ export class OpenAIProvider implements Provider {
         stream_options: { include_usage: true },
         messages: [
           { role: "system", content: req.system },
-          { role: "user", content: req.prompt },
+          {
+            role: "user",
+            // Local OpenAI-compatible servers often can't take images: only OpenAI itself gets them.
+            content:
+              req.images?.length && this.conn.kind === "openai"
+                ? [
+                    { type: "text" as const, text: req.prompt },
+                    ...req.images.map((im) => ({
+                      type: "image_url" as const,
+                      image_url: { url: `data:${im.mediaType};base64,${im.data}` },
+                    })),
+                  ]
+                : req.prompt,
+          },
         ],
       },
       { signal },
@@ -121,7 +148,8 @@ export class OpenAIProvider implements Provider {
     for await (const chunk of stream) {
       if (chunk.usage)
         req.onUsage?.({
-          input: chunk.usage.prompt_tokens,
+          input: chunk.usage.prompt_tokens - (chunk.usage.prompt_tokens_details?.cached_tokens ?? 0),
+          cached: chunk.usage.prompt_tokens_details?.cached_tokens ?? 0,
           output: chunk.usage.completion_tokens,
         });
       const delta = chunk.choices[0]?.delta?.content;
@@ -165,16 +193,27 @@ export class GeminiProvider implements Provider {
   ): Promise<string> {
     const stream = await this.client.models.generateContentStream({
       model: requireModel(req, this.conn),
-      contents: req.prompt,
+      contents: req.images?.length
+        ? [
+            {
+              role: "user",
+              parts: [
+                ...req.images.map((im) => ({ inlineData: { mimeType: im.mediaType, data: im.data } })),
+                { text: req.prompt },
+              ],
+            },
+          ]
+        : req.prompt,
       config: { systemInstruction: req.system, abortSignal: signal },
     });
     let text = "";
-    let usage: { input: number; output: number } | undefined;
+    let usage: { input: number; cached: number; output: number } | undefined;
     for await (const chunk of stream) {
       const u = chunk.usageMetadata;
       if (u)
         usage = {
-          input: u.promptTokenCount ?? 0,
+          input: (u.promptTokenCount ?? 0) - (u.cachedContentTokenCount ?? 0),
+          cached: u.cachedContentTokenCount ?? 0,
           output: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
         };
       const delta = chunk.text;
