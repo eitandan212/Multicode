@@ -165,6 +165,7 @@ export class AcpProvider implements Provider {
     await mkdir(cwd, { recursive: true });
     const root = path.resolve(req.cwd);
     const ended = await Effect.runPromise(Deferred.make<string>());
+    const agentName = this.agentName;
     /** Edits the user already approved through a permission request (their write needn't ask again). */
     let approvedEdits = 0;
     const fail = (err: unknown) =>
@@ -186,7 +187,17 @@ export class AcpProvider implements Provider {
         );
         const context = yield* Layer.build(
           AcpClient.layerChildProcess(child, {
-            transformStdout: jsonLinesOnly,
+            // An agent that prints a sign-in link (Antigravity) needs you: stop waiting on it.
+            transformStdout: (stdout) =>
+              jsonLinesOnly(stdout, (line) => {
+                if (/authenticate|sign in|log in/i.test(line) && /https:\/\//.test(line))
+                  Effect.runSync(
+                    Deferred.succeed(
+                      ended,
+                      `${agentName} isn't signed in. Open Connections and press Sign in, then try again.`,
+                    ),
+                  );
+              }),
             onTermination: (e) =>
               Effect.sleep("50 millis").pipe(
                 Effect.andThen(
@@ -459,7 +470,10 @@ type Client = AcpClient.AcpClient["Service"];
  * client treats any non-JSON line as a protocol error, so they are dropped before it (the same
  * hook T3 Code uses for agents with extra stdout output).
  */
-function jsonLinesOnly(stdout: Stream.Stream<Uint8Array, unknown>): Stream.Stream<Uint8Array, never> {
+function jsonLinesOnly(
+  stdout: Stream.Stream<Uint8Array, unknown>,
+  onOther: (line: string) => void = () => {},
+): Stream.Stream<Uint8Array, never> {
   return Stream.suspend(() => {
     let pending = "";
     const decoder = new TextDecoder();
@@ -470,6 +484,7 @@ function jsonLinesOnly(stdout: Stream.Stream<Uint8Array, unknown>): Stream.Strea
         pending += decoder.decode(chunk, { stream: true });
         const lines = pending.split("\n");
         pending = lines.pop() ?? "";
+        for (const l of lines) if (!keep(l) && l.trim()) onOther(l.trim());
         const out = lines.filter(keep).map((l) => l + "\n").join("");
         return encoder.encode(out);
       }),

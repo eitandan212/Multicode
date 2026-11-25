@@ -103,6 +103,6 @@ describe("one-click sign-in", () => {
   });
 
   it("refuses agents it can't sign in to", async () => {
-    await expect(new SignIn().start("gemini-cli")).rejects.toThrow(/Claude Code and Codex/);
+    await expect(new SignIn().start("gemini-cli")).rejects.toThrow(/Claude Code, Codex and Antigravity/);
   });
 });

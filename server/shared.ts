@@ -10,6 +10,8 @@ export type ProviderKind =
   | "gemini-cli"
   | "opencode-cli"
   | "qwen-cli"
+  /** Google Antigravity's agent (`agy acp`), with your Google account. */
+  | "antigravity"
   /** Any agent that speaks the Agent Client Protocol (from the ACP registry or a custom command). */
   | "acp";
 
@@ -22,15 +24,18 @@ export const API_KINDS: ProviderKind[] = [
 export const SUBSCRIPTION_KINDS: ProviderKind[] = [
   "claude-cli",
   "codex-cli",
-  "gemini-cli",
+  "antigravity",
 ];
 export const OPEN_SOURCE_KINDS: ProviderKind[] = ["opencode-cli", "qwen-cli"];
+/** Agents run through their plain CLI. Gemini CLI stays for connections made before Antigravity. */
 export const CLI_KINDS: ProviderKind[] = [
-  ...SUBSCRIPTION_KINDS,
+  "claude-cli",
+  "codex-cli",
+  "gemini-cli",
   ...OPEN_SOURCE_KINDS,
 ];
 /** Kinds whose agent works in the project folder and edits files itself. */
-export const AGENT_KINDS: ProviderKind[] = [...CLI_KINDS, "acp"];
+export const AGENT_KINDS: ProviderKind[] = [...CLI_KINDS, "antigravity", "acp"];
 
 export const KIND_LABELS: Record<ProviderKind, string> = {
   anthropic: "Anthropic API",
@@ -40,6 +45,7 @@ export const KIND_LABELS: Record<ProviderKind, string> = {
   "claude-cli": "Claude subscription (Claude Code)",
   "codex-cli": "ChatGPT subscription (Codex CLI)",
   "gemini-cli": "Google subscription (Gemini CLI)",
+  antigravity: "Google subscription (Antigravity)",
   "opencode-cli": "OpenCode (75+ providers, free models)",
   "qwen-cli": "Qwen Code (free Qwen account)",
   acp: "Any ACP agent (Agent Client Protocol)",
@@ -50,6 +56,7 @@ export const HARNESS_NAMES: Record<ProviderKind, string> = {
   "claude-cli": "Claude Code",
   "codex-cli": "Codex",
   "gemini-cli": "Gemini CLI",
+  antigravity: "Antigravity",
   "opencode-cli": "OpenCode",
   "qwen-cli": "Qwen Code",
   acp: "ACP agent",
@@ -521,6 +528,7 @@ const KIND_STRENGTH: Partial<Record<ProviderKind, number>> = {
   anthropic: 3,
   openai: 3,
   "gemini-cli": 2,
+  antigravity: 3,
   gemini: 2,
   acp: 2,
 };
@@ -551,7 +559,7 @@ export function modelStrength(kind: ProviderKind, model = ""): number {
 }
 
 /** Agents MultiCode can install and sign in to from the app. */
-export type SignInKind = "claude-cli" | "codex-cli";
+export type SignInKind = "claude-cli" | "codex-cli" | "antigravity";
 
 export interface AgentAccess {
   kind: SignInKind;

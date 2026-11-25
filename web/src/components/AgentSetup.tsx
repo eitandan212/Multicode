@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { api, type AgentAccess, type SignInFlow } from "../api";
 import { Icon, Spinner } from "./Icon";
 
-const NAMES = { "claude-cli": "Claude Code", "codex-cli": "Codex" } as const;
+const NAMES = { "claude-cli": "Claude Code", "codex-cli": "Codex", antigravity: "Antigravity" } as const;
 export type SignInKind = keyof typeof NAMES;
 export const canSignIn = (kind: string): kind is SignInKind => kind in NAMES;
 

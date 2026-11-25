@@ -298,7 +298,8 @@ export function AddConnection(props: {
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const isCli = CLI_KINDS.includes(kind);
+  // Antigravity is an agent too (it runs agy, not an API key), set up from its card.
+  const isCli = CLI_KINDS.includes(kind) || kind === "antigravity";
   const cli = state.clis.find((c) => c.kind === kind);
 
   useEffect(() => {
@@ -573,7 +574,7 @@ export function AddConnection(props: {
             )}
             <button
               className="btn primary"
-              disabled={busy || (isCli && !cli?.installed)}
+              disabled={busy || (isCli && cli !== undefined && !cli.installed)}
             >
               {busy ? "Connecting…" : "Connect"}
             </button>

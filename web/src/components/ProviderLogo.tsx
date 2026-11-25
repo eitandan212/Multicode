@@ -1,6 +1,7 @@
 // Official brand marks from @lobehub/icons (MIT). The logos are trademarks of their owners;
 // MultiCode shows them only to identify which service a connection uses.
 import amp from "@lobehub/icons-static-svg/icons/amp-color.svg?raw";
+import antigravity from "@lobehub/icons-static-svg/icons/antigravity-color.svg?raw";
 import cline from "@lobehub/icons-static-svg/icons/cline.svg?raw";
 import codebuddy from "@lobehub/icons-static-svg/icons/codebuddy-color.svg?raw";
 import cursor from "@lobehub/icons-static-svg/icons/cursor.svg?raw";
@@ -48,6 +49,7 @@ const BY_KIND: Record<ProviderKind, string> = {
   "codex-cli": codex,
   gemini,
   "gemini-cli": geminicli,
+  antigravity,
   "opencode-cli": opencode,
   "qwen-cli": qwen,
   "openai-compatible": generic,

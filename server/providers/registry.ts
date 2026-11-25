@@ -1,6 +1,7 @@
 import type { Connection } from "../config.js";
 import { AnthropicProvider, GeminiProvider, OpenAIProvider } from "./api.js";
 import { AcpProvider } from "./acp.js";
+import { agyLaunch } from "../antigravity.js";
 import { ClaudeSdkProvider } from "./claude.js";
 import { CliProvider } from "./cli.js";
 import { CodexAppServerProvider } from "./codex.js";
@@ -36,5 +37,8 @@ export const createProvider: ProviderFactory = (conn) => {
       return new CliProvider(conn);
     case "acp":
       return new AcpProvider(conn);
+    // Google Antigravity: its agy CLI speaks ACP (as T3 Code runs it).
+    case "antigravity":
+      return new AcpProvider(conn, () => agyLaunch());
   }
 };

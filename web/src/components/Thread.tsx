@@ -426,12 +426,18 @@ export function Thread({
 function SignInFix({ error }: { error?: string }) {
   const [open, setOpen] = useState(false);
   if (!error || !/sign(ed)? in|log in|login/i.test(error)) return null;
-  const kind = /codex/i.test(error) ? "codex-cli" : /claude/i.test(error) ? "claude-cli" : null;
+  const kind = /codex/i.test(error)
+    ? "codex-cli"
+    : /antigravity/i.test(error)
+      ? "antigravity"
+      : /claude/i.test(error)
+        ? "claude-cli"
+        : null;
   if (!kind) return null;
   return (
     <>
       <button className="btn primary small" onClick={() => setOpen(true)}>
-        Sign in to {kind === "codex-cli" ? "Codex" : "Claude Code"}
+        Sign in to {kind === "codex-cli" ? "Codex" : kind === "antigravity" ? "Antigravity" : "Claude Code"}
       </button>
       {open && <SignInDialog kind={kind} onClose={() => setOpen(false)} />}
     </>

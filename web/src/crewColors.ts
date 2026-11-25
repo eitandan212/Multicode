@@ -33,6 +33,7 @@ export const VENDOR: Record<ProviderKind, string> = {
   "codex-cli": "ChatGPT",
   gemini: "Gemini",
   "gemini-cli": "Gemini",
+  antigravity: "Antigravity",
   "openai-compatible": "Custom",
   "opencode-cli": "OpenCode",
   "qwen-cli": "Qwen",

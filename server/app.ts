@@ -350,8 +350,8 @@ export function createApp(opts: AppOptions) {
     "/agents/:kind/install",
     wrap(async (req, res) => {
       const kind = param(req, "kind");
-      if (!Object.hasOwn(CLI_SPECS, kind)) throw new HttpError(400, "unknown agent");
-      res.json(await installCli(kind as keyof typeof CLI_SPECS));
+      if (kind !== "antigravity" && !Object.hasOwn(CLI_SPECS, kind)) throw new HttpError(400, "unknown agent");
+      res.json(await installCli(kind as keyof typeof CLI_SPECS | "antigravity"));
     }),
   );
   api.post(
