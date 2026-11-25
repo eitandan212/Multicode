@@ -120,6 +120,10 @@ the opening animation. Saved in your browser and applied before the first paint.
 
 ## Desktop app (Windows installer)
 
+**Download:** get `MultiCode-Setup-0.1.0.exe` from the
+[latest release](https://github.com/eitandan212/Multicode/releases/latest), run it, and MultiCode
+opens from the Start menu. To build the installer yourself:
+
 ```bash
 npm run desktop     # run MultiCode as a desktop window (Electron)
 npm run dist:win    # build release/MultiCode-Setup-<version>.exe
