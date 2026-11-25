@@ -1,3 +1,4 @@
+import { GitBar } from "./GitBar";
 import { useEffect, useMemo, useState } from "react";
 import type {
   ConnectionView,
@@ -31,6 +32,8 @@ interface Props {
   onOpenExtensions: () => void;
   onOpenSafety: () => void;
   limits: Record<string, number>;
+  /** A commit message from the latest request. */
+  commitSuggestion?: string;
 }
 
 export function SidePanel(p: Props) {
@@ -206,7 +209,12 @@ export function SidePanel(p: Props) {
             </p>
           ))}
 
-        {tab === "changes" && <DiffView files={p.diff} />}
+        {tab === "changes" && (
+          <>
+            <GitBar project={p.project} refreshKey={p.refreshKey} suggestion={p.commitSuggestion ?? "Update the project"} />
+            <DiffView files={p.diff} />
+          </>
+        )}
 
         {tab === "memory" && <MemoryGraph project={p.project} refreshKey={p.refreshKey} />}
 

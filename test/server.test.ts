@@ -2182,3 +2182,33 @@ describe("@ mentions", () => {
     }
   });
 });
+
+describe("git (commit from the app)", () => {
+  it("shows changes, commits them without attachments, and refuses an empty message", async () => {
+    const { gitCommit, gitInit, gitStatus } = await import("../server/git.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-git-"));
+    try {
+      expect((await gitStatus(dir)).repo).toBe(false);
+      await gitInit(dir);
+      const { execFileSync } = await import("node:child_process");
+      execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: dir });
+      execFileSync("git", ["config", "user.name", "T"], { cwd: dir });
+      await writeFile(path.join(dir, "index.html"), "<h1>hi</h1>");
+      await mkdir(path.join(dir, ".attachments"));
+      await writeFile(path.join(dir, ".attachments", "abcd1234.png"), "x");
+      await writeFile(path.join(dir, ".mcp.json"), "{}");
+      await mkdir(path.join(dir, ".claude", "skills"), { recursive: true });
+      await writeFile(path.join(dir, ".claude", "skills", "x.md"), "x");
+      const before = await gitStatus(dir);
+      expect(before.files.map((f) => f.path)).toEqual(["index.html"]);
+      await expect(gitCommit(dir, "  ")).rejects.toThrow(/message/);
+      const after = await gitCommit(dir, "Add the page");
+      expect(after.files).toEqual([]);
+      expect(execFileSync("git", ["log", "--format=%s"], { cwd: dir }).toString().trim()).toBe("Add the page");
+      expect(execFileSync("git", ["ls-files"], { cwd: dir }).toString().trim()).toBe("index.html");
+      await expect(gitCommit(dir, "again")).rejects.toThrow(/Nothing to commit/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

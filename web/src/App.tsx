@@ -994,6 +994,11 @@ export function App() {
             inert={!panelOpen}
           >
             <SidePanel
+              commitSuggestion={(() => {
+                const last = runs.find((r) => r.project === project && r.status === "done");
+                const t = last ? plainPrompt(last.prompt).replace(/^🖼️ /, "") : "";
+                return t ? (t.length > 72 ? `${t.slice(0, 71)}…` : t) : undefined;
+              })()}
               project={project}
               crew={crew}
               connections={state.connections}

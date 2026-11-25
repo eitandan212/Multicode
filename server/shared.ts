@@ -625,3 +625,15 @@ export interface AccountUsage {
   error?: string;
   checkedAt: number;
 }
+
+/** A project's version control, as the Changes panel shows it. */
+export interface GitStatus {
+  repo: boolean;
+  /** False when git itself isn't installed. */
+  installed: boolean;
+  branch?: string;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+  files: { path: string; status: "modified" | "added" | "deleted" | "renamed" | "conflict" }[];
+}

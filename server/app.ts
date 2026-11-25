@@ -22,6 +22,7 @@ import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
+import { gitCommit, gitInit, gitPush, gitStatus } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
 import { readFileSync } from "node:fs";
 
@@ -475,6 +476,16 @@ export function createApp(opts: AppOptions) {
       res.sendFile(full, { dotfiles: "allow" });
     }),
   );
+  // Version control: status, commit, push (the user's own git and credentials).
+  const projectRoot = async (req: express.Request) =>
+    (await Workspace.open(projectsDir, validateProjectName(param(req, "name")))).root;
+  api.get("/projects/:name/git", wrap(async (req, res) => res.json(await gitStatus(await projectRoot(req)))));
+  api.post("/projects/:name/git/init", wrap(async (req, res) => res.json(await gitInit(await projectRoot(req)))));
+  api.post(
+    "/projects/:name/git/commit",
+    wrap(async (req, res) => res.json(await gitCommit(await projectRoot(req), req.body?.message))),
+  );
+  api.post("/projects/:name/git/push", wrap(async (req, res) => res.json(await gitPush(await projectRoot(req)))));
   api.post(
     "/projects/:name/unlink",
     wrap(async (req, res) => {

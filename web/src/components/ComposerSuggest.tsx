@@ -87,9 +87,14 @@ export function useSuggest(project: string, trigger: Trigger) {
   return useMemo<Item[]>(() => {
     if (!trigger) return [];
     if (trigger.kind === "slash")
-      return SLASH.filter((c) => c.id.startsWith(trigger.query) || c.hint.toLowerCase().includes(trigger.query)).map(
-        (c) => ({ key: c.id, label: `/${c.id}`, hint: c.hint, icon: c.icon }),
-      );
+      // Name matches first (exact, then prefix), description matches after them.
+      return SLASH.map((c) => ({
+        c,
+        rank: c.id === trigger.query ? 0 : c.id.startsWith(trigger.query) ? 1 : c.hint.toLowerCase().includes(trigger.query) ? 2 : 3,
+      }))
+        .filter((x) => x.rank < 3)
+        .sort((a, b) => a.rank - b.rank)
+        .map(({ c }) => ({ key: c.id, label: `/${c.id}`, hint: c.hint, icon: c.icon }));
     return rankFiles(files ?? [], trigger.query).map((f) => ({
       key: f,
       label: f.slice(f.lastIndexOf("/") + 1),

@@ -55,7 +55,7 @@ async function request<T>(
   return data as T;
 }
 
-import type { AccountUsage, AgentAccess, ConnectionHealth, SignInFlow } from "../../server/shared";
+import type { AccountUsage, AgentAccess, ConnectionHealth, GitStatus, SignInFlow } from "../../server/shared";
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
 export const api = {
@@ -70,6 +70,11 @@ export const api = {
     if (!res.ok) throw new Error((data as { error?: string }).error ?? `Upload failed (${res.status})`);
     return data as { path: string };
   },
+  git: (project: string) => request<GitStatus>("GET", `/api/projects/${project}/git`),
+  gitInit: (project: string) => request<GitStatus>("POST", `/api/projects/${project}/git/init`),
+  gitCommit: (project: string, message: string) =>
+    request<GitStatus>("POST", `/api/projects/${project}/git/commit`, { message }),
+  gitPush: (project: string) => request<GitStatus>("POST", `/api/projects/${project}/git/push`),
   attachmentUrl: (project: string, rel: string) =>
     `/api/projects/${project}/attachments/${rel.replace(/^\.attachments\//, "")}`,
   state: () => request<AppState>("GET", "/api/state"),
