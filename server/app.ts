@@ -1,3 +1,4 @@
+import { appendFile, mkdir } from "node:fs/promises";
 import express, {
   type NextFunction,
   type Request,
@@ -624,10 +625,26 @@ export function createApp(opts: AppOptions) {
       err instanceof HttpError
         ? err.status
         : ((err as { status?: number }).status ?? 500);
-    if (status >= 500) console.error(err);
-    res
-      .status(status)
-      .json({ error: status >= 500 ? "Internal error" : err.message });
+    if (status >= 500) {
+      console.error(err);
+      // Kept in the data folder (logs/errors.log), so a problem on someone's computer can be read.
+      if (opts.stateDir)
+        void mkdir(path.join(opts.stateDir, "logs"), { recursive: true })
+          .then(() =>
+            appendFile(
+              path.join(opts.stateDir!, "logs", "errors.log"),
+              `${new Date().toISOString()} ${_req.method} ${_req.path}\n${err.stack ?? err.message}\n\n`,
+            ),
+          )
+          .catch(() => {});
+    }
+    // MultiCode runs on your own computer: say what went wrong instead of a bare "Internal error".
+    res.status(status).json({
+      error:
+        status >= 500
+          ? `Something went wrong: ${(err.message || "unknown error").slice(0, 400)}`
+          : err.message,
+    });
   });
 
   return { app, runs };

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -24,6 +24,7 @@ import {
   CLI_SPECS,
   parseClaudeStreamLine,
   parseCmdShim,
+  resolveLaunch,
   parseOpenCodeLine,
   type CliKind,
 } from "../server/providers/cli.js";
@@ -184,6 +185,41 @@ describe("cli adapters", () => {
       "node_modules/@anthropic-ai/claude-code/cli.js",
     );
     expect(parseCmdShim("@echo hello")).toBeUndefined();
+  });
+  it("launches npx.cmd through node and npm's own script", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-shim-"));
+    try {
+      await mkdir(path.join(dir, "node_modules", "npm", "bin"), { recursive: true });
+      await writeFile(path.join(dir, "node_modules", "npm", "bin", "npx-cli.js"), "");
+      // A format this version has never seen: found by its standard location instead.
+      await writeFile(path.join(dir, "npx.cmd"), "@ECHO OFF\r\nnode something-new %*");
+      const l = await resolveLaunch(path.join(dir, "npx.cmd"));
+      expect(l.prefix[0]).toBe(path.join(dir, "node_modules", "npm", "bin", "npx-cli.js"));
+      expect(path.basename(l.command)).toMatch(/^node|electron/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+  it("reads npm's own npm.cmd and npx.cmd (Node for Windows)", () => {
+    const npx = [
+      ":: Created by npm, please don't edit manually.",
+      "@ECHO OFF",
+      "SETLOCAL",
+      'SET "NODE_EXE=%~dp0\\node.exe"',
+      'IF NOT EXIST "%NODE_EXE%" (',
+      '  SET "NODE_EXE=node"',
+      ")",
+      'SET "NPM_PREFIX_JS=%~dp0\\node_modules\\npm\\bin\\npm-prefix.js"',
+      'SET "NPX_CLI_JS=%~dp0\\node_modules\\npm\\bin\\npx-cli.js"',
+      "FOR /F \"delims=\" %%F IN ('CALL \"%NODE_EXE%\" \"%NPM_PREFIX_JS%\"') DO (",
+      '  SET "NPM_PREFIX_NPX_CLI_JS=%%F\\node_modules\\npm\\bin\\npx-cli.js"',
+      ")",
+      '"%NODE_EXE%" "%NPX_CLI_JS%" %*',
+    ].join("\r\n");
+    expect(parseCmdShim(npx)).toBe("node_modules/npm/bin/npx-cli.js");
+    expect(parseCmdShim(npx.replace(/NPX_CLI_JS/g, "NPM_CLI_JS").replace(/npx-cli/g, "npm-cli"))).toBe(
+      "node_modules/npm/bin/npm-cli.js",
+    );
   });
   it("parses Claude Code stream-json", () => {
     expect(

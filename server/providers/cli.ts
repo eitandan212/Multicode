@@ -217,7 +217,13 @@ export interface Launch {
 export async function resolveLaunch(bin: string): Promise<Launch> {
   if (!/\.(cmd|bat)$/i.test(bin)) return { command: bin, prefix: [] };
   const shim = await readFile(bin, "utf8");
-  const target = parseCmdShim(shim);
+  let target = parseCmdShim(shim);
+  // npm.cmd / npx.cmd whose format changed: npm's scripts sit next to them in every Node install.
+  const npmTool = /^(npm|npx)\.cmd$/i.exec(path.basename(bin))?.[1]?.toLowerCase();
+  if (!target && npmTool) {
+    const guess = `node_modules/npm/bin/${npmTool}-cli.js`;
+    if (await access(path.resolve(path.dirname(bin), guess)).then(() => true, () => false)) target = guess;
+  }
   if (!target)
     throw new ProviderError(
       `Can't start ${path.basename(bin)}: it isn't a standard npm launcher. Reinstall it with npm.`,
@@ -235,6 +241,10 @@ export async function resolveLaunch(bin: string): Promise<Launch> {
 
 /** The script path inside an npm `.cmd` shim, relative to the shim's folder. */
 export function parseCmdShim(shim: string): string | undefined {
+  // npm's own npm.cmd / npx.cmd (shipped with Node): SET "NPM_CLI_JS=%~dp0\node_modules\npm\bin\npm-cli.js"
+  const npm = /SET\s+"NP[MX]_CLI_JS=%~?dp0%?\\([^"\r\n]+?\.(?:c?js|mjs))"/i.exec(shim);
+  if (npm) return npm[1]!.replace(/\\/g, "/");
+  // cmd-shim launchers (every `npm i -g` tool): "%dp0%\node_modules\pkg\cli.js"
   const m = /"%(?:~?dp0%?|dp0%)\\([^"]+?\.(?:c?js|mjs))"/i.exec(shim);
   return m ? m[1]!.replace(/\\/g, "/") : undefined;
 }
