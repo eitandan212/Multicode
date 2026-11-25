@@ -1,5 +1,5 @@
 import type { ResolvedMember } from "./orchestrator.js";
-import { CLI_KINDS, type Plan, type PlanTask, type ReviewIssue } from "../shared.js";
+import { AGENT_KINDS, type Plan, type PlanTask, type ReviewIssue } from "../shared.js";
 
 const TEAM = `You are part of MultiCode, a crew of AI engineers from different vendors building one project together.
 Write production-quality, complete code — never placeholders or "TODO: implement".
@@ -38,7 +38,7 @@ export function costTier(m: ResolvedMember): string {
   const model = (m.model || m.connection.defaultModel || "").toLowerCase();
   const url = (m.connection.baseUrl ?? "").toLowerCase();
   if (/(-free|big-pickle|:free)$/.test(model) || /localhost|127\.0\.0\.1/.test(url)) return "free";
-  if (CLI_KINDS.includes(m.connection.kind)) return "subscription (flat rate)";
+  if (AGENT_KINDS.includes(m.connection.kind)) return "subscription (flat rate)";
   return "pay per token";
 }
 

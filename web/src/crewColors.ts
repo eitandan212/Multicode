@@ -29,6 +29,7 @@ export const VENDOR: Record<ProviderKind, string> = {
   "openai-compatible": "Custom",
   "opencode-cli": "OpenCode",
   "qwen-cli": "Qwen",
+  acp: "ACP",
 };
 
 export function initials(name: string): string {

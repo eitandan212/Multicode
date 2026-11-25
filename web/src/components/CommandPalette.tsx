@@ -11,7 +11,13 @@ export interface Command {
 }
 
 /** Ctrl/Cmd+K launcher: type to filter, arrows to move, Enter to run. */
-export function CommandPalette({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+export function CommandPalette({
+  commands,
+  onClose,
+}: {
+  commands: Command[];
+  onClose: () => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const [query, setQuery] = useState("");
@@ -23,12 +29,20 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 
   const results = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return commands.filter((c) => words.every((w) => `${c.label} ${c.hint ?? ""} ${c.group}`.toLowerCase().includes(w))).slice(0, 50);
+    return commands
+      .filter((c) =>
+        words.every((w) =>
+          `${c.label} ${c.hint ?? ""} ${c.group}`.toLowerCase().includes(w),
+        ),
+      )
+      .slice(0, 50);
   }, [commands, query]);
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {
-    list.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
+    list.current
+      ?.querySelector<HTMLElement>(`[data-index="${active}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
   const choose = (c: Command | undefined) => {
@@ -39,7 +53,13 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
 
   let lastGroup = "";
   return (
-    <dialog ref={ref} className="dialog palette" onClose={onClose} onCancel={onClose} aria-label="Command palette">
+    <dialog
+      ref={ref}
+      className="dialog palette"
+      onClose={onClose}
+      onCancel={onClose}
+      aria-label="Command palette"
+    >
       <label className="palette-search">
         <Icon name="search" />
         <input
@@ -49,7 +69,9 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
           placeholder="Search threads, projects and actions"
           aria-label="Search commands"
           aria-controls="palette-list"
-          aria-activedescendant={results[active] ? `cmd-${results[active].id}` : undefined}
+          aria-activedescendant={
+            results[active] ? `cmd-${results[active].id}` : undefined
+          }
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
               e.preventDefault();
@@ -84,7 +106,9 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
               >
                 <Icon name={c.icon} size={15} />
                 <span className="truncate">{c.label}</span>
-                {c.hint && <span className="muted truncate palette-hint">{c.hint}</span>}
+                {c.hint && (
+                  <span className="muted truncate palette-hint">{c.hint}</span>
+                )}
               </button>
             </li>
           );

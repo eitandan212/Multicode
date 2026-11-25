@@ -9,12 +9,16 @@ export type ProviderKind =
   | "codex-cli"
   | "gemini-cli"
   | "opencode-cli"
-  | "qwen-cli";
+  | "qwen-cli"
+  /** Any agent that speaks the Agent Client Protocol (from the ACP registry or a custom command). */
+  | "acp";
 
 export const API_KINDS: ProviderKind[] = ["anthropic", "openai", "gemini", "openai-compatible"];
 export const SUBSCRIPTION_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "gemini-cli"];
 export const OPEN_SOURCE_KINDS: ProviderKind[] = ["opencode-cli", "qwen-cli"];
 export const CLI_KINDS: ProviderKind[] = [...SUBSCRIPTION_KINDS, ...OPEN_SOURCE_KINDS];
+/** Kinds whose agent works in the project folder and edits files itself. */
+export const AGENT_KINDS: ProviderKind[] = [...CLI_KINDS, "acp"];
 
 export const KIND_LABELS: Record<ProviderKind, string> = {
   anthropic: "Anthropic API",
@@ -26,6 +30,7 @@ export const KIND_LABELS: Record<ProviderKind, string> = {
   "gemini-cli": "Google subscription (Gemini CLI)",
   "opencode-cli": "OpenCode (75+ providers, free models)",
   "qwen-cli": "Qwen Code (free Qwen account)",
+  acp: "Any ACP agent (Agent Client Protocol)",
 };
 
 /** The name people know each harness or service by, shown with its logo. */
@@ -35,6 +40,7 @@ export const HARNESS_NAMES: Record<ProviderKind, string> = {
   "gemini-cli": "Gemini CLI",
   "opencode-cli": "OpenCode",
   "qwen-cli": "Qwen Code",
+  acp: "ACP agent",
   anthropic: "Claude API",
   openai: "OpenAI API",
   gemini: "Gemini API",
@@ -117,10 +123,27 @@ export function connectionName(kind: ProviderKind, baseUrl?: string, model?: str
 }
 
 /** A connection as seen by the UI: secrets are never sent, only whether one is set. */
+/** One agent of the ACP registry, as the Connections dialog lists it. */
+export interface AcpAgentView {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  website?: string;
+  icon?: string;
+  /** How it runs here: through npx/uvx, a downloaded binary, or a copy already on PATH. */
+  method?: "npx" | "uvx" | "binary" | "path";
+  ready: boolean;
+  needsInstall: boolean;
+  reason?: string;
+}
+
 export interface ConnectionView {
   id: string;
   kind: ProviderKind;
   label: string;
+  /** ACP connections: the agent behind it. */
+  acp?: { agentId: string; agentName: string; icon?: string; custom: boolean };
   baseUrl?: string;
   defaultModel?: string;
   hasKey: boolean;

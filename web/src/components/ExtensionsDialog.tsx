@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ExtensionsView, PluginInfo, SkillMode } from "../../../server/shared";
+import type {
+  ExtensionsView,
+  PluginInfo,
+  SkillMode,
+} from "../../../server/shared";
 import { api } from "../api";
 import { Icon, type IconName } from "./Icon";
 
@@ -11,7 +15,11 @@ const CATEGORY_ICON: Record<PluginInfo["category"], IconName> = {
   computer: "monitor",
 };
 
-const RISK_TEXT: Record<PluginInfo["risk"], string> = { low: "Safe", medium: "Uses the web", high: "Controls this computer" };
+const RISK_TEXT: Record<PluginInfo["risk"], string> = {
+  low: "Safe",
+  medium: "Uses the web",
+  high: "Controls this computer",
+};
 
 /**
  * Plugins (MCP servers wired into every harness) and skill packs (SKILL.md folders every
@@ -50,13 +58,25 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <dialog ref={ref} className="dialog ext-dialog" onClose={onClose} onCancel={onClose}>
+    <dialog
+      ref={ref}
+      className="dialog ext-dialog"
+      onClose={onClose}
+      onCancel={onClose}
+    >
       <header className="dialog-head">
         <div>
           <h2>Plugins & skills</h2>
-          <p className="muted">Turned-on plugins and skills reach every harness automatically: Claude Code, Codex, Gemini CLI, Qwen Code and OpenCode.</p>
+          <p className="muted">
+            Turned-on plugins and skills reach every harness automatically:
+            Claude Code, Codex, Gemini CLI, Qwen Code and OpenCode.
+          </p>
         </div>
-        <button className="icon-btn" onClick={() => ref.current?.close()} aria-label="Close">
+        <button
+          className="icon-btn"
+          onClick={() => ref.current?.close()}
+          aria-label="Close"
+        >
           <Icon name="x" />
         </button>
       </header>
@@ -69,21 +89,33 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
               <h3>Plugins</h3>
               <ul className="ext-list">
                 {view.plugins.map((p) => (
-                  <li key={p.id} className={`ext-card ${p.enabled ? "is-on" : ""}`}>
+                  <li
+                    key={p.id}
+                    className={`ext-card ${p.enabled ? "is-on" : ""}`}
+                  >
                     <span className={`ext-icon risk-${p.risk}`}>
                       <Icon name={CATEGORY_ICON[p.category]} />
                     </span>
                     <div className="ext-main">
                       <div className="ext-title">
                         <b>{p.name}</b>
-                        <span className={`risk-tag risk-${p.risk}`}>{RISK_TEXT[p.risk]}</span>
+                        <span className={`risk-tag risk-${p.risk}`}>
+                          {RISK_TEXT[p.risk]}
+                        </span>
                       </div>
                       <p className="muted small">{p.description}</p>
                       <span className="ext-source">{p.source}</span>
                       {p.enabled && p.id === "browser" && (
                         <label className="ext-option">
-                          <input type="checkbox" checked={view.browserAnyWebsite} onChange={(e) => save({ browserAnyWebsite: e.target.checked })} />
-                          Allow any website (otherwise only the MultiCode preview)
+                          <input
+                            type="checkbox"
+                            checked={view.browserAnyWebsite}
+                            onChange={(e) =>
+                              save({ browserAnyWebsite: e.target.checked })
+                            }
+                          />
+                          Allow any website (otherwise only the MultiCode
+                          preview)
                         </label>
                       )}
                       {p.enabled &&
@@ -95,8 +127,15 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
                               autoComplete="off"
                               placeholder="Optional key"
                               value={keys[n] ?? ""}
-                              onChange={(e) => setKeys({ ...keys, [n]: e.target.value })}
-                              onBlur={() => keys[n] && api.saveSync({ env: { [n]: keys[n]! } }).then(() => setKeys({ ...keys, [n]: "" }))}
+                              onChange={(e) =>
+                                setKeys({ ...keys, [n]: e.target.value })
+                              }
+                              onBlur={() =>
+                                keys[n] &&
+                                api
+                                  .saveSync({ env: { [n]: keys[n]! } })
+                                  .then(() => setKeys({ ...keys, [n]: "" }))
+                              }
                             />
                           </label>
                         ))}
@@ -118,12 +157,17 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
             <section className="ext-section">
               <h3>Skill packs</h3>
               <p className="muted small">
-                Auto turns a pack on when your request or the project needs it. Skills are written to <code>.claude/skills</code>,{" "}
-                <code>.agents/skills</code>, <code>.gemini/skills</code> and <code>.qwen/skills</code>, and given to API agents directly.
+                Auto turns a pack on when your request or the project needs it.
+                Skills are written to <code>.claude/skills</code>,{" "}
+                <code>.agents/skills</code>, <code>.gemini/skills</code> and{" "}
+                <code>.qwen/skills</code>, and given to API agents directly.
               </p>
               <ul className="ext-list">
                 {view.packs.map((pk) => (
-                  <li key={pk.id} className={`ext-card ${pk.mode !== "off" ? "is-on" : ""}`}>
+                  <li
+                    key={pk.id}
+                    className={`ext-card ${pk.mode !== "off" ? "is-on" : ""}`}
+                  >
                     <span className="ext-icon">
                       <Icon name="book" />
                     </span>
@@ -134,15 +178,29 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
                       <p className="muted small">{pk.description}</p>
                       <div className="skill-chips">
                         {pk.skills.map((s) => (
-                          <span key={s.name} className="skill-chip" title={s.description}>
+                          <span
+                            key={s.name}
+                            className="skill-chip"
+                            title={s.description}
+                          >
                             {s.name}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <div className="seg mini" role="radiogroup" aria-label={`${pk.name} mode`}>
+                    <div
+                      className="seg mini"
+                      role="radiogroup"
+                      aria-label={`${pk.name} mode`}
+                    >
                       {(["auto", "on", "off"] as SkillMode[]).map((m) => (
-                        <button key={m} role="radio" aria-checked={pk.mode === m} className={pk.mode === m ? "is-active" : ""} onClick={() => save({ pack: { id: pk.id, mode: m } })}>
+                        <button
+                          key={m}
+                          role="radio"
+                          aria-checked={pk.mode === m}
+                          className={pk.mode === m ? "is-active" : ""}
+                          onClick={() => save({ pack: { id: pk.id, mode: m } })}
+                        >
                           {m === "auto" ? "Auto" : m === "on" ? "On" : "Off"}
                         </button>
                       ))}
@@ -157,15 +215,25 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
       </div>
 
       {confirming && (
-        <div className="confirm-layer" role="alertdialog" aria-labelledby="risk-title">
+        <div
+          className="confirm-layer"
+          role="alertdialog"
+          aria-labelledby="risk-title"
+        >
           <div className="confirm-box">
             <h3 id="risk-title">Turn on {confirming.name}?</h3>
             <p>{confirming.description}</p>
             <p className="muted small">
-              Agents act on their own. Only turn this on for work you supervise, and turn it off when you're done.
+              Agents act on their own. Only turn this on for work you supervise,
+              and turn it off when you're done.
             </p>
             <label className="ext-option">
-              <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} />I understand agents can control this computer
+              <input
+                type="checkbox"
+                checked={understood}
+                onChange={(e) => setUnderstood(e.target.checked)}
+              />
+              I understand agents can control this computer
             </label>
             <div className="form-actions">
               <button className="btn ghost" onClick={() => setConfirming(null)}>
@@ -175,7 +243,13 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
                 className="btn danger-solid"
                 disabled={!understood}
                 onClick={async () => {
-                  await save({ plugin: { id: confirming.id, enabled: true, confirmRisk: true } });
+                  await save({
+                    plugin: {
+                      id: confirming.id,
+                      enabled: true,
+                      confirmRisk: true,
+                    },
+                  });
                   setConfirming(null);
                 }}
               >

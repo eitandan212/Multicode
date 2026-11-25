@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Connection } from "../config.js";
 import { isLimitError, limitCooldownMs, type Provider } from "../providers/types.js";
 import {
-  CLI_KINDS,
+  AGENT_KINDS,
   type CrewMember,
   type DesignVariant,
   type McpServer,
@@ -133,7 +133,7 @@ export interface RunResult {
 
 export const hashText = (t: string | undefined | null) => (t == null ? null : createHash("sha256").update(t).digest("hex"));
 
-const isCli = (m: ResolvedMember) => CLI_KINDS.includes(m.connection.kind);
+const isCli = (m: ResolvedMember) => AGENT_KINDS.includes(m.connection.kind);
 
 /** Agent watchdog limits; overridable for slow local models. */
 const DEFAULT_LIMITS = {

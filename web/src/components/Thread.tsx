@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { ConnectionView, CrewMember, FileDiff } from "../../../server/shared";
+import type {
+  ConnectionView,
+  CrewMember,
+  FileDiff,
+} from "../../../server/shared";
+import { LogoLoader } from "./Logo";
 import { ProviderLogo } from "./ProviderLogo";
 import { colorFor } from "../crewColors";
 import type { RunView, StreamState } from "../runState";
@@ -20,16 +25,35 @@ interface ThreadProps {
   connections: ConnectionView[];
   undo: { can: boolean; undoneAt?: number };
   /** Still waiting for apply/discard, or what you decided. */
-  review: { pending?: "sandbox" | "design"; resolution?: "applied" | "discarded" };
+  review: {
+    pending?: "sandbox" | "design";
+    resolution?: "applied" | "discarded";
+  };
   onShowChanges: () => void;
-  onUndo: (force: boolean) => Promise<{ conflicts: string[]; skipped: string[] }>;
-  onApply: (variant?: string, force?: boolean) => Promise<{ conflicts: string[] }>;
+  onUndo: (
+    force: boolean,
+  ) => Promise<{ conflicts: string[]; skipped: string[] }>;
+  onApply: (
+    variant?: string,
+    force?: boolean,
+  ) => Promise<{ conflicts: string[] }>;
   onDiscard: () => Promise<void>;
 }
 
-const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n));
+const fmt = (n: number) =>
+  n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n);
 
-export function Thread({ run, crew, connections, undo, review, onShowChanges, onUndo, onApply, onDiscard }: ThreadProps) {
+export function Thread({
+  run,
+  crew,
+  connections,
+  undo,
+  review,
+  onShowChanges,
+  onUndo,
+  onApply,
+  onDiscard,
+}: ThreadProps) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
   const end = useRef<HTMLDivElement>(null);
@@ -48,19 +72,34 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
   useEffect(() => {
     if (wasRunning.current && !running) {
       // Wait a frame so the final card has its height before scrolling to it.
-      requestAnimationFrame(() => end.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
+      requestAnimationFrame(() =>
+        end.current?.scrollIntoView({ block: "end", behavior: "smooth" }),
+      );
     }
     wasRunning.current = running;
   }, [running, run.diff]);
 
-  const name = (id?: string) => crew.find((m) => m.id === id)?.name ?? (id === run.context?.fallback?.id ? run.context!.fallback!.name : "Agent");
+  const name = (id?: string) =>
+    crew.find((m) => m.id === id)?.name ??
+    (id === run.context?.fallback?.id ? run.context!.fallback!.name : "Agent");
   const logo = (id?: string) => {
-    if (id === run.context?.fallback?.id) return <ProviderLogo kind="opencode-cli" size={14} />;
+    if (id === run.context?.fallback?.id)
+      return <ProviderLogo kind="opencode-cli" size={14} />;
     const m = crew.find((x) => x.id === id);
     const c = m && connections.find((x) => x.id === m.connectionId);
-    return c ? <ProviderLogo kind={c.kind} baseUrl={c.baseUrl} model={m.model || c.defaultModel} size={14} /> : null;
+    return c ? (
+      <ProviderLogo
+        kind={c.kind}
+        acp={c.acp}
+        baseUrl={c.baseUrl}
+        model={m.model || c.defaultModel}
+        size={14}
+      />
+    ) : null;
   };
-  const took = run.startedAt ? elapsed((run.endedAt ?? now) - run.startedAt) : "";
+  const took = run.startedAt
+    ? elapsed((run.endedAt ?? now) - run.startedAt)
+    : "";
 
   return (
     <div className="thread">
@@ -71,16 +110,27 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
       <div className="work-head enter">
         {running ? (
           <>
-            <Pulse /> <span className="shiny">{PHASE_TEXT[run.phase] ?? "Working"}</span> <span>· {took}</span>
+            <LogoLoader />{" "}
+            <span className="shiny">{PHASE_TEXT[run.phase] ?? "Working"}</span>{" "}
+            <span>· {took}</span>
           </>
         ) : (
           <>Worked for {took}</>
         )}
         {run.usage.input + run.usage.output > 0 && (
-          <span className="usage" title={`${run.usage.input.toLocaleString()} in · ${run.usage.output.toLocaleString()} out`}>
+          <span
+            className="usage"
+            title={`${run.usage.input.toLocaleString()} in · ${run.usage.output.toLocaleString()} out`}
+          >
             {fmt(run.usage.input + run.usage.output)} tokens
-            {run.usage.freeTokens > 0 && <span className="free-tag">{fmt(run.usage.freeTokens)} free</span>}
-            {run.usage.costUsd > 0 && <span>· ${run.usage.costUsd.toFixed(run.usage.costUsd < 0.1 ? 3 : 2)}</span>}
+            {run.usage.freeTokens > 0 && (
+              <span className="free-tag">{fmt(run.usage.freeTokens)} free</span>
+            )}
+            {run.usage.costUsd > 0 && (
+              <span>
+                · ${run.usage.costUsd.toFixed(run.usage.costUsd < 0.1 ? 3 : 2)}
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -89,8 +139,13 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
         <div key={i} className="notice enter">
           <Icon name="spark" size={14} />
           <span>
-            <b>{name(l.memberId)}</b> reached its usage limit. <b>{l.fallback}</b> took over so the work keeps going, until{" "}
-            {new Date(l.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+            <b>{name(l.memberId)}</b> reached its usage limit.{" "}
+            <b>{l.fallback}</b> took over so the work keeps going, until{" "}
+            {new Date(l.until).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            .
           </span>
         </div>
       ))}
@@ -98,55 +153,78 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
         <div className="notice warn enter">
           <Icon name="shield" size={14} />
           <span>
-            Blocked changes to protected files and restored them: {run.protectedHits.map((p) => <code key={p}>{p}</code>)}
+            Blocked changes to protected files and restored them:{" "}
+            {run.protectedHits.map((p) => (
+              <code key={p}>{p}</code>
+            ))}
           </span>
         </div>
       )}
 
-      {run.context && (run.context.skills.length > 0 || run.context.plugins.length > 0) && (
-        <div className="context-row enter">
-          {run.context.safety && run.context.safety !== "direct" && (
-            <span className="ctx-chip safety">
-              <Icon name="shield" size={12} /> {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
-            </span>
-          )}
-          {run.context.economy && (
-            <span className="ctx-chip plugin">
-              <Icon name="spark" size={12} /> Economy
-            </span>
-          )}
-          {run.context.plugins.map((p) => (
-            <span key={p} className="ctx-chip plugin" title="Plugin">
-              <Icon name="puzzle" size={12} /> {p}
-            </span>
-          ))}
-          {run.context.skills.map((s) => (
-            <span key={s} className="ctx-chip" title="Skill">
-              <Icon name="book" size={12} /> {s}
-            </span>
-          ))}
-        </div>
-      )}
+      {run.context &&
+        (run.context.skills.length > 0 || run.context.plugins.length > 0) && (
+          <div className="context-row enter">
+            {run.context.safety && run.context.safety !== "direct" && (
+              <span className="ctx-chip safety">
+                <Icon name="shield" size={12} />{" "}
+                {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
+              </span>
+            )}
+            {run.context.economy && (
+              <span className="ctx-chip plugin">
+                <Icon name="spark" size={12} /> Economy
+              </span>
+            )}
+            {run.context.plugins.map((p) => (
+              <span key={p} className="ctx-chip plugin" title="Plugin">
+                <Icon name="puzzle" size={12} /> {p}
+              </span>
+            ))}
+            {run.context.skills.map((s) => (
+              <span key={s} className="ctx-chip" title="Skill">
+                <Icon name="book" size={12} /> {s}
+              </span>
+            ))}
+          </div>
+        )}
 
       {run.plan && (
         <div className="msg-agent enter">
           {run.plan.summary && <p>{run.plan.summary}</p>}
           <ul className="checklist">
             {run.tasks.map((t) => (
-              <li key={t.id} className={`check enter s-${t.status}`} style={{ ["--agent" as string]: colorFor(crew, t.memberId) }}>
+              <li
+                key={t.id}
+                className={`check enter s-${t.status}`}
+                style={{ ["--agent" as string]: colorFor(crew, t.memberId) }}
+              >
                 <span className="check-mark" aria-label={t.status}>
-                  {t.status === "done" ? <Icon name="check" size={12} /> : t.status === "failed" ? <Icon name="x" size={12} /> : null}
+                  {t.status === "done" ? (
+                    <Icon name="check" size={12} />
+                  ) : t.status === "failed" ? (
+                    <Icon name="x" size={12} />
+                  ) : null}
                 </span>
                 <span>
-                  {t.fix && <span className="fix-tag">{t.id.endsWith("-retry") ? "Retry" : "Fix"}</span>}
-                  <span className={t.status === "running" ? "shiny" : undefined}>{t.title}</span>
+                  {t.fix && (
+                    <span className="fix-tag">
+                      {t.id.endsWith("-retry") ? "Retry" : "Fix"}
+                    </span>
+                  )}
+                  <span
+                    className={t.status === "running" ? "shiny" : undefined}
+                  >
+                    {t.title}
+                  </span>
                   <span className="muted">
                     {" "}
                     · {t.memberId ? name(t.memberId) : "next free agent"}
                     {t.files.length ? ` · ${t.files.join(", ")}` : ""}
                   </span>
                   {t.why && <span className="why">{t.why}</span>}
-                  {t.error && <span className="err-text block-line">{t.error}</span>}
+                  {t.error && (
+                    <span className="err-text block-line">{t.error}</span>
+                  )}
                 </span>
               </li>
             ))}
@@ -157,7 +235,13 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
       {run.streams.length > 0 && (
         <div className="tool-lines">
           {run.streams.map((s) => (
-            <ToolLine key={s.id} stream={s} name={name(s.memberId)} logo={logo(s.memberId)} color={colorFor(crew, s.memberId)} />
+            <ToolLine
+              key={s.id}
+              stream={s}
+              name={name(s.memberId)}
+              logo={logo(s.memberId)}
+              color={colorFor(crew, s.memberId)}
+            />
           ))}
         </div>
       )}
@@ -166,7 +250,9 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
         <div key={round} className="msg-agent enter">
           <p className="review-line">
             <span className={`review-badge ${review.approved ? "ok" : "warn"}`}>
-              {review.approved ? "Approved" : `${review.issues.length} issue${review.issues.length === 1 ? "" : "s"}`}
+              {review.approved
+                ? "Approved"
+                : `${review.issues.length} issue${review.issues.length === 1 ? "" : "s"}`}
             </span>
             {review.summary}
           </p>
@@ -183,7 +269,14 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
       ))}
 
       {run.status === "done" && run.variants && (
-        <DesignGallery run={run} name={name} logo={logo} review={review} onApply={onApply} onDiscard={onDiscard} />
+        <DesignGallery
+          run={run}
+          name={name}
+          logo={logo}
+          review={review}
+          onApply={onApply}
+          onDiscard={onDiscard}
+        />
       )}
 
       {run.status === "done" && !run.variants && (
@@ -197,15 +290,31 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
                   ? "Done in the sandbox. Review the changes, then apply them to your project."
                   : "Done. The crew finished and reviewed the work."}
           </p>
-          {review.pending === "sandbox" && <ApplyBar onApply={(force) => onApply(undefined, force)} onDiscard={onDiscard} />}
-          {review.resolution === "discarded" && <p className="muted small">You discarded these changes.</p>}
-          {run.diff && run.diff.length > 0 && <EditedCard files={run.diff} undo={undo} onReview={onShowChanges} onUndo={onUndo} />}
+          {review.pending === "sandbox" && (
+            <ApplyBar
+              onApply={(force) => onApply(undefined, force)}
+              onDiscard={onDiscard}
+            />
+          )}
+          {review.resolution === "discarded" && (
+            <p className="muted small">You discarded these changes.</p>
+          )}
+          {run.diff && run.diff.length > 0 && (
+            <EditedCard
+              files={run.diff}
+              undo={undo}
+              onReview={onShowChanges}
+              onUndo={onUndo}
+            />
+          )}
         </div>
       )}
       {run.status === "error" && (
         <div className="msg-agent enter" role="alert">
           <p className={run.error === "Cancelled" ? "muted" : "err-text"}>
-            {run.error === "Cancelled" ? "You stopped the crew." : `The crew couldn't finish: ${run.error}`}
+            {run.error === "Cancelled"
+              ? "You stopped the crew."
+              : `The crew couldn't finish: ${run.error}`}
           </p>
         </div>
       )}
@@ -214,7 +323,17 @@ export function Thread({ run, crew, connections, undo, review, onShowChanges, on
   );
 }
 
-function ToolLine({ stream, name, logo, color }: { stream: StreamState; name: string; logo: React.ReactNode; color: string }) {
+function ToolLine({
+  stream,
+  name,
+  logo,
+  color,
+}: {
+  stream: StreamState;
+  name: string;
+  logo: React.ReactNode;
+  color: string;
+}) {
   const [open, setOpen] = useState(false);
   const body = useRef<HTMLPreElement>(null);
 
@@ -228,21 +347,48 @@ function ToolLine({ stream, name, logo, color }: { stream: StreamState; name: st
   }, [stream.text, stream.status, open]);
 
   return (
-    <div className={`tool-line enter st-${stream.status}`} style={{ ["--agent" as string]: color }}>
-      <button className="tool-row" onClick={() => setOpen(!open)} aria-expanded={open}>
-        {stream.status === "live" ? <Pulse /> : <Icon name="terminal" size={14} />}
+    <div
+      className={`tool-line enter st-${stream.status}`}
+      style={{ ["--agent" as string]: color }}
+    >
+      <button
+        className="tool-row"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        {stream.status === "live" ? (
+          <Pulse />
+        ) : (
+          <Icon name="terminal" size={14} />
+        )}
         {logo}
         <span className="tool-who">{name}</span>
-        <span className={`tool-what truncate ${stream.status === "live" ? "shiny" : ""}`}>{stream.title}</span>
+        <span
+          className={`tool-what truncate ${stream.status === "live" ? "shiny" : ""}`}
+        >
+          {stream.title}
+        </span>
         <span className="tool-meta">
-          {stream.status === "live" ? <span className="ellipsis" aria-label="working"><i /><i /><i /></span> : stream.status === "error" ? "failed" : `${stream.text.length.toLocaleString()} chars`}
+          {stream.status === "live" ? (
+            <span className="ellipsis" aria-label="working">
+              <i />
+              <i />
+              <i />
+            </span>
+          ) : stream.status === "error" ? (
+            "failed"
+          ) : (
+            `${stream.text.length.toLocaleString()} chars`
+          )}
         </span>
         <Icon name={open ? "chevronDown" : "chevron"} size={13} />
       </button>
       {open && (
         <pre ref={body} className="tool-body">
           {stream.text || (stream.status === "live" ? "Thinking…" : "")}
-          {stream.error && <span className="err-text">{`\n${stream.error}`}</span>}
+          {stream.error && (
+            <span className="err-text">{`\n${stream.error}`}</span>
+          )}
         </pre>
       )}
     </div>
@@ -264,7 +410,11 @@ function EditedCard({
   onUndo: ThreadProps["onUndo"];
 }) {
   const [all, setAll] = useState(false);
-  const [state, setState] = useState<{ busy?: boolean; conflicts?: string[]; error?: string }>({});
+  const [state, setState] = useState<{
+    busy?: boolean;
+    conflicts?: string[];
+    error?: string;
+  }>({});
   const runUndo = async (force: boolean) => {
     setState({ busy: true });
     try {
@@ -288,14 +438,19 @@ function EditedCard({
             Edited {files.length} file{files.length === 1 ? "" : "s"}
           </b>
           <span>
-            <span className="plus">+{adds}</span> <span className="minus">−{dels}</span>
+            <span className="plus">+{adds}</span>{" "}
+            <span className="minus">−{dels}</span>
           </span>
         </span>
         {undo.undoneAt ? (
           <span className="muted small">Undone</span>
         ) : (
           undo.can && (
-            <button className="btn small ghost" onClick={() => runUndo(false)} disabled={state.busy}>
+            <button
+              className="btn small ghost"
+              onClick={() => runUndo(false)}
+              disabled={state.busy}
+            >
               <Icon name="undo" size={13} /> Undo
             </button>
           )
@@ -307,14 +462,17 @@ function EditedCard({
       {state.conflicts && (
         <div className="edited-warn" role="alert">
           <span>
-            {state.conflicts.join(", ")} changed after this thread. Undo would overwrite those edits.
+            {state.conflicts.join(", ")} changed after this thread. Undo would
+            overwrite those edits.
           </span>
           <button className="btn small danger" onClick={() => runUndo(true)}>
             Undo anyway
           </button>
         </div>
       )}
-      {state.error && <p className="err-text small edited-warn">{state.error}</p>}
+      {state.error && (
+        <p className="err-text small edited-warn">{state.error}</p>
+      )}
       <ul className="edited-files">
         {shown.map((f) => (
           <li key={f.path}>
@@ -325,8 +483,14 @@ function EditedCard({
         ))}
       </ul>
       {files.length > SHOWN_FILES && (
-        <button className="edited-more" onClick={() => setAll(!all)} aria-expanded={all}>
-          {all ? "Show fewer files" : `Show ${files.length - SHOWN_FILES} more file${files.length - SHOWN_FILES === 1 ? "" : "s"}`}
+        <button
+          className="edited-more"
+          onClick={() => setAll(!all)}
+          aria-expanded={all}
+        >
+          {all
+            ? "Show fewer files"
+            : `Show ${files.length - SHOWN_FILES} more file${files.length - SHOWN_FILES === 1 ? "" : "s"}`}
           <Icon name={all ? "chevronDown" : "chevron"} size={12} />
         </button>
       )}
@@ -335,8 +499,18 @@ function EditedCard({
 }
 
 /** Apply / Discard for work done in a sandbox. */
-function ApplyBar({ onApply, onDiscard }: { onApply: (force?: boolean) => Promise<{ conflicts: string[] }>; onDiscard: () => Promise<void> }) {
-  const [state, setState] = useState<{ busy?: boolean; conflicts?: string[]; error?: string }>({});
+function ApplyBar({
+  onApply,
+  onDiscard,
+}: {
+  onApply: (force?: boolean) => Promise<{ conflicts: string[] }>;
+  onDiscard: () => Promise<void>;
+}) {
+  const [state, setState] = useState<{
+    busy?: boolean;
+    conflicts?: string[];
+    error?: string;
+  }>({});
   const go = async (force = false) => {
     setState({ busy: true });
     try {
@@ -350,15 +524,25 @@ function ApplyBar({ onApply, onDiscard }: { onApply: (force?: boolean) => Promis
     <div className="apply-bar">
       <Icon name="shield" size={16} />
       <span>Your project is untouched until you apply.</span>
-      <button className="btn small ghost" disabled={state.busy} onClick={() => onDiscard()}>
+      <button
+        className="btn small ghost"
+        disabled={state.busy}
+        onClick={() => onDiscard()}
+      >
         Discard
       </button>
-      <button className="btn small primary" disabled={state.busy} onClick={() => go(false)}>
+      <button
+        className="btn small primary"
+        disabled={state.busy}
+        onClick={() => go(false)}
+      >
         Apply to project
       </button>
       {state.conflicts && (
         <div className="edited-warn full">
-          <span>{state.conflicts.join(", ")} changed in your project meanwhile.</span>
+          <span>
+            {state.conflicts.join(", ")} changed in your project meanwhile.
+          </span>
           <button className="btn small danger" onClick={() => go(true)}>
             Apply anyway
           </button>
@@ -387,7 +571,8 @@ function DesignGallery({
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const ready = (id: string) => run.tasks.find((t) => t.id === id)?.status === "done";
+  const ready = (id: string) =>
+    run.tasks.find((t) => t.id === id)?.status === "done";
   return (
     <div className="msg-agent wide enter">
       <p>
@@ -399,12 +584,22 @@ function DesignGallery({
       </p>
       <div className="gallery">
         {run.variants!.map((v) => (
-          <figure key={v.id} className={`variant ${ready(v.id) ? "" : "is-failed"}`}>
+          <figure
+            key={v.id}
+            className={`variant ${ready(v.id) ? "" : "is-failed"}`}
+          >
             <div className="variant-frame">
               {ready(v.id) && review.pending === "design" ? (
-                <iframe title={v.title} src={`/preview-sandbox/${run.id}/${v.id}/`} sandbox="allow-scripts allow-forms" loading="lazy" />
+                <iframe
+                  title={v.title}
+                  src={`/preview-sandbox/${run.id}/${v.id}/`}
+                  sandbox="allow-scripts allow-forms"
+                  loading="lazy"
+                />
               ) : (
-                <span className="muted small">{ready(v.id) ? "Closed" : "No design"}</span>
+                <span className="muted small">
+                  {ready(v.id) ? "Closed" : "No design"}
+                </span>
               )}
             </div>
             <figcaption>
@@ -414,7 +609,12 @@ function DesignGallery({
               <span className="muted small">{name(v.memberId)}</span>
               {review.pending === "design" && ready(v.id) && (
                 <div className="variant-actions">
-                  <a className="btn small ghost" href={`/preview-sandbox/${run.id}/${v.id}/`} target="_blank" rel="noreferrer">
+                  <a
+                    className="btn small ghost"
+                    href={`/preview-sandbox/${run.id}/${v.id}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Open
                   </a>
                   <button
@@ -442,7 +642,10 @@ function DesignGallery({
       </div>
       {error && <p className="err-text small">{error}</p>}
       {review.pending === "design" && (
-        <button className="btn small ghost align-start" onClick={() => onDiscard()}>
+        <button
+          className="btn small ghost align-start"
+          onClick={() => onDiscard()}
+        >
           Discard all designs
         </button>
       )}

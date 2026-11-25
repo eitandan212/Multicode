@@ -54,7 +54,11 @@ export function Composer(p: Props) {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               void submit();
             }
@@ -66,8 +70,18 @@ export function Composer(p: Props) {
           aria-label="Message the crew"
         />
         <div className="composer-bar">
-          <div className="seg mini mode-switch" role="radiogroup" aria-label="What the crew should do">
-            <button type="button" role="radio" aria-checked={mode === "build"} className={mode === "build" ? "is-active" : ""} onClick={() => setMode("build")}>
+          <div
+            className="seg mini mode-switch"
+            role="radiogroup"
+            aria-label="What the crew should do"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "build"}
+              className={mode === "build" ? "is-active" : ""}
+              onClick={() => setMode("build")}
+            >
               Build
             </button>
             <button
@@ -81,38 +95,75 @@ export function Composer(p: Props) {
               <Icon name="palette" size={13} /> MultiDesign
             </button>
           </div>
-          <button type="button" className="chip crew-chip push-right" onClick={p.onOpenCrew} title="Edit crew">
+          <button
+            type="button"
+            className="chip crew-chip push-right"
+            onClick={p.onOpenCrew}
+            title="Edit crew"
+          >
             <span className="crew-dots" aria-hidden>
               {p.crew.slice(0, 4).map((m) => (
-                <span key={m.id} style={{ background: colorFor(p.crew, m.id) }} />
+                <span
+                  key={m.id}
+                  style={{ background: colorFor(p.crew, m.id) }}
+                />
               ))}
             </span>
-            {p.crew.length === 0 ? "No crew yet" : p.crew.length === 1 ? p.crew[0]!.name : `Crew of ${p.crew.length}`}
+            {p.crew.length === 0
+              ? "No crew yet"
+              : p.crew.length === 1
+                ? p.crew[0]!.name
+                : `Crew of ${p.crew.length}`}
           </button>
           {p.running ? (
-            <button type="button" className="send stop" onClick={p.onStop} aria-label="Stop the crew" title="Stop">
+            <button
+              type="button"
+              className="send stop"
+              onClick={p.onStop}
+              aria-label="Stop the crew"
+              title="Stop"
+            >
               <Icon name="stop" size={13} />
             </button>
           ) : (
-            <button className="send" disabled={!p.canRun || !prompt.trim() || sending} aria-label="Send" title="Send (Enter)">
+            <button
+              className="send"
+              disabled={!p.canRun || !prompt.trim() || sending}
+              aria-label="Send"
+              title="Send (Enter)"
+            >
               <Icon name="arrowUp" size={16} />
             </button>
           )}
         </div>
       </form>
       <div className="composer-meta">
-        <span className="meta-item">
-          <Icon name="folder" size={13} /> {p.project}
-        </span>
-        <button type="button" className="meta-item meta-btn" onClick={p.onOpenSafety} title="Savings & safety">
+        <button
+          type="button"
+          className="meta-item meta-btn"
+          onClick={p.onOpenSafety}
+          title="Savings & safety"
+        >
           <Icon name="shield" size={13} />
-          {p.settings.safety === "sandbox" ? "Sandbox" : p.settings.safety === "readonly" ? "Plan only" : "Direct + undo"}
+          {p.settings.safety === "sandbox"
+            ? "Sandbox"
+            : p.settings.safety === "readonly"
+              ? "Plan only"
+              : "Direct + undo"}
           {p.settings.economy && <span className="free-tag">Economy</span>}
         </button>
         {p.running && p.progress && p.progress.total > 0 && (
-          <span className="meta-item progress" aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}>
+          <span
+            className="meta-item progress"
+            aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}
+          >
             <span className="progress-track">
-              <span className="progress-fill" style={{ width: `${(p.progress.done / p.progress.total) * 100}%` }} />
+              <span
+                className="progress-fill"
+                style={{
+                  width: `${(p.progress.done / p.progress.total) * 100}%`,
+                }}
+              />
             </span>
             {p.progress.done}/{p.progress.total}
           </span>
@@ -122,7 +173,11 @@ export function Composer(p: Props) {
         ) : (
           <label className="meta-item meta-select">
             <Icon name="shield" size={13} />
-            <select value={reviews} onChange={(e) => p.onReviewRounds(Number(e.target.value))} aria-label="Review rounds">
+            <select
+              value={reviews}
+              onChange={(e) => p.onReviewRounds(Number(e.target.value))}
+              aria-label="Review rounds"
+            >
               {[0, 1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
                   {n === 0 ? "No review" : `Review × ${n}`}

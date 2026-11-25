@@ -42,6 +42,16 @@ One interface (`Provider.generate(req, onDelta, signal)`), two families:
 * **API**: Anthropic, OpenAI, Google Gemini, and any OpenAI-compatible endpoint
   (OpenRouter, Groq, DeepSeek, Ollama, LM Studio…).
 * **CLI (subscription)**: Claude Code, Codex, Gemini CLI. Detected on `PATH`.
+* **ACP** (`server/providers/acp.ts`, `server/acp/registry.ts`): a JSON-RPC client for the Agent
+  Client Protocol, as in T3 Code. The registry (cdn.agentclientprotocol.com, cached 6 h, offline
+  fallback to the last copy) is parsed defensively: ids, package names, https-only archives and
+  relative `cmd` paths are validated. Downloads are SHA-256-checked when the registry lists a hash.
+  MultiCode advertises `fs.readTextFile` (always) and `fs.writeTextFile` (edit tasks only), both
+  confined to the project root, and no terminal capability. `session/request_permission` is
+  answered by policy: read/search/think allowed; edit/move/delete only in edit tasks; execute,
+  fetch and other refused. Shared MCP servers are passed to `session/new` (stdio, plus http when
+  the agent supports it). Models come from the session's `model` config option (or the older
+  `models` field) and are set with `session/set_config_option` / `session/set_model`.
 
 ## The crew
 Members = (name, role, provider, model). Roles:

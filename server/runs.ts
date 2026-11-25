@@ -436,7 +436,7 @@ export class RunManager {
     if (enabledPlugins({ enabled: ext.pluginsEnabled, disabled: ext.pluginsDisabled }).some((p) => p.id === "memory-graph")) {
       const agents = [...wrote.entries()].map(([id, files]) => {
         const m = members.find((x) => x.id === id);
-        return { name: m?.name ?? id, harness: m ? HARNESS_NAMES[m.connection.kind] : "OpenCode", files: [...files] };
+        return { name: m?.name ?? id, harness: m ? (m.connection.acp?.agentName ?? HARNESS_NAMES[m.connection.kind]) : "OpenCode", files: [...files] };
       });
       await recordRun(memoryGraphFile(this.sync.dataDir, project), { project, prompt: run.prompt, summary, files: changedFiles, agents, at: Date.now() }).catch(
         (err: Error) => console.error("Could not update the memory graph:", err.message),

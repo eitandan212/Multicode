@@ -40,6 +40,7 @@ build your project together as a crew.
 | Nothing yet — start free | OpenCode | `opencode` with its free models (e.g. `opencode/big-pickle`) |
 | GitHub Copilot, or any of 75+ providers | OpenCode | `opencode auth login`, then pick `provider/model` |
 | A free Qwen account | Qwen Code | `qwen` |
+| Any other coding agent: Copilot, Cursor, Goose, Kiro, Qoder, Cline, Junie, Amp, Devin… | Any ACP agent | the [Agent Client Protocol](https://agentclientprotocol.com) registry |
 
 Subscriptions don't come with API keys, so MultiCode drives each vendor's official CLI
 on your machine. Install the CLI and sign in once:
@@ -55,6 +56,18 @@ npm i -g @qwen-code/qwen-code        # then run: qwen
 ```
 
 In the crew editor, the model field suggests every model the agent offers (OpenCode lists 200+).
+
+### Any ACP agent
+
+Like T3 Code, MultiCode speaks the open **Agent Client Protocol**. *Connections → Any ACP agent*
+lists every agent in the public ACP registry (45+). Agents shipped through npm or uv run with
+`npx`/`uvx`; agents shipped as downloads are installed on **Install** into MultiCode's data folder,
+after checking the registry's SHA-256. You can also connect any ACP command of your own.
+
+MultiCode is the ACP client, so it decides what an agent may do: file reads and writes go through
+MultiCode and stay inside the project (writes only in edit tasks), reading and searching are
+allowed, file edits are allowed in edit tasks, and shell commands, web fetches and unknown tools
+are refused. Each agent uses its own sign-in; run it once in a terminal if it asks you to log in.
 
 ## Run it
 
@@ -73,8 +86,9 @@ Your projects live in `~/.multicode/projects/<name>` and thread history in `~/.m
 
 ### Make it yours
 
-**Appearance** (palette icon in the sidebar, or `Ctrl K` → Appearance): theme (system, light, dark),
-accent colour (6 presets or any colour), font, interface size, animations, background ribbons and
+**Settings** (bottom of the sidebar) holds Connections, Crew, Savings & safety, Plugins & skills,
+Sync and Appearance. **Appearance** (or `Ctrl K` → Appearance): theme (system, light, dark),
+accent colour (6 presets or any colour), font, interface size, animations, background ribbons (off by default) and
 the opening animation. Saved in your browser and applied before the first paint.
 
 ### Shortcuts

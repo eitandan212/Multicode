@@ -5,14 +5,31 @@ export const MARK_PATHS = [
   "M160 0 L199 26 L199 107.5 L137.5 145 L137.5 102.5 L160 86Z",
 ] as const;
 
-export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
+export function LogoMark({
+  size = 28,
+  className,
+}: {
+  size?: number;
+  className?: string;
+}) {
   return (
-    <svg className={className} viewBox="0 0 200 145" width={Math.round((size * 200) / 145)} height={size} aria-hidden>
+    <svg
+      className={className}
+      viewBox="0 0 200 145"
+      width={Math.round((size * 200) / 145)}
+      height={size}
+      aria-hidden
+    >
       <path className="lm-a" d={MARK_PATHS[0]} fill="var(--logo-a)" />
       <path className="lm-b" d={MARK_PATHS[1]} fill="var(--logo-b)" />
       <path className="lm-c" d={MARK_PATHS[2]} fill="var(--logo-c)" />
     </svg>
   );
+}
+
+/** The crew is working: the mark's three ribbons light up in turn, like engines taking over. */
+export function LogoLoader({ size = 14 }: { size?: number }) {
+  return <LogoMark size={size} className="logo-loader" />;
 }
 
 /** Mark + wordmark, as in the secondary lockup. */

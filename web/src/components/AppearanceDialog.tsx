@@ -1,5 +1,13 @@
 import { useEffect, useRef } from "react";
-import { ACCENTS, DEFAULT_APPEARANCE, FONTS, type Appearance, type FontChoice, type SizeChoice, type ThemeMode } from "../appearance";
+import {
+  ACCENTS,
+  DEFAULT_APPEARANCE,
+  FONTS,
+  type Appearance,
+  type FontChoice,
+  type SizeChoice,
+  type ThemeMode,
+} from "../appearance";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -10,13 +18,19 @@ interface Props {
 }
 
 /** Personal look and feel. Every change applies immediately. */
-export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }: Props) {
+export function AppearanceDialog({
+  value: a,
+  onChange,
+  onReplayIntro,
+  onClose,
+}: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     ref.current?.showModal();
   }, []);
   const set = (patch: Partial<Appearance>) => onChange({ ...a, ...patch });
-  const customAccent = a.accent !== null && !ACCENTS.some((x) => x.value === a.accent);
+  const customAccent =
+    a.accent !== null && !ACCENTS.some((x) => x.value === a.accent);
 
   return (
     <dialog ref={ref} className="dialog" onClose={onClose} onCancel={onClose}>
@@ -25,7 +39,11 @@ export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }:
           <h2>Appearance</h2>
           <p className="muted">Make MultiCode yours. Saved in this browser.</p>
         </div>
-        <button className="icon-btn" onClick={() => ref.current?.close()} aria-label="Close">
+        <button
+          className="icon-btn"
+          onClick={() => ref.current?.close()}
+          aria-label="Close"
+        >
           <Icon name="x" />
         </button>
       </header>
@@ -44,7 +62,11 @@ export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }:
         </Row>
 
         <Row label="Accent">
-          <div className="swatches" role="radiogroup" aria-label="Accent colour">
+          <div
+            className="swatches"
+            role="radiogroup"
+            aria-label="Accent colour"
+          >
             {ACCENTS.map((x) => (
               <button
                 key={x.name}
@@ -57,8 +79,17 @@ export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }:
                 onClick={() => set({ accent: x.value })}
               />
             ))}
-            <label className={`swatch custom ${customAccent ? "is-on" : ""}`} title="Custom colour" style={customAccent ? { background: a.accent! } : undefined}>
-              <input type="color" aria-label="Custom accent colour" value={a.accent ?? "#3d8c66"} onChange={(e) => set({ accent: e.target.value })} />
+            <label
+              className={`swatch custom ${customAccent ? "is-on" : ""}`}
+              title="Custom colour"
+              style={customAccent ? { background: a.accent! } : undefined}
+            >
+              <input
+                type="color"
+                aria-label="Custom accent colour"
+                value={a.accent ?? "#3d8c66"}
+                onChange={(e) => set({ accent: e.target.value })}
+              />
               {!customAccent && <Icon name="spark" size={14} />}
             </label>
           </div>
@@ -67,7 +98,10 @@ export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }:
         <Row label="Font">
           <Seg<FontChoice>
             value={a.font}
-            options={(Object.keys(FONTS) as FontChoice[]).map((k) => [k, FONTS[k].label])}
+            options={(Object.keys(FONTS) as FontChoice[]).map((k) => [
+              k,
+              FONTS[k].label,
+            ])}
             onChange={(font) => set({ font })}
             fontPreview
           />
@@ -86,20 +120,35 @@ export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }:
         </Row>
 
         <Row label="Motion">
-          <Toggle checked={!a.reducedMotion} onChange={(on) => set({ reducedMotion: !on })} text="Animations" />
+          <Toggle
+            checked={!a.reducedMotion}
+            onChange={(on) => set({ reducedMotion: !on })}
+            text="Animations"
+          />
         </Row>
         <Row label="Background">
-          <Toggle checked={a.ribbons} onChange={(ribbons) => set({ ribbons })} text="Ribbons on the start screen" />
+          <Toggle
+            checked={a.ribbons}
+            onChange={(ribbons) => set({ ribbons })}
+            text="Ribbons on the start screen"
+          />
         </Row>
         <Row label="Intro">
-          <Toggle checked={a.intro} onChange={(intro) => set({ intro })} text="Play the opening animation" />
+          <Toggle
+            checked={a.intro}
+            onChange={(intro) => set({ intro })}
+            text="Play the opening animation"
+          />
           <button className="btn small ghost" onClick={onReplayIntro}>
             Replay
           </button>
         </Row>
 
         <div className="form-actions">
-          <button className="btn ghost" onClick={() => onChange(DEFAULT_APPEARANCE)}>
+          <button
+            className="btn ghost"
+            onClick={() => onChange(DEFAULT_APPEARANCE)}
+          >
             Reset to default
           </button>
           <button className="btn primary" onClick={() => ref.current?.close()}>
@@ -111,7 +160,13 @@ export function AppearanceDialog({ value: a, onChange, onReplayIntro, onClose }:
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="ap-row">
       <span className="ap-label">{label}</span>
@@ -120,7 +175,12 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Seg<T extends string>(p: { value: T; options: [T, string][]; onChange: (v: T) => void; fontPreview?: boolean }) {
+function Seg<T extends string>(p: {
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+  fontPreview?: boolean;
+}) {
   return (
     <div className="seg mini" role="radiogroup">
       {p.options.map(([v, label]) => (
@@ -129,7 +189,11 @@ function Seg<T extends string>(p: { value: T; options: [T, string][]; onChange: 
           role="radio"
           aria-checked={p.value === v}
           className={p.value === v ? "is-active" : ""}
-          style={p.fontPreview ? { fontFamily: FONTS[v as FontChoice].stack } : undefined}
+          style={
+            p.fontPreview
+              ? { fontFamily: FONTS[v as FontChoice].stack }
+              : undefined
+          }
           onClick={() => p.onChange(v)}
         >
           {label}
@@ -139,10 +203,23 @@ function Seg<T extends string>(p: { value: T; options: [T, string][]; onChange: 
   );
 }
 
-function Toggle({ checked, onChange, text }: { checked: boolean; onChange: (v: boolean) => void; text: string }) {
+function Toggle({
+  checked,
+  onChange,
+  text,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  text: string;
+}) {
   return (
     <label className="ap-toggle">
-      <button role="switch" aria-checked={checked} className={`switch ${checked ? "on" : ""}`} onClick={() => onChange(!checked)}>
+      <button
+        role="switch"
+        aria-checked={checked}
+        className={`switch ${checked ? "on" : ""}`}
+        onClick={() => onChange(!checked)}
+      >
         <span />
       </button>
       {text}

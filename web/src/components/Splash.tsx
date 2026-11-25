@@ -29,16 +29,37 @@ export function Splash({ onDone }: { onDone: () => void }) {
   }, [leaving, onDone]);
 
   return (
-    <div className={`splash ${leaving ? "is-leaving" : ""}`} onClick={() => setLeaving(true)} role="presentation">
-      <svg className="splash-ribbons" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden>
-        <path pathLength={1} className="sr sr1" d="M-120 620 C 220 480, 420 760, 680 600 S 1060 380, 1340 470" />
-        <path pathLength={1} className="sr sr2" d="M-80 210 C 180 320, 340 90, 600 180 S 1000 360, 1320 160" />
+    <div
+      className={`splash ${leaving ? "is-leaving" : ""}`}
+      onClick={() => setLeaving(true)}
+      role="presentation"
+    >
+      <svg
+        className="splash-ribbons"
+        viewBox="0 0 1200 800"
+        preserveAspectRatio="xMidYMid slice"
+        aria-hidden
+      >
+        <path
+          pathLength={1}
+          className="sr sr1"
+          d="M-120 620 C 220 480, 420 760, 680 600 S 1060 380, 1340 470"
+        />
+        <path
+          pathLength={1}
+          className="sr sr2"
+          d="M-80 210 C 180 320, 340 90, 600 180 S 1000 360, 1320 160"
+        />
       </svg>
       <div className="splash-center">
         <LogoMark size={64} className="splash-logo" />
         <h1 className="splash-word" aria-label="MultiCode">
           {WORD.split("").map((ch, i) => (
-            <span key={i} style={{ animationDelay: `${560 + i * 32}ms` }} aria-hidden>
+            <span
+              key={i}
+              style={{ animationDelay: `${560 + i * 32}ms` }}
+              aria-hidden
+            >
               {ch}
             </span>
           ))}

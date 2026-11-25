@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { connectionName, type CrewMember, type Role } from "../../../server/shared";
+import {
+  connectionName,
+  type CrewMember,
+  type Role,
+} from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { colorFor, ROLE_HINT, ROLE_LABEL } from "../crewColors";
 import { Icon } from "./Icon";
@@ -17,10 +21,18 @@ interface Props {
 
 const ROLES: Role[] = ["architect", "builder", "reviewer"];
 
-export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Props) {
+export function CrewDialog({
+  state,
+  onClose,
+  onChanged,
+  onOpenConnections,
+}: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [crew, setCrew] = useState<CrewMember[]>(() =>
-    state.effectiveCrew.map((m) => ({ ...m, id: m.id.startsWith("auto-") ? crypto.randomUUID() : m.id })),
+    state.effectiveCrew.map((m) => ({
+      ...m,
+      id: m.id.startsWith("auto-") ? crypto.randomUUID() : m.id,
+    })),
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -28,19 +40,35 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
   const [adding, setAdding] = useState(false);
   const opencode = state.clis.find((c) => c.kind === "opencode-cli");
   const dispatcher = crew.find((m) => m.role === "architect");
-  const dispatcherConn = dispatcher ? state.connections.find((c) => c.id === dispatcher.connectionId) : undefined;
-  const dispatcherIsFree = /(-free|big-pickle)$/.test(dispatcher?.model || dispatcherConn?.defaultModel || "");
+  const dispatcherConn = dispatcher
+    ? state.connections.find((c) => c.id === dispatcher.connectionId)
+    : undefined;
+  const dispatcherIsFree = /(-free|big-pickle)$/.test(
+    dispatcher?.model || dispatcherConn?.defaultModel || "",
+  );
 
   /** Creates a free OpenCode connection and makes it the dispatcher. */
   const addFreeDispatcher = async () => {
     setAdding(true);
     setError("");
     try {
-      const conn = await api.addConnection({ kind: "opencode-cli", defaultModel: FREE_DISPATCHER.model });
+      const conn = await api.addConnection({
+        kind: "opencode-cli",
+        defaultModel: FREE_DISPATCHER.model,
+      });
       await onChanged();
       setCrew([
-        { id: crypto.randomUUID(), name: conn.label, role: "architect", connectionId: conn.id, model: FREE_DISPATCHER.model, agents: 1 },
-        ...crew.map((m) => (m.role === "architect" ? { ...m, role: "builder" as Role } : m)),
+        {
+          id: crypto.randomUUID(),
+          name: conn.label,
+          role: "architect",
+          connectionId: conn.id,
+          model: FREE_DISPATCHER.model,
+          agents: 1,
+        },
+        ...crew.map((m) =>
+          m.role === "architect" ? { ...m, role: "builder" as Role } : m,
+        ),
       ]);
     } catch (e) {
       setError((e as Error).message);
@@ -54,13 +82,15 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
     ref.current?.showModal();
   }, []);
 
-  const update = (i: number, patch: Partial<CrewMember>) => setCrew(crew.map((m, k) => (k === i ? { ...m, ...patch } : m)));
+  const update = (i: number, patch: Partial<CrewMember>) =>
+    setCrew(crew.map((m, k) => (k === i ? { ...m, ...patch } : m)));
 
   const save = async () => {
     setSaving(true);
     try {
       await api.saveCrew(crew);
-      if (dispatch !== state.settings.dispatch) await api.saveSettings({ dispatch });
+      if (dispatch !== state.settings.dispatch)
+        await api.saveSettings({ dispatch });
       await onChanged();
       ref.current?.close();
     } catch (e) {
@@ -83,7 +113,11 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
             ))}
           </p>
         </div>
-        <button className="icon-btn" onClick={() => ref.current?.close()} aria-label="Close">
+        <button
+          className="icon-btn"
+          onClick={() => ref.current?.close()}
+          aria-label="Close"
+        >
           <Icon name="x" />
         </button>
       </header>
@@ -115,11 +149,25 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                       : "Nobody has the Dispatcher role, so the first member plans."}
                   </p>
                 </div>
-                <div className="seg mini" role="radiogroup" aria-label="Dispatch mode">
-                  <button role="radio" aria-checked={dispatch === "smart"} className={dispatch === "smart" ? "is-active" : ""} onClick={() => setDispatch("smart")}>
+                <div
+                  className="seg mini"
+                  role="radiogroup"
+                  aria-label="Dispatch mode"
+                >
+                  <button
+                    role="radio"
+                    aria-checked={dispatch === "smart"}
+                    className={dispatch === "smart" ? "is-active" : ""}
+                    onClick={() => setDispatch("smart")}
+                  >
                     Smart
                   </button>
-                  <button role="radio" aria-checked={dispatch === "balanced"} className={dispatch === "balanced" ? "is-active" : ""} onClick={() => setDispatch("balanced")}>
+                  <button
+                    role="radio"
+                    aria-checked={dispatch === "balanced"}
+                    className={dispatch === "balanced" ? "is-active" : ""}
+                    onClick={() => setDispatch("balanced")}
+                  >
                     Balanced
                   </button>
                 </div>
@@ -128,30 +176,65 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                 <div className="dispatch-tip">
                   <ProviderLogo kind="opencode-cli" />
                   <span className="small">
-                    Planning needs little power. A free OpenCode model can dispatch, so paid models spend their time building.
+                    Planning needs little power. A free OpenCode model can
+                    dispatch, so paid models spend their time building.
                   </span>
-                  <button className="btn small" onClick={addFreeDispatcher} disabled={adding || !opencode?.installed} title={opencode?.installed ? "" : opencode?.hint}>
-                    {adding ? "Adding…" : opencode?.installed ? "Use free dispatcher" : "Install OpenCode first"}
+                  <button
+                    className="btn small"
+                    onClick={addFreeDispatcher}
+                    disabled={adding || !opencode?.installed}
+                    title={opencode?.installed ? "" : opencode?.hint}
+                  >
+                    {adding
+                      ? "Adding…"
+                      : opencode?.installed
+                        ? "Use free dispatcher"
+                        : "Install OpenCode first"}
                   </button>
                 </div>
               )}
             </section>
             {crew.map((m, i) => (
-              <div key={m.id} className="edit-card" style={{ ["--agent" as string]: colorFor(crew, m.id) }}>
+              <div
+                key={m.id}
+                className="edit-card"
+                style={{ ["--agent" as string]: colorFor(crew, m.id) }}
+              >
                 <div className="edit-card-head">
                   <span className="member-dot" />
                   {conn(m.connectionId) && (
-                    <ProviderLogo kind={conn(m.connectionId)!.kind} baseUrl={conn(m.connectionId)!.baseUrl} model={m.model || conn(m.connectionId)!.defaultModel} />
+                    <ProviderLogo
+                      kind={conn(m.connectionId)!.kind}
+                      acp={conn(m.connectionId)!.acp}
+                      baseUrl={conn(m.connectionId)!.baseUrl}
+                      model={m.model || conn(m.connectionId)!.defaultModel}
+                    />
                   )}
-                  <input className="name-input" value={m.name} maxLength={40} onChange={(e) => update(i, { name: e.target.value })} aria-label="Member name" />
-                  <button className="icon-btn" onClick={() => setCrew(crew.filter((_, k) => k !== i))} aria-label={`Remove ${m.name}`} title="Remove">
+                  <input
+                    className="name-input"
+                    value={m.name}
+                    maxLength={40}
+                    onChange={(e) => update(i, { name: e.target.value })}
+                    aria-label="Member name"
+                  />
+                  <button
+                    className="icon-btn"
+                    onClick={() => setCrew(crew.filter((_, k) => k !== i))}
+                    aria-label={`Remove ${m.name}`}
+                    title="Remove"
+                  >
                     <Icon name="x" size={14} />
                   </button>
                 </div>
                 <div className="field-row">
                   <label className="field">
                     <span>Role</span>
-                    <select value={m.role} onChange={(e) => update(i, { role: e.target.value as Role })}>
+                    <select
+                      value={m.role}
+                      onChange={(e) =>
+                        update(i, { role: e.target.value as Role })
+                      }
+                    >
                       {ROLES.map((r) => (
                         <option key={r} value={r}>
                           {ROLE_LABEL[r]}
@@ -167,7 +250,10 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                         // Keep the harness name in sync unless the member was renamed by hand.
                         const old = conn(m.connectionId)?.label;
                         const next = conn(e.target.value)?.label;
-                        update(i, { connectionId: e.target.value, ...(m.name === old && next ? { name: next } : {}) });
+                        update(i, {
+                          connectionId: e.target.value,
+                          ...(m.name === old && next ? { name: next } : {}),
+                        });
                       }}
                     >
                       {state.connections.map((c) => (
@@ -182,12 +268,31 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                     <ModelInput
                       connectionId={m.connectionId}
                       value={m.model ?? ""}
-                      placeholder={conn(m.connectionId)?.defaultModel ?? "Default"}
+                      placeholder={
+                        conn(m.connectionId)?.defaultModel ?? "Default"
+                      }
                       onChange={(v) => {
                         const c = conn(m.connectionId);
-                        const was = c ? connectionName(c.kind, c.baseUrl, m.model || c.defaultModel) : "";
-                        const next = c ? connectionName(c.kind, c.baseUrl, v || c.defaultModel) : "";
-                        update(i, { model: v || undefined, ...(m.name === was || m.name === c?.label ? { name: next } : {}) });
+                        const was = c
+                          ? connectionName(
+                              c.kind,
+                              c.baseUrl,
+                              m.model || c.defaultModel,
+                            )
+                          : "";
+                        const next = c
+                          ? connectionName(
+                              c.kind,
+                              c.baseUrl,
+                              v || c.defaultModel,
+                            )
+                          : "";
+                        update(i, {
+                          model: v || undefined,
+                          ...(m.name === was || m.name === c?.label
+                            ? { name: next }
+                            : {}),
+                        });
                       }}
                     />
                   </label>
@@ -196,7 +301,12 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                   {m.role === "builder" && (
                     <label className="field narrow">
                       <span>Parallel agents</span>
-                      <select value={m.agents ?? 1} onChange={(e) => update(i, { agents: Number(e.target.value) })}>
+                      <select
+                        value={m.agents ?? 1}
+                        onChange={(e) =>
+                          update(i, { agents: Number(e.target.value) })
+                        }
+                      >
                         {[1, 2, 3, 4].map((n) => (
                           <option key={n} value={n}>
                             {n}
@@ -210,8 +320,14 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
                     <input
                       value={m.instructions ?? ""}
                       maxLength={1000}
-                      placeholder={m.role === "builder" ? "e.g. UI and CSS, accessibility first" : "Optional"}
-                      onChange={(e) => update(i, { instructions: e.target.value || undefined })}
+                      placeholder={
+                        m.role === "builder"
+                          ? "e.g. UI and CSS, accessibility first"
+                          : "Optional"
+                      }
+                      onChange={(e) =>
+                        update(i, { instructions: e.target.value || undefined })
+                      }
                     />
                   </label>
                 </div>
@@ -221,17 +337,33 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
               className="btn ghost wide"
               disabled={crew.length >= 20}
               onClick={() =>
-                setCrew([...crew, { id: crypto.randomUUID(), name: state.connections[0]!.label, role: "builder", connectionId: state.connections[0]!.id, agents: 1 }])
+                setCrew([
+                  ...crew,
+                  {
+                    id: crypto.randomUUID(),
+                    name: state.connections[0]!.label,
+                    role: "builder",
+                    connectionId: state.connections[0]!.id,
+                    agents: 1,
+                  },
+                ])
               }
             >
               Add a member
             </button>
             {error && <p className="err-text">{error}</p>}
             <div className="form-actions">
-              <button className="btn ghost" onClick={() => ref.current?.close()}>
+              <button
+                className="btn ghost"
+                onClick={() => ref.current?.close()}
+              >
                 Cancel
               </button>
-              <button className="btn primary" onClick={save} disabled={saving || crew.length === 0}>
+              <button
+                className="btn primary"
+                onClick={save}
+                disabled={saving || crew.length === 0}
+              >
                 {saving ? "Saving…" : "Save crew"}
               </button>
             </div>
@@ -245,7 +377,12 @@ export function CrewDialog({ state, onClose, onChanged, onOpenConnections }: Pro
 const modelCache = new Map<string, Promise<string[]>>();
 
 /** Free-text model field with suggestions from the connection's own model list. */
-function ModelInput(props: { connectionId: string; value: string; placeholder: string; onChange: (v: string) => void }) {
+function ModelInput(props: {
+  connectionId: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
   const [models, setModels] = useState<string[]>([]);
   const listId = `models-${props.connectionId}`;
 
@@ -267,7 +404,12 @@ function ModelInput(props: { connectionId: string; value: string; placeholder: s
 
   return (
     <>
-      <input list={listId} value={props.value} placeholder={props.placeholder} onChange={(e) => props.onChange(e.target.value)} />
+      <input
+        list={listId}
+        value={props.value}
+        placeholder={props.placeholder}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
       <datalist id={listId}>
         {models.map((m) => (
           <option key={m} value={m} />

@@ -1,4 +1,5 @@
 import type {
+  AcpAgentView,
   ConnectionView,
   CrewMember,
   ExtensionsView,
@@ -49,6 +50,8 @@ export const api = {
   addConnection: (body: Record<string, unknown>) => request<ConnectionView>("POST", "/api/connections", body),
   updateConnection: (id: string, body: Record<string, unknown>) =>
     request<ConnectionView>("PATCH", `/api/connections/${id}`, body),
+  acpAgents: (refresh = false) => request<{ agents: AcpAgentView[]; error?: string }>("GET", `/api/acp/agents${refresh ? "?refresh=1" : ""}`),
+  installAcpAgent: (id: string) => request<{ ok: boolean; agent: AcpAgentView }>("POST", `/api/acp/agents/${encodeURIComponent(id)}/install`),
   deleteConnection: (id: string) => request<void>("DELETE", `/api/connections/${id}`),
   testConnection: (id: string, model?: string) =>
     request<{ ok: boolean; message: string }>("POST", `/api/connections/${id}/test`, { model }),

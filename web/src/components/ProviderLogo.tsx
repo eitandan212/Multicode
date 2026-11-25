@@ -1,5 +1,17 @@
 // Official brand marks from @lobehub/icons (MIT). The logos are trademarks of their owners;
 // MultiCode shows them only to identify which service a connection uses.
+import amp from "@lobehub/icons-static-svg/icons/amp-color.svg?raw";
+import cline from "@lobehub/icons-static-svg/icons/cline.svg?raw";
+import codebuddy from "@lobehub/icons-static-svg/icons/codebuddy-color.svg?raw";
+import cursor from "@lobehub/icons-static-svg/icons/cursor.svg?raw";
+import devin from "@lobehub/icons-static-svg/icons/devin-color.svg?raw";
+import goose from "@lobehub/icons-static-svg/icons/goose.svg?raw";
+import junie from "@lobehub/icons-static-svg/icons/junie-color.svg?raw";
+import kilocode from "@lobehub/icons-static-svg/icons/kilocode.svg?raw";
+import kiro from "@lobehub/icons-static-svg/icons/kiro-color.svg?raw";
+import minimax from "@lobehub/icons-static-svg/icons/minimax-color.svg?raw";
+import poolside from "@lobehub/icons-static-svg/icons/poolside-color.svg?raw";
+import qoder from "@lobehub/icons-static-svg/icons/qoder-color.svg?raw";
 import anthropic from "@lobehub/icons-static-svg/icons/anthropic.svg?raw";
 import claude from "@lobehub/icons-static-svg/icons/claude-color.svg?raw";
 import grok from "@lobehub/icons-static-svg/icons/grok.svg?raw";
@@ -35,7 +47,41 @@ const BY_KIND: Record<ProviderKind, string> = {
   "opencode-cli": opencode,
   "qwen-cli": qwen,
   "openai-compatible": generic,
+  acp: generic,
 };
+
+/** ACP registry agents with a bundled official mark; others use the registry's own icon. */
+const BY_AGENT: Record<string, string> = {
+  "claude-acp": claudecode,
+  "codex-acp": codex,
+  gemini: geminicli,
+  opencode,
+  "opencode-v2": opencode,
+  "qwen-code": qwen,
+  "github-copilot-cli": githubcopilot,
+  cursor,
+  goose,
+  kiro,
+  cline,
+  qoder,
+  junie,
+  "amp-acp": amp,
+  devin,
+  kilo: kilocode,
+  kimi,
+  "kimi-code": kimi,
+  "minimax-code": minimax,
+  "mistral-vibe": mistral,
+  poolside,
+  "codebuddy-code": codebuddy,
+  "grok-build": grok,
+  "glm-acp-agent": zhipu,
+};
+
+export interface AcpLogoRef {
+  agentId: string;
+  icon?: string;
+}
 
 /** The maker of a model, from its id ("anthropic/claude-…", "gpt-5", "deepseek-chat"…). */
 function modelBrand(model = ""): string | undefined {
@@ -78,10 +124,76 @@ const strip = (svg: string) => {
   return out;
 };
 
-export function ProviderLogo({ kind, baseUrl, model, size = 16 }: { kind: ProviderKind; baseUrl?: string; model?: string; size?: number }) {
+export function ProviderLogo({
+  kind,
+  baseUrl,
+  model,
+  acp,
+  size = 16,
+}: {
+  kind: ProviderKind;
+  baseUrl?: string;
+  model?: string;
+  acp?: AcpLogoRef;
+  size?: number;
+}) {
+  if (kind === "acp" && acp && !BY_AGENT[acp.agentId] && acp.icon)
+    return <AgentIcon icon={acp.icon} size={size} />;
   const svg = strip(
-    (kind === "openai-compatible" || kind === "opencode-cli" ? brandFor(kind === "opencode-cli" ? "" : baseUrl, model) : undefined) ?? BY_KIND[kind],
+    (kind === "acp" && acp ? BY_AGENT[acp.agentId] : undefined) ??
+      (kind === "openai-compatible" || kind === "opencode-cli"
+        ? brandFor(kind === "opencode-cli" ? "" : baseUrl, model)
+        : undefined) ??
+      BY_KIND[kind],
   );
   // Static SVG files bundled at build time, never user input.
-  return <span className="logo" style={{ fontSize: size }} aria-hidden dangerouslySetInnerHTML={{ __html: svg }} />;
+  return (
+    <span
+      className="logo"
+      style={{ fontSize: size }}
+      aria-hidden
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
+/**
+ * A registry icon (monochrome SVG on cdn.agentclientprotocol.com), drawn as a mask so it takes
+ * the text colour in both themes. Only that host is used; anything else falls back to the
+ * neutral mark.
+ */
+export function AgentIcon({
+  icon,
+  size = 16,
+}: {
+  icon: string;
+  size?: number;
+}) {
+  if (!/^https:\/\/cdn\.agentclientprotocol\.com\/[\w./-]+\.svg$/.test(icon))
+    return (
+      <span
+        className="logo"
+        style={{ fontSize: size }}
+        aria-hidden
+        dangerouslySetInnerHTML={{ __html: generic }}
+      />
+    );
+  const url = `url("${icon}")`;
+  return (
+    <span
+      className="logo agent-icon"
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        WebkitMaskImage: url,
+        maskImage: url,
+      }}
+    />
+  );
+}
+
+/** The bundled mark for a registry agent, if MultiCode ships one. */
+export function hasBundledAgentLogo(agentId: string): boolean {
+  return Boolean(BY_AGENT[agentId]);
 }

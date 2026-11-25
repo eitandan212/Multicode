@@ -2663,3 +2663,245 @@ pre,
 .sr2 {
   opacity: 0.12;
 }
+
+/* Settings menu (sidebar footer) */
+.sb-foot {
+  padding: 8px;
+}
+.settings-menu {
+  position: relative;
+  flex: 1;
+}
+.sb-settings {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ease-soft),
+    color 160ms var(--ease-soft);
+}
+.sb-settings:hover,
+.sb-settings.is-open {
+  background: var(--hover);
+  color: var(--text);
+}
+.menu-pop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  transform-origin: 50% 100%;
+  animation: menu-in 180ms var(--ease) both;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item svg {
+  color: var(--muted);
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+/* ACP agent catalog */
+.acp {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.acp-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.acp-search {
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+.acp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.acp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 12px;
+}
+.acp-row + .acp-row {
+  border-top: 1px solid var(--line);
+}
+.acp-row.skeleton {
+  background: linear-gradient(90deg, transparent, var(--hover), transparent) 0
+    0 / 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.acp-logo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+.acp-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.acp-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.acp-empty {
+  padding: 16px;
+  text-align: center;
+}
+.acp-custom {
+  display: flex;
+  gap: 8px;
+}
+.acp-custom input {
+  flex: 1;
+}
+.agent-icon {
+  display: inline-block;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: center / contain no-repeat;
+  mask: center / contain no-repeat;
+}
+
+/* Logo motion: the three ribbons are the app's moving parts. */
+.logo-loader {
+  flex: none;
+  overflow: visible;
+}
+.logo-loader path {
+  transform-box: fill-box;
+  animation: ribbon-beat 1.2s var(--ease-soft) infinite;
+}
+.logo-loader .lm-b {
+  animation-delay: 0.2s;
+}
+.logo-loader .lm-c {
+  animation-delay: 0.4s;
+}
+@keyframes ribbon-beat {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-12%);
+  }
+}
+.hero-mark {
+  position: relative;
+  margin-bottom: 4px;
+}
+.hero-mark path {
+  transform-box: fill-box;
+  animation: piece-in 700ms var(--ease) both;
+}
+.hero-mark .lm-a {
+  --from: translate(-14px, 10px);
+}
+.hero-mark .lm-b {
+  --from: translateY(-14px);
+  animation-delay: 90ms;
+}
+.hero-mark .lm-c {
+  --from: translate(14px, 10px);
+  animation-delay: 180ms;
+}
+/* The lockup's mark lifts its ribbons apart a touch on hover. */
+.lockup svg path {
+  transform-box: fill-box;
+  transition: transform 320ms var(--ease);
+}
+.lockup:hover .lm-a {
+  transform: translate(-6%, 3%);
+}
+.lockup:hover .lm-c {
+  transform: translate(6%, 3%);
+}
+/* Splash exit: the ribbons part before the curtain lifts. */
+.splash.is-leaving .splash-logo .lm-a {
+  transform: translate(-18px, 6px);
+  opacity: 0;
+}
+.splash.is-leaving .splash-logo .lm-c {
+  transform: translate(18px, 6px);
+  opacity: 0;
+}
+.splash.is-leaving .splash-logo path {
+  transition:
+    transform 380ms var(--ease),
+    opacity 380ms var(--ease);
+}
+.progress-fill {
+  background: linear-gradient(90deg, var(--logo-a), var(--logo-c));
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-loader path,
+  .hero-mark path,
+  .menu-pop,
+  .acp-row.skeleton {
+    animation: none;
+  }
+}

@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import type { RunEvent, RunMode, RunSummary } from "../../server/shared";
 import { api, type AppState } from "./api";
 import { CommandPalette, type Command } from "./components/CommandPalette";
-import { applyAppearance, loadAppearance, motionReduced, saveAppearance, type Appearance } from "./appearance";
+import {
+  applyAppearance,
+  loadAppearance,
+  motionReduced,
+  saveAppearance,
+  type Appearance,
+} from "./appearance";
 import { AppearanceDialog } from "./components/AppearanceDialog";
 import { Composer } from "./components/Composer";
 import { SafetyDialog } from "./components/SafetyDialog";
@@ -10,6 +23,7 @@ import { Splash } from "./components/Splash";
 import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
+import { LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
 import { Sidebar } from "./components/Sidebar";
@@ -18,7 +32,9 @@ import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
 import { emptyRun, reduceRun, type RunView } from "./runState";
 
-type RunAction = { kind: "reset"; run: RunView | null } | { kind: "event"; event: RunEvent };
+type RunAction =
+  | { kind: "reset"; run: RunView | null }
+  | { kind: "event"; event: RunEvent };
 
 function runReducer(state: RunView | null, a: RunAction): RunView | null {
   if (a.kind === "reset") return a.run;
@@ -50,7 +66,16 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [run, dispatch] = useReducer(runReducer, null);
-  const [dialog, setDialog] = useState<"connections" | "crew" | "palette" | "sync" | "extensions" | "appearance" | "safety" | null>(null);
+  const [dialog, setDialog] = useState<
+    | "connections"
+    | "crew"
+    | "palette"
+    | "sync"
+    | "extensions"
+    | "appearance"
+    | "safety"
+    | null
+  >(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("preview");
   const [appearance, setAppearanceState] = useState<Appearance>(loadAppearance);
   // The intro plays once per browser session (and never with reduced motion).
@@ -77,8 +102,12 @@ export function App() {
     applyAppearance(a);
     saveAppearance(a);
   };
-  const [sidebarOpen, setSidebarOpen] = useState(() => !narrow() && store.get("sidebar") !== "0");
-  const [panelOpen, setPanelOpen] = useState(() => !narrow() && store.get("panel") !== "0");
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => !narrow() && store.get("sidebar") !== "0",
+  );
+  const [panelOpen, setPanelOpen] = useState(
+    () => !narrow() && store.get("panel") === "1",
+  );
   const [refreshKey, setRefreshKey] = useState(0);
   const refreshTimer = useRef<number | undefined>(undefined);
 
@@ -102,7 +131,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setDialog((d) => (d === "palette" ? null : d ?? "palette"));
+        setDialog((d) => (d === "palette" ? null : (d ?? "palette")));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -113,7 +142,8 @@ export function App() {
   useEffect(() => {
     if (!state || project) return;
     const last = store.get("project");
-    const existing = state.projects.find((p) => p.name === last) ?? state.projects[0];
+    const existing =
+      state.projects.find((p) => p.name === last) ?? state.projects[0];
     if (existing) setProject(existing.name);
     else
       void api.createProject("my-first-app").then(async (p) => {
@@ -141,7 +171,10 @@ export function App() {
 
   const bumpPreview = useCallback(() => {
     window.clearTimeout(refreshTimer.current);
-    refreshTimer.current = window.setTimeout(() => setRefreshKey((k) => k + 1), 600);
+    refreshTimer.current = window.setTimeout(
+      () => setRefreshKey((k) => k + 1),
+      600,
+    );
   }, []);
 
   // Stream the selected thread's events (replays history first).
@@ -150,12 +183,22 @@ export function App() {
     if (!runId) return;
     return api.events(runId, (event) => {
       dispatch({ kind: "event", event });
-      if (event.type === "file.changed" || event.type === "run.done") bumpPreview();
-      if (event.type === "run.done" || event.type === "run.error") void reload();
+      if (event.type === "file.changed" || event.type === "run.done")
+        bumpPreview();
+      if (event.type === "run.done" || event.type === "run.error")
+        void reload();
     });
   }, [runId, bumpPreview, reload]);
 
-  const busy = useMemo(() => new Set(run?.streams.filter((s) => s.status === "live").map((s) => s.memberId) ?? []), [run?.streams]);
+  const busy = useMemo(
+    () =>
+      new Set(
+        run?.streams
+          .filter((s) => s.status === "live")
+          .map((s) => s.memberId) ?? [],
+      ),
+    [run?.streams],
+  );
 
   const showChanges = () => {
     setPanelTab("changes");
@@ -193,26 +236,135 @@ export function App() {
   const commands = (): Command[] => {
     if (!state) return [];
     const cmds: Command[] = [
-      { id: "new-thread", label: "New thread", icon: "compose", group: "Actions", run: () => dispatch({ kind: "reset", run: null }) },
-      { id: "new-project", label: "New project", icon: "folderPlus", group: "Actions", run: () => void newProject() },
-      { id: "crew", label: "Edit crew", icon: "users", group: "Actions", run: () => setDialog("crew") },
-      { id: "safety", label: "Savings & safety", hint: "economy, free fallback, sandbox, protected files", icon: "shield", group: "Actions", run: () => setDialog("safety") },
-      { id: "appearance", label: "Appearance", hint: "theme, accent colour, font, size, motion", icon: "palette", group: "View", run: () => setDialog("appearance") },
-      { id: "extensions", label: "Plugins & skills", hint: "memory graph, AI browser, computer control, skill packs", icon: "puzzle", group: "Actions", run: () => setDialog("extensions") },
-      { id: "sync", label: "Sync across harnesses", hint: "instructions, MCP servers, memory", icon: "sync", group: "Actions", run: () => setDialog("sync") },
-      { id: "connections", label: "Connections", hint: "subscriptions, API keys, agents", icon: "plug", group: "Actions", run: () => setDialog("connections") },
-      { id: "toggle-sidebar", label: sidebarOpen ? "Hide sidebar" : "Show sidebar", icon: "sidebar", group: "View", run: () => toggleSidebar(!sidebarOpen) },
-      { id: "toggle-panel", label: panelOpen ? "Hide crew and preview" : "Show crew and preview", icon: "panelRight", group: "View", run: () => togglePanel(!panelOpen) },
-      { id: "preview", label: "Show preview", icon: "globe", group: "View", run: () => { setPanelTab("preview"); togglePanel(true); } },
-      { id: "files", label: "Show files", icon: "file", group: "View", run: () => { setPanelTab("files"); togglePanel(true); } },
-      { id: "changes", label: "Show changes", icon: "list", group: "View", run: showChanges },
+      {
+        id: "new-thread",
+        label: "New thread",
+        icon: "compose",
+        group: "Actions",
+        run: () => dispatch({ kind: "reset", run: null }),
+      },
+      {
+        id: "new-project",
+        label: "New project",
+        icon: "folderPlus",
+        group: "Actions",
+        run: () => void newProject(),
+      },
+      {
+        id: "crew",
+        label: "Edit crew",
+        icon: "users",
+        group: "Actions",
+        run: () => setDialog("crew"),
+      },
+      {
+        id: "safety",
+        label: "Savings & safety",
+        hint: "economy, free fallback, sandbox, protected files",
+        icon: "shield",
+        group: "Actions",
+        run: () => setDialog("safety"),
+      },
+      {
+        id: "appearance",
+        label: "Appearance",
+        hint: "theme, accent colour, font, size, motion",
+        icon: "palette",
+        group: "View",
+        run: () => setDialog("appearance"),
+      },
+      {
+        id: "extensions",
+        label: "Plugins & skills",
+        hint: "memory graph, AI browser, computer control, skill packs",
+        icon: "puzzle",
+        group: "Actions",
+        run: () => setDialog("extensions"),
+      },
+      {
+        id: "sync",
+        label: "Sync across harnesses",
+        hint: "instructions, MCP servers, memory",
+        icon: "sync",
+        group: "Actions",
+        run: () => setDialog("sync"),
+      },
+      {
+        id: "connections",
+        label: "Connections",
+        hint: "subscriptions, API keys, agents",
+        icon: "plug",
+        group: "Actions",
+        run: () => setDialog("connections"),
+      },
+      {
+        id: "toggle-sidebar",
+        label: sidebarOpen ? "Hide sidebar" : "Show sidebar",
+        icon: "sidebar",
+        group: "View",
+        run: () => toggleSidebar(!sidebarOpen),
+      },
+      {
+        id: "toggle-panel",
+        label: panelOpen ? "Hide crew and preview" : "Show crew and preview",
+        icon: "panelRight",
+        group: "View",
+        run: () => togglePanel(!panelOpen),
+      },
+      {
+        id: "preview",
+        label: "Show preview",
+        icon: "globe",
+        group: "View",
+        run: () => {
+          setPanelTab("preview");
+          togglePanel(true);
+        },
+      },
+      {
+        id: "files",
+        label: "Show files",
+        icon: "file",
+        group: "View",
+        run: () => {
+          setPanelTab("files");
+          togglePanel(true);
+        },
+      },
+      {
+        id: "changes",
+        label: "Show changes",
+        icon: "list",
+        group: "View",
+        run: showChanges,
+      },
     ];
     if (run?.status === "running")
-      cmds.unshift({ id: "stop", label: "Stop the crew", icon: "stop", group: "Actions", run: () => void api.cancelRun(run.id) });
+      cmds.unshift({
+        id: "stop",
+        label: "Stop the crew",
+        icon: "stop",
+        group: "Actions",
+        run: () => void api.cancelRun(run.id),
+      });
     for (const pr of state.projects)
-      cmds.push({ id: `project-${pr.name}`, label: pr.name, hint: `${pr.fileCount} files`, icon: "folder", group: "Projects", run: () => selectProject(pr.name) });
+      cmds.push({
+        id: `project-${pr.name}`,
+        label: pr.name,
+        hint: `${pr.fileCount} files`,
+        icon: "folder",
+        group: "Projects",
+        run: () => selectProject(pr.name),
+      });
     for (const r of runs)
-      cmds.push({ id: `run-${r.id}`, label: r.prompt, hint: r.project, icon: "terminal", group: "Threads", run: () => selectRun(r) });
+      cmds.push({
+        id: `run-${r.id}`,
+        label: r.prompt,
+        hint: r.project,
+        icon: "terminal",
+        group: "Threads",
+        run: () => selectRun(r),
+      });
     return cmds;
   };
 
@@ -224,7 +376,8 @@ export function App() {
         {splash}
         {loadError ? (
           <p className="err-text">
-            MultiCode's server isn't reachable: {loadError}. Start it with <code>npm start</code>.
+            MultiCode's server isn't reachable: {loadError}. Start it with{" "}
+            <code>npm start</code>.
           </p>
         ) : (
           <p className="muted">Loading MultiCode…</p>
@@ -243,8 +396,23 @@ export function App() {
       project={project}
       canRun={canRun}
       running={running}
-      progress={run ? { done: run.tasks.filter((t) => t.status === "done" || t.status === "failed").length, total: run.tasks.length } : undefined}
-      placeholder={canRun ? (run ? "Ask the crew for a change" : "Describe what to build") : "Connect an AI to start"}
+      progress={
+        run
+          ? {
+              done: run.tasks.filter(
+                (t) => t.status === "done" || t.status === "failed",
+              ).length,
+              total: run.tasks.length,
+            }
+          : undefined
+      }
+      placeholder={
+        canRun
+          ? run
+            ? "Ask the crew for a change"
+            : "Describe what to build"
+          : "Connect an AI to start"
+      }
       onSubmit={startRun}
       onStop={() => run && void api.cancelRun(run.id)}
       onOpenCrew={() => setDialog("crew")}
@@ -257,7 +425,9 @@ export function App() {
   );
 
   return (
-    <div className={`shell ${sidebarOpen ? "with-sidebar" : ""} ${panelOpen ? "with-panel" : ""}`}>
+    <div
+      className={`shell ${sidebarOpen ? "with-sidebar" : ""} ${panelOpen ? "with-panel" : ""}`}
+    >
       {sidebarOpen && (
         <>
           <Sidebar
@@ -280,14 +450,23 @@ export function App() {
             onOpenSafety={() => setDialog("safety")}
             onCollapse={() => toggleSidebar(false)}
           />
-          <div className="scrim" onClick={() => toggleSidebar(false)} aria-hidden />
+          <div
+            className="scrim"
+            onClick={() => toggleSidebar(false)}
+            aria-hidden
+          />
         </>
       )}
 
       <main className="main">
         <header className="topbar">
           {!sidebarOpen && (
-            <button className="icon-btn" onClick={() => toggleSidebar(true)} aria-label="Show sidebar" title="Show sidebar">
+            <button
+              className="icon-btn"
+              onClick={() => toggleSidebar(true)}
+              aria-label="Show sidebar"
+              title="Show sidebar"
+            >
               <Icon name="sidebar" />
             </button>
           )}
@@ -296,14 +475,23 @@ export function App() {
             <span className="muted sep">/</span>
             <span className="truncate">{run ? run.prompt : "New thread"}</span>
           </div>
-          <button className="kbd-btn" onClick={() => setDialog("palette")} title="Command palette" aria-label="Open command palette">
+          <button
+            className="kbd-btn"
+            onClick={() => setDialog("palette")}
+            title="Command palette"
+            aria-label="Open command palette"
+          >
             <Icon name="search" size={14} />
-            <kbd>{/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}</kbd>
+            <kbd>
+              {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
+            </kbd>
           </button>
           <button
             className={`icon-btn ${panelOpen ? "is-on" : ""}`}
             onClick={() => togglePanel(!panelOpen)}
-            aria-label={panelOpen ? "Hide crew and preview" : "Show crew and preview"}
+            aria-label={
+              panelOpen ? "Hide crew and preview" : "Show crew and preview"
+            }
             aria-pressed={panelOpen}
             title="Crew and preview"
           >
@@ -354,12 +542,16 @@ export function App() {
         ) : (
           <div className="hero">
             <Ribbons />
+            <LogoMark size={40} className="hero-mark" />
             <h1>
               What should the crew build in <b>{project}</b>?
             </h1>
             <p className="muted">
               {state.connections.length === 0 ? (
-                <button className="link" onClick={() => setDialog("connections")}>
+                <button
+                  className="link"
+                  onClick={() => setDialog("connections")}
+                >
                   Connect an AI to get started
                 </button>
               ) : (
@@ -390,15 +582,29 @@ export function App() {
             onOpenSafety={() => setDialog("safety")}
             limits={state.limits}
           />
-          <button className="panel-close icon-btn" onClick={() => togglePanel(false)} aria-label="Close panel">
+          <button
+            className="panel-close icon-btn"
+            onClick={() => togglePanel(false)}
+            aria-label="Close panel"
+          >
             <Icon name="x" />
           </button>
         </>
       )}
 
-      {dialog === "palette" && <CommandPalette commands={commands()} onClose={() => setDialog(null)} />}
-      {dialog === "extensions" && <ExtensionsDialog onClose={() => setDialog(null)} />}
-      {dialog === "safety" && <SafetyDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
+      {dialog === "palette" && (
+        <CommandPalette commands={commands()} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "extensions" && (
+        <ExtensionsDialog onClose={() => setDialog(null)} />
+      )}
+      {dialog === "safety" && (
+        <SafetyDialog
+          state={state}
+          onClose={() => setDialog(null)}
+          onChanged={reload}
+        />
+      )}
       {dialog === "appearance" && (
         <AppearanceDialog
           value={appearance}
@@ -411,10 +617,23 @@ export function App() {
         />
       )}
       {splash}
-      {dialog === "sync" && project && <SyncDialog project={project} onClose={() => setDialog(null)} />}
-      {dialog === "connections" && <ConnectionsDialog state={state} onClose={() => setDialog(null)} onChanged={reload} />}
+      {dialog === "sync" && project && (
+        <SyncDialog project={project} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "connections" && (
+        <ConnectionsDialog
+          state={state}
+          onClose={() => setDialog(null)}
+          onChanged={reload}
+        />
+      )}
       {dialog === "crew" && (
-        <CrewDialog state={state} onClose={() => setDialog(null)} onChanged={reload} onOpenConnections={() => setDialog("connections")} />
+        <CrewDialog
+          state={state}
+          onClose={() => setDialog(null)}
+          onChanged={reload}
+          onOpenConnections={() => setDialog("connections")}
+        />
       )}
     </div>
   );

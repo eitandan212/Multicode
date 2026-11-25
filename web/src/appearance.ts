@@ -23,7 +23,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   font: "inter",
   size: "default",
   reducedMotion: false,
-  ribbons: true,
+  ribbons: false,
   intro: true,
 };
 

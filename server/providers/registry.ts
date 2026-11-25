@@ -1,5 +1,6 @@
 import type { Connection } from "../config.js";
 import { AnthropicProvider, GeminiProvider, OpenAIProvider } from "./api.js";
+import { AcpProvider } from "./acp.js";
 import { CliProvider } from "./cli.js";
 import type { Provider } from "./types.js";
 
@@ -20,5 +21,7 @@ export const createProvider: ProviderFactory = (conn) => {
     case "opencode-cli":
     case "qwen-cli":
       return new CliProvider(conn);
+    case "acp":
+      return new AcpProvider(conn);
   }
 };

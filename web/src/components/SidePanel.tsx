@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ConnectionView, CrewMember, FileDiff } from "../../../server/shared";
+import type {
+  ConnectionView,
+  CrewMember,
+  FileDiff,
+} from "../../../server/shared";
 import { api } from "../api";
 import { serviceName } from "../../../server/shared";
 import { colorFor, ROLE_LABEL } from "../crewColors";
@@ -31,7 +35,9 @@ export function SidePanel(p: Props) {
   const { tab, onTab: setTab } = p;
   const [files, setFiles] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [content, setContent] = useState<{ path: string; text: string } | null>(null);
+  const [content, setContent] = useState<{ path: string; text: string } | null>(
+    null,
+  );
   const [fileError, setFileError] = useState("");
   const changedSet = useMemo(() => new Set(p.changed), [p.changed]);
 
@@ -80,18 +86,39 @@ export function SidePanel(p: Props) {
           p.crew.map((m) => {
             const c = conn(m.connectionId);
             return (
-              <div key={m.id} className="card-row member-row" style={{ ["--agent" as string]: colorFor(p.crew, m.id) }}>
+              <div
+                key={m.id}
+                className="card-row member-row"
+                style={{ ["--agent" as string]: colorFor(p.crew, m.id) }}
+              >
                 <span className="member-dot" />
-                {c && <ProviderLogo kind={c.kind} baseUrl={c.baseUrl} model={m.model || c.defaultModel} />}
+                {c && (
+                  <ProviderLogo
+                    kind={c.kind}
+                    acp={c.acp}
+                    baseUrl={c.baseUrl}
+                    model={m.model || c.defaultModel}
+                  />
+                )}
                 <span className="member-name truncate">{m.name}</span>
                 <span className="muted truncate member-meta">
                   {ROLE_LABEL[m.role]}
-                  {m.role === "builder" && (m.agents ?? 1) > 1 ? ` · ${m.agents} agents` : ""} · {c ? serviceName(c.kind, c.baseUrl) : "missing"}
+                  {m.role === "builder" && (m.agents ?? 1) > 1
+                    ? ` · ${m.agents} agents`
+                    : ""}{" "}
+                  · {c ? serviceName(c.kind, c.baseUrl) : "missing"}
                 </span>
                 {p.busy.has(m.id) && <Spinner size={11} />}
                 {(p.limits[m.connectionId] ?? 0) > Date.now() && (
-                  <span className="limit-badge" title={`Usage limit reached. A free model fills in until ${new Date(p.limits[m.connectionId]!).toLocaleTimeString()}.`}>
-                    limit · free until {new Date(p.limits[m.connectionId]!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  <span
+                    className="limit-badge"
+                    title={`Usage limit reached. A free model fills in until ${new Date(p.limits[m.connectionId]!).toLocaleTimeString()}.`}
+                  >
+                    limit · free until{" "}
+                    {new Date(p.limits[m.connectionId]!).toLocaleTimeString(
+                      [],
+                      { hour: "2-digit", minute: "2-digit" },
+                    )}
                   </span>
                 )}
               </div>
@@ -104,41 +131,47 @@ export function SidePanel(p: Props) {
           <span>Edit crew</span>
           <Icon name="chevron" size={14} className="push-right" />
         </button>
-        <button className="card-row" onClick={p.onOpenConnections}>
-          <Icon name="plug" />
-          <span>Connections</span>
-          <span className="muted push-right">{p.connections.length}</span>
-        </button>
-        <button className="card-row" onClick={p.onOpenSafety}>
-          <Icon name="shield" />
-          <span>Savings & safety</span>
-          <Icon name="chevron" size={14} className="push-right" />
-        </button>
-        <button className="card-row" onClick={p.onOpenExtensions}>
-          <Icon name="puzzle" />
-          <span>Plugins & skills</span>
-          <Icon name="chevron" size={14} className="push-right" />
-        </button>
-        <button className="card-row" onClick={p.onOpenSync}>
-          <Icon name="sync" />
-          <span>Sync across harnesses</span>
-          <Icon name="chevron" size={14} className="push-right" />
-        </button>
       </section>
 
       <section className="card ws-card">
         <div className="seg" role="tablist">
-          <button role="tab" aria-selected={tab === "preview"} className={tab === "preview" ? "is-active" : ""} onClick={() => setTab("preview")}>
+          <button
+            role="tab"
+            aria-selected={tab === "preview"}
+            className={tab === "preview" ? "is-active" : ""}
+            onClick={() => setTab("preview")}
+          >
             <Icon name="globe" size={14} /> Preview
           </button>
-          <button role="tab" aria-selected={tab === "files"} className={tab === "files" ? "is-active" : ""} onClick={() => setTab("files")}>
-            <Icon name="file" size={14} /> Files <span className="muted">{files.length}</span>
+          <button
+            role="tab"
+            aria-selected={tab === "files"}
+            className={tab === "files" ? "is-active" : ""}
+            onClick={() => setTab("files")}
+          >
+            <Icon name="file" size={14} /> Files{" "}
+            <span className="muted">{files.length}</span>
           </button>
-          <button role="tab" aria-selected={tab === "changes"} className={tab === "changes" ? "is-active" : ""} onClick={() => setTab("changes")}>
-            <Icon name="list" size={14} /> Changes {p.diff && p.diff.length > 0 && <span className="muted">{p.diff.length}</span>}
+          <button
+            role="tab"
+            aria-selected={tab === "changes"}
+            className={tab === "changes" ? "is-active" : ""}
+            onClick={() => setTab("changes")}
+          >
+            <Icon name="list" size={14} /> Changes{" "}
+            {p.diff && p.diff.length > 0 && (
+              <span className="muted">{p.diff.length}</span>
+            )}
           </button>
           {tab === "preview" && hasIndex && (
-            <a className="icon-btn push-right" href={previewUrl} target="_blank" rel="noreferrer" title="Open in new tab" aria-label="Open preview in new tab">
+            <a
+              className="icon-btn push-right"
+              href={previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Open in new tab"
+              aria-label="Open preview in new tab"
+            >
               <Icon name="external" size={14} />
             </a>
           )}
@@ -146,9 +179,19 @@ export function SidePanel(p: Props) {
 
         {tab === "preview" &&
           (hasIndex ? (
-            <iframe key={p.refreshKey} className="preview" title="Project preview" src={previewUrl} sandbox="allow-scripts allow-forms allow-modals allow-popups" />
+            <iframe
+              key={p.refreshKey}
+              className="preview"
+              title="Project preview"
+              src={previewUrl}
+              sandbox="allow-scripts allow-forms allow-modals allow-popups"
+            />
           ) : (
-            <p className="ws-empty">{files.length ? "No index.html to preview. Browse the code in Files." : "The preview appears once the crew writes index.html."}</p>
+            <p className="ws-empty">
+              {files.length
+                ? "No index.html to preview. Browse the code in Files."
+                : "The preview appears once the crew writes index.html."}
+            </p>
           ))}
 
         {tab === "changes" && <DiffView files={p.diff} />}
@@ -156,19 +199,32 @@ export function SidePanel(p: Props) {
         {tab === "files" && (
           <div className="files">
             <ul className="tree">
-              {files.length === 0 && <li className="muted small pad">No files yet.</li>}
+              {files.length === 0 && (
+                <li className="muted small pad">No files yet.</li>
+              )}
               {files.map((f) => (
                 <li key={f}>
-                  <button className={selected === f ? "is-active" : ""} onClick={() => setSelected(f)} title={f}>
+                  <button
+                    className={selected === f ? "is-active" : ""}
+                    onClick={() => setSelected(f)}
+                    title={f}
+                  >
                     <span className="truncate">{f}</span>
-                    {changedSet.has(f) && <span className="changed-dot" aria-label="changed in this thread" />}
+                    {changedSet.has(f) && (
+                      <span
+                        className="changed-dot"
+                        aria-label="changed in this thread"
+                      />
+                    )}
                   </button>
                 </li>
               ))}
             </ul>
             <div className="code-view">
               {fileError && <p className="err-text pad">{fileError}</p>}
-              {!content && !fileError && <p className="muted pad">Pick a file to read it.</p>}
+              {!content && !fileError && (
+                <p className="muted pad">Pick a file to read it.</p>
+              )}
               {content && (
                 <pre className="code">
                   {content.text.split("\n").map((line, i) => (
