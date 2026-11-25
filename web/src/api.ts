@@ -55,6 +55,9 @@ async function request<T>(
   return data as T;
 }
 
+import type { AgentAccess, SignInFlow } from "../../server/shared";
+export type { AgentAccess, SignInFlow };
+
 export const api = {
   state: () => request<AppState>("GET", "/api/state"),
   addConnection: (body: Record<string, unknown>) =>
@@ -112,6 +115,13 @@ export const api = {
       entities: { name: string; entityType: string; observations: string[] }[];
       relations: { from: string; to: string; relationType: string }[];
     }>("GET", `/api/projects/${project}/memory`),
+  agentAccess: (kind: string) => request<AgentAccess>("GET", `/api/agents/${kind}/access`),
+  installAgent: (kind: string) =>
+    request<{ ok: boolean; output: string }>("POST", `/api/agents/${kind}/install`),
+  startSignIn: (kind: string) => request<SignInFlow>("POST", `/api/agents/${kind}/signin`),
+  signInFlow: (id: string) => request<SignInFlow>("GET", `/api/signin/${id}`),
+  signInCode: (id: string, code: string) => request<void>("POST", `/api/signin/${id}/code`, { code }),
+  cancelSignIn: (id: string) => request<void>("POST", `/api/signin/${id}/cancel`),
   approve: (runId: string, approvalId: string, allow: boolean, always = false) =>
     request<void>("POST", `/api/runs/${runId}/approvals/${approvalId}`, { allow, always }),
   openFolder: (path: string) =>

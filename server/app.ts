@@ -18,6 +18,8 @@ import { RunManager } from "./runs.js";
 import { autoCrew } from "./autocrew.js";
 import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
+import { installAgent as installCli, SignIn } from "./signin.js";
+import { CLI_SPECS } from "./providers/cli.js";
 import { enabledPlugins, memoryGraphFile, PLUGINS } from "./plugins.js";
 import { SKILL_PACKS } from "./skills.js";
 import { parseTeam } from "./team.js";
@@ -310,6 +312,40 @@ export function createApp(opts: AppOptions) {
     "/projects",
     wrap(async (_req, res) => res.json(await listProjects(projectsDir))),
   );
+  // One-click agent setup: install, sign in, and who you're signed in as.
+  const signIn = new SignIn();
+  api.get(
+    "/agents/:kind/access",
+    wrap(async (req, res) => res.json(await signIn.access(param(req, "kind")))),
+  );
+  api.post(
+    "/agents/:kind/install",
+    wrap(async (req, res) => {
+      const kind = param(req, "kind");
+      if (!Object.hasOwn(CLI_SPECS, kind)) throw new HttpError(400, "unknown agent");
+      res.json(await installCli(kind as keyof typeof CLI_SPECS));
+    }),
+  );
+  api.post(
+    "/agents/:kind/signin",
+    wrap(async (req, res) => res.status(201).json(await signIn.start(param(req, "kind")))),
+  );
+  api.get("/signin/:id", wrap(async (req, res) => res.json(signIn.view(param(req, "id")))));
+  api.post(
+    "/signin/:id/code",
+    wrap(async (req, res) => {
+      signIn.code(param(req, "id"), req.body?.code);
+      res.status(204).end();
+    }),
+  );
+  api.post(
+    "/signin/:id/cancel",
+    wrap(async (req, res) => {
+      signIn.cancel(param(req, "id"));
+      res.status(204).end();
+    }),
+  );
+
   // The project's memory graph (what the crew and the memory plugin remember).
   api.get(
     "/projects/:name/memory",

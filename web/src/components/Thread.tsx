@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SignInDialog } from "./AgentSetup";
 import type {
   ConnectionView,
   CrewMember,
@@ -392,6 +393,7 @@ export function Thread({
               ? "You stopped the crew."
               : `The crew couldn't finish: ${run.error}`}
           </p>
+          <SignInFix error={run.error} />
         </div>
       )}
       {run.answered.length > 0 && (
@@ -415,6 +417,22 @@ export function Thread({
       )}
       <div ref={end} />
     </div>
+  );
+}
+
+/** "Not signed in" errors get the fix right there: a Sign in button, no terminal. */
+function SignInFix({ error }: { error?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!error || !/sign(ed)? in|log in|login/i.test(error)) return null;
+  const kind = /codex/i.test(error) ? "codex-cli" : /claude/i.test(error) ? "claude-cli" : null;
+  if (!kind) return null;
+  return (
+    <>
+      <button className="btn primary small" onClick={() => setOpen(true)}>
+        Sign in to {kind === "codex-cli" ? "Codex" : "Claude Code"}
+      </button>
+      {open && <SignInDialog kind={kind} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 

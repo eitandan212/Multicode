@@ -182,7 +182,11 @@ export async function findBinary(name: string): Promise<string | undefined> {
     process.platform === "win32"
       ? (process.env.PATHEXT ?? ".EXE;.CMD").split(";")
       : [""];
-  for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
+  const dirs = (process.env.PATH ?? "").split(path.delimiter);
+  // Where `npm i -g` puts launchers on Windows, even when PATH doesn't list it yet.
+  if (process.platform === "win32" && process.env.APPDATA)
+    dirs.push(path.join(process.env.APPDATA, "npm"));
+  for (const dir of dirs) {
     if (!dir) continue;
     for (const ext of exts) {
       const candidate = path.join(dir, name + ext.toLowerCase());

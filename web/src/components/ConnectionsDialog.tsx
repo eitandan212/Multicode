@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AgentSetup, canSignIn } from "./AgentSetup";
 import {
   API_KINDS,
   CLI_KINDS,
@@ -123,6 +124,7 @@ export function ConnectionsDialog({ state, onClose, onChanged }: Props) {
               setAdding(null);
               await onChanged();
             }}
+            onRefresh={onChanged}
           />
         ) : (
           <button
@@ -256,6 +258,8 @@ function AddConnection(props: {
   onKind: (k: ProviderKind) => void;
   onCancel?: () => void;
   onSaved: () => Promise<void>;
+  /** Re-reads the app state (after an install or a sign-in), keeping this form open. */
+  onRefresh: () => Promise<void>;
 }) {
   const { kind, state } = props;
   const [apiKey, setApiKey] = useState("");
@@ -330,7 +334,10 @@ function AddConnection(props: {
       )}
       {kind !== "acp" && (
         <>
-          {isCli && cli && (
+          {isCli && canSignIn(kind) && (
+            <AgentSetup kind={kind} onReady={() => void props.onRefresh().catch(() => {})} />
+          )}
+          {isCli && cli && !canSignIn(kind) && (
             <div
               className={`cli-status ${cli.installed ? "is-ok" : "is-missing"}`}
             >
@@ -343,8 +350,8 @@ function AddConnection(props: {
                 </>
               ) : (
                 <>
-                  <strong>{cli.binary} isn't installed yet.</strong> In a
-                  terminal: <code>{cli.hint}</code>
+                  <strong>{cli.binary} isn't installed yet.</strong>{" "}
+                  <InstallButton kind={kind} onDone={() => void props.onRefresh().catch(() => {})} />
                 </>
               )}
             </div>
@@ -710,5 +717,36 @@ function AcpPicker({
         </div>
       )}
     </div>
+  );
+}
+
+/** Installs an open-source agent with one click (npm, for this user). */
+function InstallButton({ kind, onDone }: { kind: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <>
+      <button
+        type="button"
+        className="btn small primary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          try {
+            const r = await api.installAgent(kind);
+            if (r.ok) onDone();
+            else setError(r.output);
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Installing…" : "Install"}
+      </button>
+      {error && <pre className="err-text small agent-error">{error}</pre>}
+    </>
   );
 }

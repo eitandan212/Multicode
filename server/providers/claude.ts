@@ -211,7 +211,7 @@ export class ClaudeSdkProvider implements Provider {
               msg.error === "oauth_org_not_allowed"
             )
               throw new ProviderError(
-                "Claude Code isn't signed in. Run `claude` in a terminal once and log in, then try again.",
+                "Claude Code isn't signed in. Press Sign in (or run `claude auth login`), then try again.",
               );
             if (msg.error === "rate_limit")
               throw new ProviderError(

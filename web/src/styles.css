@@ -4995,3 +4995,20 @@ pre,
 .btn.danger-ghost { color: var(--bad); }
 .btn.danger-ghost:hover { background: color-mix(in srgb, var(--bad) 10%, transparent); }
 .answered-line { margin: 8px 0 0; }
+
+/* ---- Agent setup and sign-in ---- */
+.agent-setup {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+}
+.agent-setup.is-ok { border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+.agent-error { flex-basis: 100%; margin: 0; white-space: pre-wrap; max-height: 160px; overflow: auto; }
+.signin-dialog { width: min(480px, calc(100vw - 32px)); }
+.signin-body { display: grid; gap: 14px; }
+.signin-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.signin-body .btn { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.signin-code { display: grid; gap: 8px; }
+.signin-code label { display: grid; gap: 6px; font-size: 13px; }
+.signin-code input { height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--text); font: 13px var(--mono); }
+.signin-done { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
+.dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px 16px; }

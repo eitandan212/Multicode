@@ -133,7 +133,7 @@ export class CodexAppServerProvider implements Provider {
           if (needsSignIn && !account.account && account.requiresOpenaiAuth)
             return yield* Effect.fail(
               new ProviderError(
-                "Codex isn't signed in. Run `codex login` in a terminal once, then try again.",
+                "Codex isn't signed in. Press Sign in (or run `codex login`), then try again.",
               ),
             );
           return client;
@@ -250,6 +250,74 @@ export class CodexAppServerProvider implements Provider {
     } finally {
       signal.removeEventListener("abort", onAbort);
       await close();
+    }
+  }
+
+  /** Who Codex is signed in as (undefined when signed out). */
+  async account(): Promise<{ signedIn: boolean; account?: string }> {
+    const cwd = path.join(tmpdir(), "multicode-codex-probe");
+    const { client, close } = await this.open(cwd, { mode: "text" }, () => Effect.void, false);
+    try {
+      const r = (await run(client.request("account/read", {} as never))) as {
+        account?: { type: string; email?: string | null; planType?: string } | null;
+        requiresOpenaiAuth?: boolean;
+      };
+      if (!r.account) return { signedIn: !r.requiresOpenaiAuth };
+      return {
+        signedIn: true,
+        account:
+          r.account.type === "chatgpt"
+            ? [r.account.email, r.account.planType].filter(Boolean).join(" · ") || "ChatGPT"
+            : r.account.type === "apiKey"
+              ? "API key"
+              : r.account.type,
+      };
+    } finally {
+      await close();
+    }
+  }
+
+  /**
+   * Codex's own ChatGPT sign-in (the one its apps use): Codex opens a local callback, MultiCode
+   * shows its sign-in link, and `done` settles when Codex reports the login finished.
+   */
+  async startLogin(): Promise<{
+    url: string;
+    done: Promise<{ ok: boolean; error?: string }>;
+    cancel: () => void;
+  }> {
+    let finish!: (r: { ok: boolean; error?: string }) => void;
+    const done = new Promise<{ ok: boolean; error?: string }>((r) => (finish = r));
+    const cwd = path.join(tmpdir(), "multicode-codex-probe");
+    const { client, close } = await this.open(
+      cwd,
+      { mode: "text" },
+      (c) =>
+        c.handleServerNotification("account/login/completed", (p) =>
+          Effect.sync(() => finish({ ok: p.success, ...(p.error ? { error: p.error } : {}) })),
+        ),
+      false,
+    );
+    try {
+      const r = (await run(client.request("account/login/start", { type: "chatgpt" } as never))) as {
+        type: string;
+        authUrl?: string;
+        loginId?: string;
+      };
+      if (!r.authUrl) throw new ProviderError("Codex didn't return a sign-in link");
+      void done.finally(() => void close());
+      return {
+        url: r.authUrl,
+        done,
+        cancel: () => {
+          if (r.loginId)
+            void run(client.request("account/login/cancel", { loginId: r.loginId } as never)).catch(() => {});
+          finish({ ok: false, error: "Cancelled" });
+        },
+      };
+    } catch (err) {
+      await close();
+      throw err;
     }
   }
 

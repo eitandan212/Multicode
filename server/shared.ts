@@ -540,3 +540,28 @@ export function modelStrength(kind: ProviderKind, model = ""): number {
     return 2;
   return 2;
 }
+
+/** Agents MultiCode can install and sign in to from the app. */
+export type SignInKind = "claude-cli" | "codex-cli";
+
+export interface AgentAccess {
+  kind: SignInKind;
+  installed: boolean;
+  signedIn: boolean;
+  /** Who: an email, a plan, or how (API key). */
+  account?: string;
+  /** Set when the status couldn't be read. */
+  problem?: string;
+}
+
+export interface SignInFlow {
+  id: string;
+  kind: SignInKind;
+  state: "waiting" | "done" | "error";
+  /** The page to open (the agent usually opens it by itself too). */
+  url?: string;
+  /** True when the agent asked for a code from the sign-in page. */
+  wantsCode?: boolean;
+  message?: string;
+}
+
