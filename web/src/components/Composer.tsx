@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import type { CrewMember, RunMode, Settings } from "../../../server/shared";
-import { colorFor } from "../crewColors";
+import type {
+  ConnectionView,
+  CrewMember,
+  RunMode,
+  Settings,
+} from "../../../server/shared";
 import { Icon } from "./Icon";
+import { MemberLogo } from "./ProviderLogo";
 
 interface Props {
   crew: CrewMember[];
+  connections: ConnectionView[];
   settings: Settings;
   project: string;
   canRun: boolean;
@@ -111,13 +117,21 @@ export function Composer(p: Props) {
             onClick={p.onOpenCrew}
             title="Edit crew"
           >
-            <span className="crew-dots" aria-hidden>
+            <span className="crew-logos" aria-hidden>
               {p.crew.slice(0, 4).map((m) => (
-                <span
-                  key={m.id}
-                  style={{ background: colorFor(p.crew, m.id) }}
-                />
+                <span key={m.id} className="crew-logo">
+                  <MemberLogo
+                    member={m}
+                    connections={p.connections}
+                    size={12}
+                  />
+                </span>
               ))}
+              {p.crew.length > 4 && (
+                <span className="crew-logo crew-more">
+                  +{p.crew.length - 4}
+                </span>
+              )}
             </span>
             {p.crew.length === 0
               ? "No crew yet"

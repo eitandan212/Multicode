@@ -31,7 +31,11 @@ import openai from "@lobehub/icons-static-svg/icons/openai.svg?raw";
 import opencode from "@lobehub/icons-static-svg/icons/opencode.svg?raw";
 import openrouter from "@lobehub/icons-static-svg/icons/openrouter.svg?raw";
 import qwen from "@lobehub/icons-static-svg/icons/qwen-color.svg?raw";
-import type { ProviderKind } from "../../../server/shared";
+import type {
+  ConnectionView,
+  CrewMember,
+  ProviderKind,
+} from "../../../server/shared";
 
 /** Neutral mark for endpoints whose maker we can't tell: never borrow another company's logo. */
 const generic =
@@ -111,10 +115,6 @@ function endpointBrand(baseUrl = ""): string | undefined {
   return undefined;
 }
 
-/** Agents are named after their model, so the logo follows the model's maker first. */
-function brandFor(baseUrl = "", model = ""): string | undefined {
-  return modelBrand(model) ?? endpointBrand(baseUrl);
-}
 
 // The logos are decorative (the name is always shown next to them), so drop their <title>.
 const clean = new Map<string, string>();
@@ -137,13 +137,15 @@ export function ProviderLogo({
   acp?: AcpLogoRef;
   size?: number;
 }) {
-  if (kind === "acp" && acp && !BY_AGENT[acp.agentId] && acp.icon)
+  // The model's maker comes first (Opus 5.5 through Claude Code shows Claude's mark, GPT-5
+  // through Codex shows OpenAI's); the harness or service mark is the fallback.
+  const maker = modelBrand(model);
+  if (!maker && kind === "acp" && acp && !BY_AGENT[acp.agentId] && acp.icon)
     return <AgentIcon icon={acp.icon} size={size} />;
   const svg = strip(
-    (kind === "acp" && acp ? BY_AGENT[acp.agentId] : undefined) ??
-      (kind === "openai-compatible" || kind === "opencode-cli"
-        ? brandFor(kind === "opencode-cli" ? "" : baseUrl, model)
-        : undefined) ??
+    maker ??
+      (kind === "acp" && acp ? BY_AGENT[acp.agentId] : undefined) ??
+      (kind === "openai-compatible" ? endpointBrand(baseUrl) : undefined) ??
       BY_KIND[kind],
   );
   // Static SVG files bundled at build time, never user input.
@@ -196,4 +198,27 @@ export function AgentIcon({
 /** The bundled mark for a registry agent, if MultiCode ships one. */
 export function hasBundledAgentLogo(agentId: string): boolean {
   return Boolean(BY_AGENT[agentId]);
+}
+
+/** A crew member's mark: the logo of the model's maker (Claude for Opus 5.5 via Claude Code…). */
+export function MemberLogo({
+  member,
+  connections,
+  size = 14,
+}: {
+  member: CrewMember;
+  connections: ConnectionView[];
+  size?: number;
+}) {
+  const c = connections.find((x) => x.id === member.connectionId);
+  if (!c) return null;
+  return (
+    <ProviderLogo
+      kind={c.kind}
+      acp={c.acp}
+      baseUrl={c.baseUrl}
+      model={member.model || c.defaultModel}
+      size={size}
+    />
+  );
 }

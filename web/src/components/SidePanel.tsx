@@ -91,7 +91,6 @@ export function SidePanel(p: Props) {
                 className="card-row member-row"
                 style={{ ["--agent" as string]: colorFor(p.crew, m.id) }}
               >
-                <span className="member-dot" />
                 {c && (
                   <ProviderLogo
                     kind={c.kind}

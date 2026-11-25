@@ -201,7 +201,6 @@ export function CrewDialog({
                 style={{ ["--agent" as string]: colorFor(crew, m.id) }}
               >
                 <div className="edit-card-head">
-                  <span className="member-dot" />
                   {conn(m.connectionId) && (
                     <ProviderLogo
                       kind={conn(m.connectionId)!.kind}

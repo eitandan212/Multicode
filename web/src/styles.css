@@ -3341,3 +3341,89 @@ pre,
 :root[data-motion="reduced"] .shell {
   transition: none;
 }
+
+/* Crew logos: each agent shows its model maker's mark instead of a coloured dot. */
+.crew-logos {
+  display: inline-flex;
+  align-items: center;
+}
+.crew-logo {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow:
+    0 0 0 2px var(--card),
+    inset 0 0 0 1px var(--line);
+  animation: logo-in 320ms var(--ease) both;
+  transition: transform 220ms var(--ease);
+}
+.crew-logo:first-child {
+  margin-left: 0;
+}
+.crew-logo:nth-child(2) {
+  animation-delay: 50ms;
+}
+.crew-logo:nth-child(3) {
+  animation-delay: 100ms;
+}
+.crew-logo:nth-child(4) {
+  animation-delay: 150ms;
+}
+.crew-more {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.crew-chip:hover .crew-logo {
+  transform: translateX(calc(var(--i, 0) * 2px));
+}
+.crew-chip:hover .crew-logo:nth-child(2) {
+  --i: 1;
+}
+.crew-chip:hover .crew-logo:nth-child(3) {
+  --i: 2;
+}
+.crew-chip:hover .crew-logo:nth-child(4) {
+  --i: 3;
+}
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* A working agent: its logo breathes inside a soft ring. */
+.tool-logo {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+}
+.tool-logo.is-live::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--focus);
+  border-right-color: transparent;
+  animation: spin 0.9s linear infinite;
+}
+.tool-logo.is-live .logo {
+  animation: breathe 1.6s var(--ease-soft) infinite;
+}
+
+/* The agent assigned to a task, with its logo. */
+.task-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: -2px;
+}

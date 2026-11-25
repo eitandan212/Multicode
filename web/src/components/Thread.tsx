@@ -218,7 +218,15 @@ export function Thread({
                   </span>
                   <span className="muted">
                     {" "}
-                    · {t.memberId ? name(t.memberId) : "next free agent"}
+                    ·{" "}
+                    {t.memberId ? (
+                      <span className="task-who">
+                        {logo(t.memberId)}
+                        {name(t.memberId)}
+                      </span>
+                    ) : (
+                      "next free agent"
+                    )}
                     {t.files.length ? ` · ${t.files.join(", ")}` : ""}
                   </span>
                   {t.why && <span className="why">{t.why}</span>}
@@ -356,12 +364,17 @@ function ToolLine({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
-        {stream.status === "live" ? (
+        {logo ? (
+          <span
+            className={`tool-logo ${stream.status === "live" ? "is-live" : ""}`}
+          >
+            {logo}
+          </span>
+        ) : stream.status === "live" ? (
           <Pulse />
         ) : (
           <Icon name="terminal" size={14} />
         )}
-        {logo}
         <span className="tool-who">{name}</span>
         <span
           className={`tool-what truncate ${stream.status === "live" ? "shiny" : ""}`}

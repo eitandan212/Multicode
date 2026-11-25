@@ -430,6 +430,7 @@ export function App() {
   const composer = project && (
     <Composer
       crew={crew}
+      connections={state.connections}
       settings={state.settings}
       project={project}
       canRun={canRun}
