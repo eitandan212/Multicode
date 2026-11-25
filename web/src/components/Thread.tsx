@@ -1,3 +1,4 @@
+import { Markdown } from "./Markdown";
 import { PromptText } from "./PromptText";
 import type { RunSummary } from "../../../server/shared";
 import { useEffect, useRef, useState } from "react";
@@ -169,10 +170,9 @@ export function Thread({
             </div>
           </div>
           <div className={`msg-agent ${t.status === "error" ? "is-failed" : ""}`}>
-            <p>
-              {t.reply ??
-                (t.status === "cancelled" ? "Stopped." : t.status === "error" ? "This turn failed." : "Done.")}
-            </p>
+            <Markdown
+              text={t.reply ?? (t.status === "cancelled" ? "Stopped." : t.status === "error" ? "This turn failed." : "Done.")}
+            />
             {t.changedFiles && t.changedFiles.length > 0 && (
               <p className="turn-files muted small">
                 <Icon name="file" size={12} /> {t.changedFiles.length} file{t.changedFiles.length === 1 ? "" : "s"} changed:{" "}
@@ -289,7 +289,7 @@ export function Thread({
 
       {run.plan && (
         <div className="msg-agent enter">
-          {run.plan.summary && <p>{run.plan.summary}</p>}
+          {run.plan.summary && <Markdown text={run.plan.summary} />}
           <ul className="checklist">
             {run.tasks.map((t) => (
               <li
@@ -388,15 +388,17 @@ export function Thread({
 
       {run.status === "done" && !run.variants && (
         <div className="msg-agent enter is-done">
-          <p>
-            {run.context?.safety === "readonly"
-              ? "Here's the plan. Nothing was changed (plan-only mode)."
-              : run.changed.length === 0
-                ? run.summary?.trim() || "Done. No files changed."
-                : review.pending === "sandbox"
-                  ? "Done in the sandbox. Review the changes, then apply them to your project."
-                  : "Done. The crew finished and reviewed the work."}
-          </p>
+          <Markdown
+            text={
+              run.context?.safety === "readonly"
+                ? "Here's the plan. Nothing was changed (plan-only mode)."
+                : run.changed.length === 0
+                  ? run.summary?.trim() || "Done. No files changed."
+                  : review.pending === "sandbox"
+                    ? "Done in the sandbox. Review the changes, then apply them to your project."
+                    : "Done. The crew finished and reviewed the work."
+            }
+          />
           {review.pending === "sandbox" && (
             <ApplyBar
               onApply={(force) => onApply(undefined, force)}

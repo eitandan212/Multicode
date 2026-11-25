@@ -1,7 +1,7 @@
 {
   "name": "multicode",
   "version": "0.3.5",
-  "description": "Connect your AI subscriptions and API keys \u2014 and let them build together as a crew.",
+  "description": "Connect your AI subscriptions and API keys — and let them build together as a crew.",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -38,8 +38,10 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "concurrently": "^10.0.7",
+    "dompurify": "^3.5.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
+    "marked": "^15.0.12",
     "monaco-editor": "0.57.0",
     "png-to-ico": "^3.0.2",
     "react": "^19.3.1",
@@ -56,7 +58,7 @@
   "build": {
     "appId": "com.multicode.desktop",
     "productName": "MultiCode",
-    "copyright": "Copyright \u00a9 2026 MultiCode",
+    "copyright": "Copyright © 2026 MultiCode",
     "directories": {
       "output": "release",
       "buildResources": "build"
