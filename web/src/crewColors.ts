@@ -8,13 +8,13 @@ export function colorFor(crew: CrewMember[], memberId?: string): string {
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
-  architect: "Dispatcher",
+  architect: "Planner",
   builder: "Builder",
   reviewer: "Reviewer",
 };
 
 export const ROLE_HINT: Record<Role, string> = {
-  architect: "Plans the work and assigns each task to the best agent",
+  architect: "Thinks the request through and plans the work",
   builder: "Writes the code, in parallel with other builders",
   reviewer: "Checks the result and sends fixes back",
 };

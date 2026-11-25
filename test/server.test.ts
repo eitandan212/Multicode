@@ -53,6 +53,7 @@ import {
   parseTeam,
   soloMember,
 } from "../server/team.js";
+import { AGENT_PRESETS } from "../server/agents.js";
 import { safeRelative, Workspace } from "../server/workspace.js";
 
 describe("parsers", () => {
@@ -129,10 +130,19 @@ describe("cli adapters", () => {
       expect.arrayContaining(["--agent", "plan", "--dir", "/p"]),
     );
     // OpenCode 2: no --dir, a private server, edits approved only in edit tasks.
-    const v2edit = buildCliArgs("opencode-cli", { ...req, mode: "edit" }, "x", 2);
-    expect(v2edit).toEqual(expect.arrayContaining(["--standalone", "--agent", "build", "--auto"]));
+    const v2edit = buildCliArgs(
+      "opencode-cli",
+      { ...req, mode: "edit" },
+      "x",
+      2,
+    );
+    expect(v2edit).toEqual(
+      expect.arrayContaining(["--standalone", "--agent", "build", "--auto"]),
+    );
     expect(v2edit).not.toContain("--dir");
-    expect(buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x", 2)).not.toContain("--auto");
+    expect(
+      buildCliArgs("opencode-cli", { ...req, mode: "text" }, "x", 2),
+    ).not.toContain("--auto");
     expect(buildCliArgs("qwen-cli", { ...req, mode: "text" }, "x")).toEqual(
       expect.arrayContaining(["--approval-mode", "plan"]),
     );
@@ -566,6 +576,98 @@ describe("manager model", () => {
       expect(planner).toMatchObject({ memberId: architect });
       expect(result.changedFiles.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("specialist agents", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-agents-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  it("every reviewer checks in parallel; one rejection sends fixes back", async () => {
+    const ws = await Workspace.open(dir, "reviewers");
+    const base = fakeProvider({ review: [] });
+    const securitySystems: string[] = [];
+    let securityCalls = 0;
+    const security: Provider = {
+      editsFiles: false,
+      async generate(req, onDelta) {
+        securitySystems.push(req.system);
+        const out =
+          securityCalls++ === 0
+            ? '{"approved":false,"summary":"unsafe","issues":[{"file":"app.js","problem":"eval of input","fix":"remove eval"}]}'
+            : '{"approved":true,"summary":"safe now","issues":[]}';
+        onDelta(out);
+        return out;
+      },
+    };
+    const sec = {
+      ...member("sec", "reviewer", security),
+      instructions: "Security reviewer: injection and XSS.",
+    };
+    const events: RunEvent[] = [];
+    await runCrew({
+      prompt: "make a page",
+      history: [],
+      workspace: ws,
+      roles: assignRoles([
+        member("arch", "architect", base),
+        member("b1", "builder", base),
+        member("b2", "builder", base),
+        member("rev", "reviewer", base),
+        sec,
+      ]),
+      settings: { maxReviewRounds: 2, dispatch: "smart" },
+      emit: (e) => events.push(e),
+      signal: new AbortController().signal,
+    });
+    const reviews = events.filter((e) => e.type === "review");
+    expect(reviews).toHaveLength(2);
+    expect(reviews[0]).toMatchObject({
+      review: { approved: false, issues: [{ file: "app.js" }] },
+    });
+    expect(reviews[1]).toMatchObject({ review: { approved: true } });
+    expect(securitySystems[0]).toContain("Your specialty");
+    // Both reviewers ran in round 1.
+    const starts = events.filter(
+      (e) =>
+        e.type === "agent.start" && e.title.startsWith("Reviewing the build"),
+    );
+    expect(
+      new Set(starts.map((e) => (e as { memberId: string }).memberId)),
+    ).toEqual(new Set(["rev", "sec"]));
+    expect(events.some((e) => e.type === "tasks.added")).toBe(true);
+  });
+
+  it("presets are well-formed and the crew keeps only known ones", async () => {
+    expect(new Set(AGENT_PRESETS.map((p) => p.id)).size).toBe(
+      AGENT_PRESETS.length,
+    );
+    expect(
+      AGENT_PRESETS.every(
+        (p) =>
+          p.instructions.length < 1000 &&
+          ["architect", "builder", "reviewer"].includes(p.role),
+      ),
+    ).toBe(true);
+    const store = new ConfigStore(path.join(dir, "cfg"));
+    await store.load();
+    const c = await store.upsertConnection({
+      kind: "openai",
+      apiKey: "sk-test-1234",
+    });
+    const crew = await store.setCrew([
+      {
+        name: "GPT-5",
+        role: "reviewer",
+        connectionId: c.id,
+        preset: "security",
+      },
+      { name: "GPT-5", role: "builder", connectionId: c.id, preset: "made-up" },
+    ]);
+    expect(crew.map((m) => m.preset)).toEqual(["security", undefined]);
   });
 });
 

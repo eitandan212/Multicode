@@ -8,6 +8,7 @@ import { api } from "../api";
 import { serviceName } from "../../../server/shared";
 import { colorFor, ROLE_LABEL } from "../crewColors";
 import { DiffView } from "./DiffView";
+import { AGENT_PRESETS } from "../../../server/agents";
 import { ProviderLogo } from "./ProviderLogo";
 import { Icon, Spinner } from "./Icon";
 
@@ -101,7 +102,9 @@ export function SidePanel(p: Props) {
                 )}
                 <span className="member-name truncate">{m.name}</span>
                 <span className="muted truncate member-meta">
-                  {ROLE_LABEL[m.role]}
+                  {(m.preset &&
+                    AGENT_PRESETS.find((x) => x.id === m.preset)?.title) ||
+                    ROLE_LABEL[m.role]}
                   {m.role === "builder" && (m.agents ?? 1) > 1
                     ? ` · ${m.agents} agents`
                     : ""}{" "}

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
   connectionName,
+  modelStrength,
   type CrewMember,
   type Role,
 } from "../../../server/shared";
 import { api, type AppState } from "../api";
 import { colorFor, ROLE_HINT, ROLE_LABEL } from "../crewColors";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
+import { AGENT_PRESETS, type AgentPreset } from "../../../server/agents";
 import { ProviderLogo } from "./ProviderLogo";
 
 /** A free OpenCode model: plenty for coordinating the crew, and it costs nothing. */
@@ -38,6 +40,7 @@ export function CrewDialog({
   const [saving, setSaving] = useState(false);
   const [dispatch, setDispatch] = useState(state.settings.dispatch);
   const [adding, setAdding] = useState(false);
+  const [gallery, setGallery] = useState(false);
   const opencode = state.clis.find((c) => c.kind === "opencode-cli");
   const [manager, setManager] = useState(
     state.settings.manager ?? { mode: "auto" as const },
@@ -231,6 +234,18 @@ export function CrewDialog({
                       model={m.model || conn(m.connectionId)!.defaultModel}
                     />
                   )}
+                  {m.preset && PRESETS.get(m.preset) && (
+                    <span
+                      className="agent-tag"
+                      title={PRESETS.get(m.preset)!.description}
+                    >
+                      <Icon
+                        name={PRESETS.get(m.preset)!.icon as IconName}
+                        size={12}
+                      />
+                      {PRESETS.get(m.preset)!.title}
+                    </span>
+                  )}
                   <input
                     className="name-input"
                     value={m.name}
@@ -354,24 +369,36 @@ export function CrewDialog({
                 </div>
               </div>
             ))}
-            <button
-              className="btn ghost wide"
-              disabled={crew.length >= 20}
-              onClick={() =>
-                setCrew([
-                  ...crew,
-                  {
-                    id: crypto.randomUUID(),
-                    name: state.connections[0]!.label,
-                    role: "builder",
-                    connectionId: state.connections[0]!.id,
-                    agents: 1,
-                  },
-                ])
-              }
-            >
-              Add a member
-            </button>
+            {gallery ? (
+              <AgentGallery
+                onPick={(preset) => {
+                  setCrew([...crew, memberFor(preset, state.connections)]);
+                  setGallery(false);
+                }}
+                onCustom={() => {
+                  setCrew([
+                    ...crew,
+                    {
+                      id: crypto.randomUUID(),
+                      name: state.connections[0]!.label,
+                      role: "builder",
+                      connectionId: state.connections[0]!.id,
+                      agents: 1,
+                    },
+                  ]);
+                  setGallery(false);
+                }}
+                onClose={() => setGallery(false)}
+              />
+            ) : (
+              <button
+                className="btn ghost wide"
+                disabled={crew.length >= 20}
+                onClick={() => setGallery(true)}
+              >
+                <Icon name="users" size={14} /> Add agent
+              </button>
+            )}
             {error && <p className="err-text">{error}</p>}
             <div className="form-actions">
               <button
@@ -392,6 +419,92 @@ export function CrewDialog({
         )}
       </div>
     </dialog>
+  );
+}
+
+const PRESETS = new Map(AGENT_PRESETS.map((p) => [p.id, p]));
+
+/**
+ * A new crew member for a specialist: frontier-needing agents get your strongest model, others
+ * the next strongest, so work spreads across accounts. Named after its model, as every agent is.
+ */
+function memberFor(
+  preset: AgentPreset,
+  connections: AppState["connections"],
+): CrewMember {
+  const ranked = [...connections].sort(
+    (a, b) =>
+      modelStrength(b.kind, b.defaultModel) -
+      modelStrength(a.kind, a.defaultModel),
+  );
+  const conn = (preset.strong ? ranked[0] : (ranked[1] ?? ranked[0]))!;
+  return {
+    id: crypto.randomUUID(),
+    name: conn.defaultModel
+      ? connectionName(conn.kind, conn.baseUrl, conn.defaultModel)
+      : conn.label,
+    role: preset.role,
+    connectionId: conn.id,
+    agents: 1,
+    instructions: preset.instructions,
+    preset: preset.id,
+  };
+}
+
+const GROUPS: { role: AgentPreset["role"]; title: string }[] = [
+  { role: "architect", title: "Plan" },
+  { role: "builder", title: "Build" },
+  { role: "reviewer", title: "Review" },
+];
+
+/** Ready-made specialists to add to the crew. */
+function AgentGallery(p: {
+  onPick: (preset: AgentPreset) => void;
+  onCustom: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <section className="agent-gallery" aria-label="Add an agent">
+      <div className="agent-gallery-head">
+        <b>Add an agent</b>
+        <span className="muted small">
+          Specialists keep your model's name; the specialty guides the planner,
+          the manager and the agent.
+        </span>
+        <button
+          className="icon-btn push-right"
+          onClick={p.onClose}
+          aria-label="Close"
+        >
+          <Icon name="x" size={14} />
+        </button>
+      </div>
+      {GROUPS.map((g) => (
+        <div key={g.role} className="agent-group">
+          <span className="agent-group-title">{g.title}</span>
+          <div className="agent-grid">
+            {AGENT_PRESETS.filter((a) => a.role === g.role).map((a) => (
+              <button
+                key={a.id}
+                className="agent-card"
+                onClick={() => p.onPick(a)}
+              >
+                <span className="agent-icon">
+                  <Icon name={a.icon as IconName} size={15} />
+                </span>
+                <span className="agent-text">
+                  <b>{a.title}</b>
+                  <span className="muted small">{a.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button className="link small" onClick={p.onCustom}>
+        Or add a custom agent
+      </button>
+    </section>
   );
 }
 

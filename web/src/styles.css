@@ -3552,3 +3552,97 @@ pre,
   font: inherit;
   font-size: 13px;
 }
+
+/* Specialist agents */
+.agent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  animation: logo-in 280ms var(--ease) both;
+}
+.agent-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  animation: enter 320ms var(--ease) both;
+}
+.agent-gallery-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.agent-group-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.agent-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: enter 320ms var(--ease) both;
+  transition:
+    border-color 160ms var(--ease-soft),
+    transform 200ms var(--ease),
+    background-color 160ms var(--ease-soft);
+}
+.agent-card:hover {
+  border-color: var(--focus);
+  transform: translateY(-1px);
+}
+.agent-card:active {
+  transform: scale(0.98);
+}
+.agent-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.agent-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.agent-gallery-head > .muted {
+  order: 3;
+  flex-basis: 100%;
+}
+.agent-gallery-head > .icon-btn {
+  order: 2;
+}

@@ -1,3 +1,4 @@
+import { PRESET_IDS } from "./agents.js";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -306,6 +307,10 @@ export class ConfigStore {
         model: str(m.model, `crew[${i}].model`, 200),
         agents,
         instructions: str(m.instructions, `crew[${i}].instructions`, 1000),
+        preset:
+          typeof m.preset === "string" && PRESET_IDS.has(m.preset)
+            ? m.preset
+            : undefined,
       };
     });
     this.data.crew = crew;

@@ -28,7 +28,10 @@ export interface ResolvedMember extends CrewMember {
 export interface CrewRoles {
   architect: ResolvedMember;
   builders: ResolvedMember[];
+  /** The lead reviewer (first of `reviewers`). */
   reviewer: ResolvedMember;
+  /** Every reviewer; they review in parallel each round (e.g. code + security). */
+  reviewers?: ResolvedMember[];
 }
 
 /** Fills empty roles so that any non-empty crew can run end to end. */
@@ -40,7 +43,8 @@ export function assignRoles(members: ResolvedMember[]): CrewRoles {
   const architect = by("architect")[0] ?? by("reviewer")[0] ?? builders[0]!;
   const reviewer =
     by("reviewer")[0] ?? by("architect")[0] ?? builders[builders.length - 1]!;
-  return { architect, builders, reviewer };
+  const reviewers = by("reviewer").length ? by("reviewer") : [reviewer];
+  return { architect, builders, reviewer, reviewers };
 }
 
 /**
@@ -603,37 +607,58 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
   const rounds = economy
     ? Math.min(1, o.settings.maxReviewRounds)
     : o.settings.maxReviewRounds;
-  const reviewer = economy
-    ? cheapest([roles.reviewer, roles.architect, ...roles.builders])
-    : roles.reviewer;
+  // Economy: one cheap reviewer. Otherwise every reviewer (e.g. code + security) checks in parallel.
+  const reviewers = economy
+    ? [cheapest([roles.reviewer, roles.architect, ...roles.builders])]
+    : (roles.reviewers?.length ? roles.reviewers : [roles.reviewer]);
   let reviewSummary = "";
   for (let round = 1; round <= rounds; round++) {
     emit({ type: "phase", phase: "reviewing", round });
-    const reviewText = await withFallback(reviewer, async (m) => {
-      const ctx = isCli(m)
-        ? {
-            tree: (await digest(0)).tree,
-            files: "(read the files from the current directory)",
-          }
-        : await digest(economy ? 50_000 : 120_000, [...changed]);
-      return call(
-        m,
-        ws,
-        round === 1 ? "Reviewing the build" : `Re-review (round ${round})`,
-        P.reviewerSystem(),
-        P.reviewerPrompt(o.prompt, plan, ctx.tree, ctx.files),
-        "text",
-      );
-    }).catch((err: Error) => {
-      // A failing reviewer should not throw away finished work.
-      checkAbort();
-      return JSON.stringify({
-        approved: true,
-        summary: `Review skipped: ${err.message}`,
-        issues: [],
-      });
-    });
-    const review = parseReview(reviewText);
+    const verdicts = await Promise.all(
+      reviewers.map(async (reviewer) => {
+        const text = await withFallback(reviewer, async (m) => {
+          const ctx = isCli(m)
+            ? {
+                tree: (await digest(0)).tree,
+                files: "(read the files from the current directory)",
+              }
+            : await digest(economy ? 50_000 : 120_000, [...changed]);
+          const what = reviewer.instructions ? reviewer.instructions.split(/[:.]/)[0]!.trim() : "";
+          return call(
+            m,
+            ws,
+            `${round === 1 ? "Reviewing the build" : `Re-review (round ${round})`}${reviewers.length > 1 && what ? ` · ${what}` : ""}`,
+            P.reviewerSystem(reviewer.instructions),
+            P.reviewerPrompt(o.prompt, plan, ctx.tree, ctx.files),
+            "text",
+          );
+        }).catch((err: Error) => {
+          // A failing reviewer should not throw away finished work.
+          checkAbort();
+          return JSON.stringify({
+            approved: true,
+            summary: `Review skipped: ${err.message}`,
+            issues: [],
+          });
+        });
+        return { reviewer, review: parseReview(text) };
+      }),
+    );
+    // One verdict: approved only if every reviewer approves; issues from all of them.
+    const seen = new Set<string>();
+    const review = {
+      approved: verdicts.every((v) => v.review.approved),
+      summary:
+        verdicts.length === 1
+          ? verdicts[0]!.review.summary
+          : verdicts.map((v) => `${v.reviewer.name}: ${v.review.summary}`).join("\n"),
+      issues: verdicts
+        .flatMap((v) => v.review.issues)
+        .filter((i) => {
+          const key = `${i.file}|${i.problem}`;
+          return seen.has(key) ? false : (seen.add(key), true);
+        }),
+    };
     reviewSummary = review.summary;
     emit({ type: "review", review, round });
     checkAbort();

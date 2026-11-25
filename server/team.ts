@@ -3,47 +3,12 @@ import type { Connection } from "./config.js";
 import { HttpError } from "./config.js";
 import {
   connectionName,
-  isFreeModel,
+  modelStrength,
   type CrewMember,
-  type ProviderKind,
   type TeamChoice,
 } from "./shared.js";
 
-/** Default model strength when a connection names no model (the harness picks its own). */
-const KIND_STRENGTH: Partial<Record<ProviderKind, number>> = {
-  "claude-cli": 3,
-  "codex-cli": 3,
-  anthropic: 3,
-  openai: 3,
-  "gemini-cli": 2,
-  gemini: 2,
-  acp: 2,
-};
-
-/**
- * A rough capability rank (1 = light/free, 2 = strong, 3 = frontier), used only to decide
- * who plans and reviews in Auto. It never blocks a model; unknown models rank in the middle.
- */
-export function modelStrength(kind: ProviderKind, model = ""): number {
-  const m = model.toLowerCase();
-  if (!m) return KIND_STRENGTH[kind] ?? 1;
-  if (isFreeModel(m)) return 1;
-  if (/(mini|nano|lite|haiku|flash-lite|small|tiny|[^\d]\d{1,2}b\b)/.test(m))
-    return 1;
-  if (
-    /(opus|fable|gpt-5|\bo[34]\b|gemini-(2\.5-pro|[3-9])|grok-4|claude-sonnet-5)/.test(
-      m,
-    )
-  )
-    return 3;
-  if (
-    /(sonnet|gpt-4\.1|gpt-4o|gemini|deepseek|qwen3|kimi|glm-4|codestral|mistral-large|grok|llama-4)/.test(
-      m,
-    )
-  )
-    return 2;
-  return 2;
-}
+export { modelStrength };
 
 /**
  * Auto: every connection joins. The strongest model plans, the next strongest reviews, and the

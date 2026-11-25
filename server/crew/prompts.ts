@@ -128,11 +128,14 @@ export function builderPrompt(opts: {
     .join("\n\n");
 }
 
-export function reviewerSystem(): string {
+export function reviewerSystem(specialty?: string): string {
+  const focus = specialty?.trim()
+    ? `\nYour specialty (focus your review on it): ${specialty.trim().slice(0, 600)}`
+    : "";
   return `${TEAM}
 Your role: REVIEWER. Check the result against the request: bugs, broken references between files
 (ids, imports, function names), missing features, runtime errors, and obvious UX problems.
-Ignore style nitpicks. Approve when it works and fulfils the request.
+Ignore style nitpicks. Approve when it works and fulfils the request.${focus}
 Reply with ONLY a JSON object:
 {"approved": true|false, "summary": "<2-4 sentences>",
  "issues": [{"file": "path", "problem": "...", "fix": "<concrete instruction>"}]}`;

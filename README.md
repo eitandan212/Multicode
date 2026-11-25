@@ -132,6 +132,15 @@ The button next to *Send* chooses who works on the next request:
 
 Your choice is remembered in this browser.
 
+### Specialist agents
+
+*Crew → Add agent* opens a library of specialists: Lead planner; Frontend, Backend and
+Roblox/Luau engineers, UI designer, Test engineer, Debugger and Docs writer; and Code, Security,
+Performance and Accessibility reviewers. Each one runs on any model you have connected (it keeps
+the model's name; the specialty shows as a tag), and its specialty guides the planner, the manager's
+task routing and the agent itself. Several reviewers check each round in parallel; the work is
+approved only when all of them approve, and their issues go back to the builders as fixes.
+
 ### The manager (free)
 
 A free or cheap **manager** model runs the crew, so your strong models spend their effort on
