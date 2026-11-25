@@ -144,6 +144,8 @@ export interface RunOptions {
   managerPicksTeam?: boolean;
   /** Your approvals for agent actions (Claude Code style). Absent: nothing asks. */
   approvals?: Approvals;
+  /** Sleep mode: you're away; agents decide alone and never ask. */
+  autonomous?: boolean;
 }
 
 /** An action the user declined: not retried by another agent, not counted as a failure. */
@@ -179,7 +181,7 @@ const DEFAULT_LIMITS = {
  */
 type KitOptions = Pick<
   RunOptions,
-  "emit" | "signal" | "limits" | "limited" | "fallback" | "mcpServers" | "env" | "approvals"
+  "emit" | "signal" | "limits" | "limited" | "fallback" | "mcpServers" | "env" | "approvals" | "autonomous"
 >;
 
 function agentKit(o: KitOptions) {
@@ -247,7 +249,7 @@ function agentKit(o: KitOptions) {
     try {
       const text = await member.provider.generate(
         {
-          system,
+          system: o.autonomous ? system + P.AWAY : system,
           prompt,
           model: member.model,
           cwd: ws.root,

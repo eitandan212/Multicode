@@ -200,6 +200,8 @@ export interface ConnectionView {
   defaultModel?: string;
   hasKey: boolean;
   keyHint?: string;
+  /** Names of extra request headers (their values stay on the server, like the key). */
+  headerNames?: string[];
 }
 
 export type Role = "architect" | "builder" | "reviewer";
@@ -249,6 +251,8 @@ export interface Settings {
   safety: SafetyMode;
   /** Which agent actions wait for your approval (default: all of them). */
   approvals: ApprovalMode;
+  /** The first-run setup was finished or skipped. */
+  onboarded?: boolean;
   /** Files agents may never read or change (glob patterns, relative to the project). */
   protectedPaths: string[];
   /** Spend fewer tokens: cheaper routing, one review round, smaller context. */
@@ -438,6 +442,7 @@ export type RunEvent =
       };
       safety?: SafetyMode;
       economy?: boolean;
+      sleep?: boolean;
     }
   | { type: "tasks.added"; tasks: PlanTask[]; round: number }
   | {
@@ -497,6 +502,8 @@ export interface RunSummary {
   pending?: "sandbox" | "design";
   mode?: RunMode;
   team?: TeamChoice;
+  /** Started in Sleep mode: the crew worked alone, approving its own actions. */
+  sleep?: boolean;
   /** What you decided about pending changes. */
   resolution?: "applied" | "discarded";
   startedAt: number;

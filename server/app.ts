@@ -5,7 +5,7 @@ import express, {
 } from "express";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { ConfigStore, HttpError } from "./config.js";
+import { ConfigStore, HttpError, parseHeaders } from "./config.js";
 import { DEFAULT_MODELS } from "./providers/api.js";
 import {
   CLI_BINARIES,
@@ -26,6 +26,7 @@ import { parseTeam } from "./team.js";
 import { installAgent, loadRegistry, registryView } from "./acp/registry.js";
 import {
   AGENT_KINDS,
+  API_KINDS,
   CLI_KINDS,
   type ExtensionsView,
   type ProviderKind,
@@ -233,6 +234,31 @@ export function createApp(opts: AppOptions) {
             await provider.listModels(AbortSignal.timeout(20_000))
           ).slice(0, 300),
         });
+      } catch (err) {
+        res.json({ models: [], error: (err as Error).message.slice(0, 300) });
+      }
+    }),
+  );
+
+  // Models of an API before it's saved: "Load models" in the add-connection form.
+  api.post(
+    "/models/preview",
+    wrap(async (req, res) => {
+      const kind = req.body?.kind;
+      if (!API_KINDS.includes(kind)) throw new HttpError(400, "models can be listed for API connections");
+      const baseUrl = typeof req.body?.baseUrl === "string" ? req.body.baseUrl.trim() : "";
+      if (baseUrl && !/^https?:\/\//i.test(baseUrl)) throw new HttpError(400, "baseUrl must be http(s)");
+      const provider = opts.providerFactory({
+        id: "preview",
+        kind,
+        label: "preview",
+        apiKey: typeof req.body?.apiKey === "string" ? req.body.apiKey : undefined,
+        baseUrl: baseUrl || undefined,
+        headers: parseHeaders(req.body?.headers),
+      });
+      if (!provider.listModels) return void res.json({ models: [] });
+      try {
+        res.json({ models: (await provider.listModels(AbortSignal.timeout(20_000))).slice(0, 300) });
       } catch (err) {
         res.json({ models: [], error: (err as Error).message.slice(0, 300) });
       }
@@ -451,6 +477,7 @@ export function createApp(opts: AppOptions) {
           req.body?.prompt,
           req.body?.mode ?? "build",
           parseTeam(req.body?.team, (id) => config.connection(id)),
+          req.body?.sleep === true,
         ),
       ),
     ),

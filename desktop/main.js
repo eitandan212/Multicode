@@ -1,6 +1,6 @@
 // MultiCode desktop: starts the local MultiCode server inside Electron and shows it in a
 // window. Everything stays on this computer; the window only ever loads the local app.
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkForUpdate, installUpdate } from "./updater.js";
@@ -139,6 +139,18 @@ ipcMain.handle("multicode:update-install", async (event) => {
     if (win && !win.isDestroyed()) win.webContents.send("multicode:update-progress", p);
   });
   return { version: r.version };
+});
+
+// Sleep mode: while the crew works on its own, the computer must not go to sleep (the screen
+// may still turn off).
+let awakeId = -1;
+ipcMain.on("multicode:keep-awake", (event, on) => {
+  if (!win || event.sender !== win.webContents) return;
+  if (on && awakeId < 0) awakeId = powerSaveBlocker.start("prevent-app-suspension");
+  if (!on && awakeId >= 0) {
+    powerSaveBlocker.stop(awakeId);
+    awakeId = -1;
+  }
 });
 
 // "Open folder": the native folder picker.

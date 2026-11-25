@@ -15,6 +15,17 @@ an app they didn't request. Follow the existing project's language and stack. On
 for something visual or interactive and names no platform, and the project is empty, use a
 self-contained web page (index.html + CSS + JS, no build step).`;
 
+/**
+ * Sleep mode: the user is away until morning, so nobody answers questions or approvals. Added
+ * last, so it wins over "ask when the request is vague".
+ */
+export const AWAY = `
+
+SLEEP MODE: the user is asleep and will read the result in the morning. Nobody can answer you.
+Never ask a question and never stop to wait for confirmation: when something is unclear, choose the
+most reasonable interpretation, build it fully, and list your assumptions in your summary.
+Architect: always plan concrete tasks (never answer with a question instead of a plan).`;
+
 export function architectSystem(dispatch = false, economy = false): string {
   const assign = dispatch
     ? `

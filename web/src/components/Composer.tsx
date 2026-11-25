@@ -31,6 +31,9 @@ interface Props {
   onStop: () => void;
   onOpenCrew: () => void;
   onSettings: (patch: Partial<Settings>) => Promise<void>;
+  /** Sleep mode: the crew works alone; while it's busy, new work is queued. */
+  sleep: boolean;
+  onSleep: (on: boolean) => void;
 }
 
 export function Composer(p: Props) {
@@ -40,7 +43,7 @@ export function Composer(p: Props) {
   const [error, setError] = useState("");
 
   const submit = async () => {
-    if (!prompt.trim() || p.running || !p.canRun) return;
+    if (!prompt.trim() || (p.running && !p.sleep) || !p.canRun) return;
     setSending(true);
     setError("");
     try {
@@ -136,11 +139,35 @@ export function Composer(p: Props) {
             onEditCrew={p.onOpenCrew}
             manager={p.manager}
           />
+          <button
+            type="button"
+            className={`chip sleep-chip ${p.sleep ? "is-on" : ""}`}
+            aria-pressed={p.sleep}
+            onClick={() => p.onSleep(!p.sleep)}
+            title={
+              p.sleep
+                ? "Sleep mode is on: the crew works alone and approves its own actions. Click to turn off."
+                : "Sleep mode: give the crew work and go. It decides alone, never asks, and keeps the computer awake."
+            }
+          >
+            <Icon name="moon" size={14} />
+            <span className="sleep-label">Sleep</span>
+          </button>
           <MoreControls
             settings={p.settings}
             onSettings={p.onSettings}
             onOpenSafety={p.onOpenSafety}
           />
+          {p.running && p.sleep && (
+            <button
+              className="send"
+              disabled={!p.canRun || !prompt.trim() || sending}
+              aria-label="Queue"
+              title="Queue: runs after the crew finishes (Enter)"
+            >
+              <Icon name="plus" size={16} />
+            </button>
+          )}
           {p.running ? (
             <button
               type="button"

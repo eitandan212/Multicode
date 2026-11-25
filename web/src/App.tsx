@@ -34,6 +34,7 @@ import { Icon } from "./components/Icon";
 import { LogoLoader, LogoMark } from "./components/Logo";
 import { SettingsPage } from "./components/SettingsPage";
 import { ProjectDialog } from "./components/ProjectDialog";
+import { SetupWizard } from "./components/SetupWizard";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { usePresence } from "./motion";
 import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
@@ -210,13 +211,30 @@ export function App() {
     setTutorial(false);
     store.set("tutorial", "done");
   };
+  // First-run setup: once per installation (a fresh one, with nothing connected yet), or on demand.
+  const [setupOpen, setSetupOpen] = useState(false);
+  useEffect(() => {
+    if (state && !state.settings.onboarded && state.connections.length === 0) setSetupOpen(true);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- only when the state first arrives
+  }, [Boolean(state)]);
   const showTutorial = () => {
+    setSetupOpen(true);
     setTutorial(true);
     store.set("tutorial", "");
     dispatch({ kind: "reset", run: null });
   };
   // A prompt picked in the tutorial, handed to the composer (n changes on every pick).
   const [farFromEnd, setFarFromEnd] = useState(false);
+  // Sleep mode (per device): the crew works alone, approves its own actions, and the next queued
+  // task starts when one finishes.
+  const [sleep, setSleepState] = useState(() => store.get("sleep") === "1");
+  const setSleep = (on: boolean) => {
+    setSleepState(on);
+    store.set("sleep", on ? "1" : "0");
+  };
+  const [queue, setQueue] = useState<{ id: string; project: string; prompt: string; mode: RunMode }[]>([]);
+  const [queueError, setQueueError] = useState("");
+  const starting = useRef(false);
   const [draft, setDraft] = useState<{ text: string; n: number } | undefined>();
   const createFirstProject = async (name: string) => {
     const p = await api.createProject(name);
@@ -262,6 +280,26 @@ export function App() {
     });
   }, [runId, bumpPreview, reload]);
 
+  const anyRunning = runs.some((r) => r.status === "running");
+  useEffect(() => {
+    const next = queue.find((q) => q.project === project);
+    if (!sleep || anyRunning || !next || starting.current || !project) return;
+    starting.current = true;
+    setQueue((q) => q.filter((x) => x.id !== next.id));
+    launch(next.project, next.prompt, next.mode, true)
+      .then(() => setQueueError(""))
+      .catch((e: Error) => {
+        setQueue((q) => [next, ...q]);
+        setQueueError(e.message);
+        setSleep(false);
+      })
+      .finally(() => (starting.current = false));
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- launch is recreated each render
+  }, [sleep, anyRunning, queue, project]);
+  useEffect(() => {
+    window.multicodeDesktop?.keepAwake?.(sleep && (anyRunning || queue.length > 0));
+  }, [sleep, anyRunning, queue.length]);
+
   const projectEmojis = useMemo(
     () =>
       Object.fromEntries(
@@ -295,12 +333,20 @@ export function App() {
     if (!narrow()) store.set("sidebar", open ? "1" : "0");
   };
 
-  const startRun = async (prompt: string, mode: RunMode = "build") => {
-    if (!project) return;
-    const summary = await api.startRun(project, prompt, mode, team);
+  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean) => {
+    const summary = await api.startRun(proj, prompt, mode, team, asleep);
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
+  };
+  const startRun = async (prompt: string, mode: RunMode = "build") => {
+    if (!project) return;
+    // Sleep mode: more work while the crew is busy waits its turn.
+    if (sleep && runs.some((r) => r.status === "running")) {
+      setQueue((q) => [...q, { id: crypto.randomUUID(), project, prompt, mode }]);
+      return;
+    }
+    await launch(project, prompt, mode, sleep);
   };
 
   const focusComposer = () =>
@@ -510,8 +556,59 @@ export function App() {
   const crew = state.effectiveCrew;
   const canRun = state.connections.length > 0 && Boolean(project);
   const running = run?.status === "running";
+  const queued = queue.filter((q) => q.project === project);
   const composer = project && (
+    <>
+    {(sleep || queueError) && (
+      <div className={`sleep-banner ${sleep ? "" : "is-off"}`} role="status">
+        <Icon name="moon" size={16} />
+        <div className="sleep-text">
+          {sleep ? (
+            <>
+              <strong>Sleep mode is on.</strong>{" "}
+              <span className="muted">
+                The crew works alone: it approves its own actions, decides without asking, and keeps the
+                computer awake while it works.
+              </span>
+            </>
+          ) : (
+            <span className="err-text">Sleep mode stopped: {queueError}</span>
+          )}
+          {queued.length > 0 && <span className="sleep-queue-head">Queued next ({queued.length})</span>}
+          {queued.length > 0 && (
+            <ol className="sleep-queue">
+              {queued.map((q) => (
+                <li key={q.id}>
+                  <span className="truncate">{q.prompt}</span>
+                  <button
+                    className="icon-btn small-btn"
+                    aria-label="Remove from the queue"
+                    onClick={() => setQueue((all) => all.filter((x) => x.id !== q.id))}
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <button
+          className="btn small"
+          onClick={() => {
+            setSleep(!sleep);
+            setQueueError("");
+          }}
+        >
+          {sleep ? "Turn off" : "Resume"}
+        </button>
+      </div>
+    )}
     <Composer
+      sleep={sleep}
+      onSleep={(on) => {
+        setSleep(on);
+        setQueueError("");
+      }}
       crew={crew}
       connections={state.connections}
       team={team}
@@ -532,7 +629,9 @@ export function App() {
           : undefined
       }
       placeholder={
-        canRun
+        sleep && running
+          ? "Add more work: it starts by itself when this one finishes."
+          : canRun
           ? run
             ? "Ask for a change. The crew plans, builds and reviews it."
             : "Ask anything. The crew plans, builds and reviews it."
@@ -548,6 +647,7 @@ export function App() {
         await reload();
       }}
     />
+    </>
   );
 
   // The conversation with the crew: full width in Chat view, docked beside the editor in IDE view.
@@ -832,6 +932,18 @@ export function App() {
         </>
       )}
 
+      {setupOpen && state && (
+        <SetupWizard
+          state={state}
+          onReload={reload}
+          onProject={(name) => selectProject(name)}
+          onPrompt={(text) => setDraft((d) => ({ text, n: (d?.n ?? 0) + 1 }))}
+          onDone={() => {
+            setSetupOpen(false);
+            void reload();
+          }}
+        />
+      )}
       {dialog === "project" && (
         <ProjectDialog
           onClose={() => setDialog(null)}

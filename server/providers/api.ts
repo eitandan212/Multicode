@@ -34,6 +34,7 @@ export class AnthropicProvider implements Provider {
     this.client = new Anthropic({
       apiKey: conn.apiKey,
       baseURL: conn.baseUrl || undefined,
+      ...(conn.headers ? { defaultHeaders: conn.headers } : {}),
     });
   }
 
@@ -95,6 +96,7 @@ export class OpenAIProvider implements Provider {
     this.client = new OpenAI({
       apiKey: conn.apiKey || "not-needed",
       baseURL: conn.baseUrl || undefined,
+      ...(conn.headers ? { defaultHeaders: conn.headers } : {}),
     });
   }
 
@@ -143,7 +145,17 @@ export class GeminiProvider implements Provider {
   private client: GoogleGenAI;
 
   constructor(private conn: Connection) {
-    this.client = new GoogleGenAI({ apiKey: conn.apiKey });
+    this.client = new GoogleGenAI({
+      apiKey: conn.apiKey,
+      ...(conn.baseUrl || conn.headers
+        ? {
+            httpOptions: {
+              ...(conn.baseUrl ? { baseUrl: conn.baseUrl } : {}),
+              ...(conn.headers ? { headers: conn.headers } : {}),
+            },
+          }
+        : {}),
+    });
   }
 
   async generate(

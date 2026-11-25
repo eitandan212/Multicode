@@ -28,8 +28,29 @@ export interface Connection {
   apiKey?: string;
   baseUrl?: string;
   defaultModel?: string;
+  /** Extra headers sent with every API request (some APIs want their own auth header). */
+  headers?: Record<string, string>;
   /** ACP connections: a registry agent, or a custom command the user typed. */
   acp?: AcpRef;
+}
+
+const BLOCKED_HEADERS = new Set(["host", "content-length", "connection", "transfer-encoding", "cookie"]);
+
+/** Extra API headers from the form: up to 10, plain names, one-line values. */
+export function parseHeaders(input: unknown): Record<string, string> | undefined {
+  if (input === undefined || input === null) return undefined;
+  if (typeof input !== "object" || Array.isArray(input)) throw new HttpError(400, "headers must be an object");
+  const out: Record<string, string> = {};
+  const entries = Object.entries(input as Record<string, unknown>);
+  if (entries.length > 10) throw new HttpError(400, "at most 10 extra headers");
+  for (const [name, value] of entries) {
+    if (!/^[A-Za-z0-9-]{1,64}$/.test(name) || BLOCKED_HEADERS.has(name.toLowerCase()))
+      throw new HttpError(400, `header "${name}" isn't allowed`);
+    if (typeof value !== "string" || value.length > 4000 || /[\r\n]/.test(value))
+      throw new HttpError(400, `header "${name}" needs a one-line value`);
+    out[name] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 export interface AcpRef {
@@ -219,6 +240,7 @@ export class ConfigStore {
         : undefined,
       hasKey: Boolean(c.apiKey),
       keyHint: c.apiKey ? `…${c.apiKey.slice(-4)}` : undefined,
+      ...(c.headers ? { headerNames: Object.keys(c.headers) } : {}),
     }));
   }
 
@@ -262,6 +284,7 @@ export class ConfigStore {
         input.defaultModel === undefined
           ? existing?.defaultModel
           : str(input.defaultModel, "defaultModel", 200),
+      headers: input.headers === undefined ? existing?.headers : parseHeaders(input.headers),
       acp,
     };
     if (next.baseUrl && !/^https?:\/\//i.test(next.baseUrl))
@@ -348,6 +371,7 @@ export class ConfigStore {
       next.approvals = input.approvals as Settings["approvals"];
     }
     if (input.economy !== undefined) next.economy = input.economy === true;
+    if (input.onboarded !== undefined) next.onboarded = input.onboarded === true;
     if (input.protectedPaths !== undefined) {
       if (
         !Array.isArray(input.protectedPaths) ||

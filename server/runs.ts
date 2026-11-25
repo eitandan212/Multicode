@@ -80,6 +80,7 @@ const summaryOf = ({
   mode,
   resolution,
   team,
+  sleep,
 }: Run): RunSummary => ({
   id,
   project,
@@ -93,6 +94,7 @@ const summaryOf = ({
   mode,
   resolution,
   team,
+  ...(sleep ? { sleep } : {}),
 });
 
 export interface UndoResult {
@@ -481,6 +483,8 @@ export class RunManager {
     prompt: string,
     mode: RunMode = "build",
     team: TeamChoice = { kind: "crew" },
+    /** Sleep mode: you're away, so the crew approves its own actions and never waits on you. */
+    sleep = false,
   ): Promise<RunSummary> {
     if (typeof prompt !== "string" || !prompt.trim())
       throw new HttpError(400, "prompt is required");
@@ -498,10 +502,11 @@ export class RunManager {
       );
 
     // Auto always lets the dispatcher pick the best builder for each task.
-    const settings =
-      team.kind === "auto"
-        ? { ...this.config.settings, dispatch: "smart" as const }
-        : this.config.settings;
+    const settings = {
+      ...this.config.settings,
+      ...(team.kind === "auto" ? { dispatch: "smart" as const } : {}),
+      ...(sleep ? { approvals: "all" as const } : {}),
+    };
     const sandboxed = mode === "design" || settings.safety === "sandbox";
     if (sandboxed && !this.sync)
       throw new HttpError(400, "sandboxes need a data folder");
@@ -549,6 +554,7 @@ export class RunManager {
       startedAt: Date.now(),
       mode,
       team,
+      ...(sleep ? { sleep: true } : {}),
       events: [],
       listeners: new Set(),
       controller: new AbortController(),
@@ -590,6 +596,7 @@ export class RunManager {
         : undefined,
       safety: settings.safety,
       economy: settings.economy,
+      ...(sleep ? { sleep: true } : {}),
     });
 
     // Who wrote which file, for the memory graph.
@@ -632,6 +639,9 @@ export class RunManager {
       },
       signal: run.controller!.signal,
       approvals: (run.approvals = new Approvals(settings.approvals ?? "ask", emit)),
+      ...(sleep
+        ? { autonomous: true, limits: { idleMs: 6 * 60_000, maxMs: 60 * 60_000 } }
+        : {}),
     };
 
     const work = async () => {

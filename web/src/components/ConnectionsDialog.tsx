@@ -44,6 +44,13 @@ const ENDPOINT_PRESETS: {
     model: "openrouter/auto",
     hint: "Hundreds of models with one key",
   },
+  { name: "Groq", url: "https://api.groq.com/openai/v1", model: "", hint: "Very fast open models" },
+  { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat", hint: "DeepSeek's own API" },
+  { name: "Mistral", url: "https://api.mistral.ai/v1", model: "", hint: "Mistral and Codestral" },
+  { name: "xAI", url: "https://api.x.ai/v1", model: "", hint: "Grok models" },
+  { name: "Together", url: "https://api.together.xyz/v1", model: "", hint: "Open models in the cloud" },
+  { name: "Fireworks", url: "https://api.fireworks.ai/inference/v1", model: "", hint: "Open models in the cloud" },
+  { name: "Cerebras", url: "https://api.cerebras.ai/v1", model: "", hint: "Very fast open models" },
   {
     name: "Ollama",
     url: "http://localhost:11434/v1",
@@ -59,6 +66,26 @@ const ENDPOINT_PRESETS: {
     hint: "Local models",
   },
 ];
+
+/** APIs that speak Anthropic's Messages protocol at their own address. */
+const ANTHROPIC_PRESETS: { name: string; url: string; hint: string }[] = [
+  { name: "Anthropic", url: "", hint: "Anthropic's own API" },
+  { name: "DeepSeek", url: "https://api.deepseek.com/anthropic", hint: "DeepSeek, Anthropic-compatible" },
+  { name: "Kimi", url: "https://api.moonshot.ai/anthropic", hint: "Moonshot Kimi, Anthropic-compatible" },
+  { name: "GLM (Z.ai)", url: "https://api.z.ai/api/anthropic", hint: "Z.ai GLM, Anthropic-compatible" },
+];
+
+/** "Name: value" lines → headers (blank lines ignored). */
+function parseHeaderLines(text: string): Record<string, string> | undefined {
+  const out: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const i = line.indexOf(":");
+    if (!line.trim()) continue;
+    if (i < 1) throw new Error(`Header lines look like "Name: value" (got "${line.trim()}")`);
+    out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 const KEY_HELP: Partial<Record<ProviderKind, string>> = {
   anthropic: "console.anthropic.com → API keys",
@@ -252,7 +279,7 @@ function ConnectionRow({
   );
 }
 
-function AddConnection(props: {
+export function AddConnection(props: {
   kind: ProviderKind;
   state: AppState;
   onKind: (k: ProviderKind) => void;
@@ -266,6 +293,9 @@ function AddConnection(props: {
   const [baseUrl, setBaseUrl] = useState("");
   const [label, setLabel] = useState("");
   const [model, setModel] = useState("");
+  const [headers, setHeaders] = useState("");
+  const [models, setModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const isCli = CLI_KINDS.includes(kind);
@@ -274,6 +304,7 @@ function AddConnection(props: {
   useEffect(() => {
     setError("");
     setModel(state.defaultModels[kind] ?? "");
+    setModels([]);
     setBaseUrl(
       kind === "openai-compatible" ? "https://openrouter.ai/api/v1" : "",
     );
@@ -289,6 +320,7 @@ function AddConnection(props: {
         baseUrl,
         label: label || undefined,
         defaultModel: model,
+        ...(headers.trim() ? { headers: parseHeaderLines(headers) } : {}),
       });
       await props.onSaved();
     } catch (e) {
@@ -411,23 +443,62 @@ function AddConnection(props: {
               nothing.
             </div>
           )}
-          {kind === "openai-compatible" && (
+          {kind === "anthropic" && (
+            <div className="endpoint-presets" role="group" aria-label="Anthropic-compatible APIs">
+              {ANTHROPIC_PRESETS.map((e) => (
+                <button
+                  key={e.name}
+                  type="button"
+                  className={`chip preset-chip ${baseUrl === e.url ? "is-active" : ""}`}
+                  onClick={() => setBaseUrl(e.url)}
+                  title={e.hint}
+                >
+                  {e.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {!isCli && (
             <label className="field">
-              <span>Base URL</span>
+              <span>{kind === "openai-compatible" ? "Base URL" : "API address (optional)"}</span>
               <input
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                required
+                required={kind === "openai-compatible"}
+                placeholder={
+                  kind === "openai-compatible"
+                    ? "https://…/v1"
+                    : kind === "anthropic"
+                      ? "Leave empty for Anthropic, or any Anthropic-compatible API"
+                      : "Leave empty for the official API, or a proxy / gateway"
+                }
               />
-              <small className="muted">Ollama: http://localhost:11434/v1</small>
+              {kind === "openai-compatible" && (
+                <small className="muted">Any OpenAI-compatible API. Ollama: http://localhost:11434/v1</small>
+              )}
             </label>
+          )}
+          {!isCli && (
+            <details className="field extra-headers">
+              <summary>Extra headers (optional)</summary>
+              <textarea
+                value={headers}
+                onChange={(e) => setHeaders(e.target.value)}
+                rows={3}
+                spellCheck={false}
+                placeholder={"api-key: …\nX-Org-Id: …"}
+              />
+              <small className="muted">One per line, "Name: value". Kept on this computer like the key.</small>
+            </details>
           )}
           <div className="field-row">
             <label className="field">
               <span>Default model</span>
+              <div className="row-input">
               <input
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
+                list={models.length ? `models-${kind}` : undefined}
                 placeholder={
                   MODEL_HINT[kind] ??
                   (isCli
@@ -436,6 +507,43 @@ function AddConnection(props: {
                 }
                 required={kind === "openai-compatible"}
               />
+              {!isCli && (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={loadingModels || (kind === "openai-compatible" && !baseUrl)}
+                  onClick={async () => {
+                    setLoadingModels(true);
+                    setError("");
+                    try {
+                      const r = await api.previewModels({
+                        kind,
+                        apiKey,
+                        baseUrl,
+                        ...(headers.trim() ? { headers: parseHeaderLines(headers) } : {}),
+                      });
+                      setModels(r.models);
+                      if (r.error) setError(`Couldn't list models: ${r.error}`);
+                      else if (!r.models.length) setError("This API didn't list any models; type the model id.");
+                      else if (!model) setModel(r.models[0]!);
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setLoadingModels(false);
+                    }
+                  }}
+                >
+                  {loadingModels ? "Loading…" : "Load models"}
+                </button>
+              )}
+              </div>
+              {models.length > 0 && (
+                <datalist id={`models-${kind}`}>
+                  {models.map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+              )}
             </label>
             <label className="field">
               <span>Name</span>

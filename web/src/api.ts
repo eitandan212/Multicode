@@ -124,6 +124,8 @@ export const api = {
   cancelSignIn: (id: string) => request<void>("POST", `/api/signin/${id}/cancel`),
   approve: (runId: string, approvalId: string, allow: boolean, always = false) =>
     request<void>("POST", `/api/runs/${runId}/approvals/${approvalId}`, { allow, always }),
+  previewModels: (body: { kind: string; apiKey?: string; baseUrl?: string; headers?: Record<string, string> }) =>
+    request<{ models: string[]; error?: string }>("POST", "/api/models/preview", body),
   setProjectEmoji: (name: string, emoji: string | null) =>
     request<void>("PUT", `/api/projects/${name}/emoji`, { emoji }),
   openFolder: (path: string) =>
@@ -155,11 +157,13 @@ export const api = {
     prompt: string,
     mode: RunMode = "build",
     team?: TeamChoice,
+    sleep = false,
   ) =>
     request<RunSummary>("POST", `/api/projects/${project}/runs`, {
       prompt,
       mode,
       team,
+      ...(sleep ? { sleep: true } : {}),
     }),
   apply: (id: string, variant?: string, force = false) =>
     request<{ applied: string[]; conflicts: string[] }>(

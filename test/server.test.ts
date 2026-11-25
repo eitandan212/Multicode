@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../server/app.js";
-import { ConfigStore, type Connection } from "../server/config.js";
+import { ConfigStore, parseHeaders, type Connection } from "../server/config.js";
 import { captureBaseline, diffChanges } from "../server/crew/diff.js";
 import {
   assignRoles,
@@ -462,6 +462,41 @@ describe("approvals (as in Claude Code)", () => {
     expect(await a.ask("m", { kind: "edit", title: "three" })).toBe(true); // no longer asks
     a.declineAll();
     expect(await tool).toBe(false); // other kinds still needed an answer
+  });
+});
+
+describe("any API", () => {
+  it("accepts extra headers but refuses unsafe ones", () => {
+    expect(parseHeaders({ "api-key": "k", "X-Org": "o" })).toEqual({ "api-key": "k", "X-Org": "o" });
+    expect(() => parseHeaders({ Host: "evil" })).toThrow(/isn't allowed/);
+    expect(() => parseHeaders({ "x-a": "line\nbreak" })).toThrow(/one-line/);
+    expect(parseHeaders({})).toBeUndefined();
+  });
+
+  it("tells agents in Sleep mode to decide alone", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-away-"));
+    const systems: string[] = [];
+    const inner = fakeProvider({ review: [] });
+    const p: Provider = {
+      editsFiles: false,
+      generate: (req, d, s) => (systems.push(req.system), inner.generate(req, d, s)),
+    };
+    try {
+      await runCrew({
+        prompt: "make a page",
+        history: [],
+        workspace: await Workspace.open(dir, "away"),
+        roles: assignRoles([member("solo", "builder", p)]),
+        settings: { maxReviewRounds: 1 },
+        emit: () => {},
+        signal: new AbortController().signal,
+        autonomous: true,
+      });
+      expect(systems.length).toBeGreaterThan(2);
+      for (const s of systems) expect(s).toContain("SLEEP MODE");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1136,6 +1171,35 @@ describe("http guards", () => {
     const preview = await fetch(`${base}/preview/site/`);
     expect(preview.headers.get("content-security-policy")).toContain("sandbox");
     expect(await preview.text()).toContain("app.js");
+  });
+
+  it("runs a Sleep mode thread alone: no approvals, even when they're on", async () => {
+    const h = { "content-type": "application/json", "x-multicode": "1" };
+    const settings = await fetch(`${base}/api/settings`, {
+      method: "PUT",
+      headers: h,
+      body: '{"approvals":"ask"}',
+    });
+    expect(settings.ok).toBe(true);
+    await fetch(`${base}/api/projects`, { method: "POST", headers: h, body: '{"name":"night"}' });
+    const run = await (
+      await fetch(`${base}/api/projects/night/runs`, {
+        method: "POST",
+        headers: h,
+        body: '{"prompt":"build","sleep":true}',
+      })
+    ).json();
+    expect(run).toMatchObject({ sleep: true });
+    const res = await fetch(`${base}/api/runs/${run.id}/events`);
+    const reader = res.body!.getReader();
+    let text = "";
+    while (!text.includes("run.done") && !text.includes("run.error"))
+      text += new TextDecoder().decode((await reader.read()).value);
+    await reader.cancel();
+    expect(text).toContain("run.done");
+    expect(text).not.toContain("approval.request");
+    expect(text).toContain('"sleep":true');
+    await fetch(`${base}/api/settings`, { method: "PUT", headers: h, body: '{"approvals":"all"}' });
   });
 });
 

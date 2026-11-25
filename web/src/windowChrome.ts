@@ -13,6 +13,8 @@ declare global {
       setTheme(theme: string): void;
       /** The desktop app's native folder picker (undefined in a browser). */
       pickFolder?: () => Promise<string | null>;
+      /** Sleep mode: stop the computer from sleeping while the crew works. */
+      keepAwake?: (on: boolean) => void;
       /** In-app updates (desktop app only). */
       update?: {
         check(): Promise<{ current: string; available: boolean; version?: string; size?: number; error?: string } | null>;
