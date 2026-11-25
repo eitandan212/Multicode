@@ -103,6 +103,21 @@ the opening animation. Saved in your browser and applied before the first paint.
 | `Ctrl K` / `⌘K` | Command palette: jump to any thread or project, open crew, connections, preview, files, changes |
 | `Enter` / `Shift Enter` | Send to the crew / new line |
 
+## Desktop app (Windows installer)
+
+```bash
+npm run desktop     # run MultiCode as a desktop window (Electron)
+npm run dist:win    # build release/MultiCode-Setup-<version>.exe
+```
+
+`dist:win` packages the app with electron-builder and wraps it with NSIS (`build/installer.nsi`),
+so it builds on Windows, macOS or Linux without Wine; it needs `makensis`
+(`winget install NSIS.NSIS`, `brew install nsis` or `apt install nsis`). The installer is per-user
+(no administrator prompt), installs to `%LOCALAPPDATA%\Programs\MultiCode`, adds Start menu and
+desktop shortcuts and an entry in *Apps & features*. Uninstalling removes the program only; your
+projects and settings in `%USERPROFILE%\.multicode` stay. The installer isn't code-signed, so
+Windows SmartScreen asks once: *More info → Run anyway*.
+
 ## Save credits, never stall
 
 * **Free fallback:** when a subscription or API key hits its usage limit (429, quota, "usage limit
