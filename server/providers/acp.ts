@@ -1,7 +1,9 @@
-// A client for the Agent Client Protocol (JSON-RPC 2.0 over stdio, one JSON message per line).
-// Any ACP agent (Claude Code, Codex, Gemini CLI, Copilot, Cursor, Goose, Kiro, Qoder...) can join
-// a crew through it. MultiCode stays the client: it answers the agent's file reads and writes
-// itself, inside the project only, and grants tool permissions by MultiCode's own policy.
+// Agent Client Protocol agents, through T3 Code's own client: `effect-acp` (vendored from T3 Code,
+// MIT, under server/vendor/t3code) speaks ACP with its generated schemas, launched the same way
+// T3 Code launches agents. Any ACP agent (Claude Code, Codex, Gemini CLI, Copilot, Cursor, Goose,
+// Kiro, Qoder...) can join a crew through it. MultiCode stays the client: it answers the agent's
+// file reads and writes itself, inside the project only, and grants tool permissions by
+// MultiCode's own policy.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,13 +11,21 @@ import type { Connection } from "../config.js";
 import { loadRegistry, resolveAgent, type AcpLaunch } from "../acp/registry.js";
 import type { McpServer } from "../shared.js";
 import { findBinary, resolveLaunch } from "./cli.js";
-import { JsonRpcChild, type Json } from "./jsonrpc.js";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Stream from "effect/Stream";
+import * as AcpClient from "../vendor/t3code/effect-acp/client.ts";
+import * as AcpError from "../vendor/t3code/effect-acp/errors.ts";
+import { openSession, run } from "./t3bridge.js";
 import {
   ProviderError,
   type DeltaHandler,
   type GenerateRequest,
   type Provider,
 } from "./types.js";
+
+type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 
 export const ACP_PROTOCOL_VERSION = 1;
 const MAX_READ = 2_000_000;
@@ -142,107 +152,131 @@ export class AcpProvider implements Provider {
     return this.conn.acp?.agentName ?? this.conn.label;
   }
 
+  /** Starts the agent with T3 Code's ACP client and MultiCode's handlers for its requests. */
   private async open(
     cwd: string,
     req: Pick<GenerateRequest, "env" | "mode" | "cwd">,
     onDelta: DeltaHandler,
     tools: { blocked: string[] },
-    onNotify: (
-      method: string,
-      params: Record<string, unknown>,
-    ) => void = () => {},
+    onUpdate: (update: Record<string, unknown>) => void = () => {},
   ) {
     const launch = await platformLaunch(await this.resolveLaunch(this.conn));
     // spawn reports a missing working folder as ENOENT on the command; make sure it exists.
     await mkdir(cwd, { recursive: true });
     const root = path.resolve(req.cwd);
-    const session = new JsonRpcChild(
-      launch,
-      cwd,
-      req.env ?? {},
-      async (method, params) => {
-        switch (method) {
-          case "session/request_permission": {
-            const call = (params.toolCall ?? {}) as {
-              kind?: ToolKind;
-              title?: string;
-            };
-            const options = (params.options ?? []) as {
-              optionId: string;
-              kind: string;
-            }[];
-            const ok = allowTool(call.kind, req.mode);
+    const ended = await Effect.runPromise(Deferred.make<string>());
+    const fail = (err: unknown) =>
+      AcpError.AcpRequestError.invalidParams((err as Error).message ?? String(err));
+    const session = await openSession(launch, cwd, req.env ?? {}, (child) =>
+      Effect.gen(function* () {
+        // As T3 Code does, the agent's stderr is read on the side (the protocol client ignores it):
+        // its last lines explain an agent that dies.
+        let stderrTail = "";
+        yield* child.stderr.pipe(
+          Stream.decodeText(),
+          Stream.runForEach((t) =>
+            Effect.sync(() => {
+              stderrTail = (stderrTail + t).slice(-2000);
+            }),
+          ),
+          Effect.ignore,
+          Effect.forkScoped,
+        );
+        const context = yield* Layer.build(
+          AcpClient.layerChildProcess(child, {
+            transformStdout: jsonLinesOnly,
+            onTermination: (e) =>
+              Effect.sleep("50 millis").pipe(
+                Effect.andThen(
+                  Deferred.succeed(
+                    ended,
+                    [e.message, stderrTail.trim()].filter(Boolean).join(": "),
+                  ),
+                ),
+                Effect.asVoid,
+              ),
+          }),
+        );
+        const client = yield* Effect.service(AcpClient.AcpClient).pipe(
+          Effect.provide(context),
+        );
+        yield* client.handleRequestPermission((params) =>
+          Effect.sync(() => {
+            const call = (params.toolCall ?? {}) as { kind?: ToolKind | null; title?: string | null };
+            const options = params.options as readonly { optionId: string; kind: string }[];
+            const ok = allowTool(call.kind ?? undefined, req.mode);
             const pick =
-              options.find(
-                (o) => o.kind === (ok ? "allow_once" : "reject_once"),
-              ) ??
+              options.find((o) => o.kind === (ok ? "allow_once" : "reject_once")) ??
               options.find((o) => o.kind.startsWith(ok ? "allow" : "reject"));
             if (!ok) {
               tools.blocked.push(call.title ?? call.kind ?? "tool");
-              onDelta(
-                `▸ Blocked by MultiCode: ${call.title ?? call.kind ?? "tool"}\n`,
-              );
+              onDelta(`▸ Blocked by MultiCode: ${call.title ?? call.kind ?? "tool"}\n`);
             }
             return {
               outcome: pick
                 ? { outcome: "selected", optionId: pick.optionId }
                 : { outcome: "cancelled" },
-            };
-          }
-          case "fs/read_text_file": {
-            const file = insideRoot(root, String(params.path ?? ""));
-            const text = (await readFile(file, "utf8")).slice(0, MAX_READ);
-            const line =
-              typeof params.line === "number" ? Math.max(1, params.line) : 1;
-            const limit =
-              typeof params.limit === "number" ? params.limit : undefined;
-            if (line === 1 && limit === undefined) return { content: text };
-            const lines = text.split("\n");
-            return {
-              content: lines
-                .slice(
-                  line - 1,
-                  limit === undefined ? undefined : line - 1 + limit,
-                )
-                .join("\n"),
-            };
-          }
-          case "fs/write_text_file": {
-            if (req.mode !== "edit")
-              throw Object.assign(new Error("this task is read-only"), {
-                code: -32000,
-              });
-            const file = insideRoot(root, String(params.path ?? ""));
-            await mkdir(path.dirname(file), { recursive: true });
-            await writeFile(file, String(params.content ?? ""));
-            onDelta(`▸ Wrote ${path.relative(root, file)}\n`);
-            return null;
-          }
-          default:
-            throw Object.assign(
-              new Error(`MultiCode doesn't support ${method}`),
-              { code: -32601 },
-            );
-        }
-      },
-      onNotify,
+            } as never;
+          }),
+        );
+        yield* client.handleReadTextFile((params) =>
+          Effect.tryPromise({
+            try: async () => {
+              const file = insideRoot(root, String(params.path ?? ""));
+              const text = (await readFile(file, "utf8")).slice(0, MAX_READ);
+              const line = typeof params.line === "number" ? Math.max(1, params.line) : 1;
+              const limit = typeof params.limit === "number" ? params.limit : undefined;
+              if (line === 1 && limit === undefined) return { content: text };
+              const lines = text.split("\n");
+              return {
+                content: lines
+                  .slice(line - 1, limit === undefined ? undefined : line - 1 + limit)
+                  .join("\n"),
+              };
+            },
+            catch: fail,
+          }),
+        );
+        yield* client.handleWriteTextFile((params) =>
+          Effect.tryPromise({
+            try: async () => {
+              if (req.mode !== "edit") throw new Error("this task is read-only");
+              const file = insideRoot(root, String(params.path ?? ""));
+              await mkdir(path.dirname(file), { recursive: true });
+              await writeFile(file, String(params.content ?? ""));
+              onDelta(`▸ Wrote ${path.relative(root, file)}\n`);
+            },
+            catch: fail,
+          }),
+        );
+        yield* client.handleSessionUpdate((n) =>
+          Effect.sync(() => onUpdate(n.update as unknown as Record<string, unknown>)),
+        );
+        return client;
+      }),
     );
-    return session;
+    return {
+      client: session.service,
+      close: session.close,
+      ended: Effect.runPromise(Deferred.await(ended)),
+    };
   }
 
   private async start(
-    session: JsonRpcChild,
+    client: Client,
     req: GenerateRequest,
     cwd: string,
   ) {
-    const init = await session.request<InitResult>("initialize", {
-      protocolVersion: ACP_PROTOCOL_VERSION,
-      clientCapabilities: {
-        fs: { readTextFile: true, writeTextFile: req.mode === "edit" },
-        terminal: false,
-      },
-      clientInfo: { name: "multicode", title: "MultiCode", version: "0.1.0" },
-    });
+    const init = (await run(
+      client.agent.initialize({
+        protocolVersion: ACP_PROTOCOL_VERSION,
+        clientCapabilities: {
+          fs: { readTextFile: true, writeTextFile: req.mode === "edit" },
+          terminal: false,
+        },
+        clientInfo: { name: "multicode", title: "MultiCode", version: "0.1.0" },
+      } as never),
+    )) as InitResult;
     const mcpServers = await acpMcpServers(
       req.mcpServers ?? [],
       req.env ?? {},
@@ -251,10 +285,9 @@ export class AcpProvider implements Provider {
     try {
       return {
         init,
-        created: await session.request<NewSessionResult>("session/new", {
-          cwd,
-          mcpServers,
-        }),
+        created: (await run(
+          client.agent.createSession({ cwd, mcpServers } as never),
+        )) as unknown as NewSessionResult,
       };
     } catch (err) {
       const e = err as ProviderError & { code?: number };
@@ -278,9 +311,7 @@ export class AcpProvider implements Provider {
     const tools = { blocked: [] as string[] };
     const titles = new Map<string, string>();
     // Live view: message text streams; tool calls show as one "▸" line each.
-    const onNotify = (method: string, params: Record<string, unknown>) => {
-      if (method !== "session/update") return;
-      const u = (params.update ?? {}) as Record<string, unknown>;
+    const onUpdate = (u: Record<string, unknown>) => {
       switch (u.sessionUpdate) {
         case "agent_message_chunk": {
           const c = u.content as { type?: string; text?: string } | undefined;
@@ -307,36 +338,32 @@ export class AcpProvider implements Provider {
         }
       }
     };
-    const session = await this.open(req.cwd, req, onDelta, tools, onNotify);
+    const session = await this.open(req.cwd, req, onDelta, tools, onUpdate);
+    const { client } = session;
     let sessionId: string | undefined;
     const onAbort = () => {
-      if (sessionId) session.notify("session/cancel", { sessionId });
-      setTimeout(() => session.kill(), 1500).unref();
+      if (sessionId) void run(client.agent.cancel({ sessionId } as never)).catch(() => {});
+      setTimeout(() => void session.close(), 1500).unref();
     };
     signal.addEventListener("abort", onAbort, { once: true });
     try {
-      const { created } = await race(
-        this.start(session, req, req.cwd),
-        session,
-        signal,
-      );
+      const { created } = await race(this.start(client, req, req.cwd), session.ended, signal);
       sessionId = created.sessionId;
       const model = req.model || this.conn.defaultModel;
-      if (model)
-        await this.selectModel(session, created, model).catch(() => {});
-      const res = await race(
-        session.request<{
-          stopReason?: string;
-          usage?: { inputTokens?: number; outputTokens?: number } | null;
-        }>("session/prompt", {
-          sessionId,
-          prompt: [
-            { type: "text", text: `${req.system}\n\n---\n\n${req.prompt}` },
-          ],
-        }),
-        session,
+      if (model) await this.selectModel(client, created, model).catch(() => {});
+      const res = (await race(
+        run(
+          client.agent.prompt({
+            sessionId,
+            prompt: [{ type: "text", text: `${req.system}\n\n---\n\n${req.prompt}` }],
+          } as never),
+        ),
+        session.ended,
         signal,
-      );
+      )) as {
+        stopReason?: string;
+        usage?: { inputTokens?: number; outputTokens?: number } | null;
+      };
       if (res.usage && (res.usage.inputTokens || res.usage.outputTokens))
         req.onUsage?.({
           input: res.usage.inputTokens ?? 0,
@@ -348,71 +375,95 @@ export class AcpProvider implements Provider {
         throw new ProviderError(`${this.agentName} refused the task`);
       return (
         answer.trim() ||
-        (tools.blocked.length
-          ? `(no answer; blocked: ${tools.blocked.join(", ")})`
-          : "")
+        (tools.blocked.length ? `(no answer; blocked: ${tools.blocked.join(", ")})` : "")
       );
     } finally {
       signal.removeEventListener("abort", onAbort);
-      session.kill();
+      await session.close();
     }
   }
 
-  private async selectModel(
-    session: JsonRpcChild,
-    created: NewSessionResult,
-    model: string,
-  ) {
+  private async selectModel(client: Client, created: NewSessionResult, model: string) {
     const { configId, values } = modelChoices(created);
     if (!values.includes(model)) return;
     if (configId)
-      await session.request("session/set_config_option", {
-        sessionId: created.sessionId,
-        configId,
-        value: model,
-      });
+      await run(
+        client.agent.setSessionConfigOption({
+          sessionId: created.sessionId,
+          configId,
+          value: model,
+        } as never),
+      );
     else
-      await session.request("session/set_model", {
-        sessionId: created.sessionId,
-        modelId: model,
-      });
+      await run(
+        client.agent.setSessionModel({ sessionId: created.sessionId, modelId: model } as never),
+      );
   }
 
   async listModels(signal: AbortSignal): Promise<string[]> {
     const cwd = path.join(tmpdir(), "multicode-acp-probe");
     await mkdir(cwd, { recursive: true });
-    const session = await this.open(cwd, { cwd, mode: "text" }, () => {}, {
-      blocked: [],
-    });
+    const session = await this.open(cwd, { cwd, mode: "text" }, () => {}, { blocked: [] });
     try {
       const { created } = await race(
-        this.start(session, { system: "", prompt: "", cwd, mode: "text" }, cwd),
-        session,
+        this.start(session.client, { system: "", prompt: "", cwd, mode: "text" }, cwd),
+        session.ended,
         signal,
       );
       return modelChoices(created).values;
     } finally {
-      session.kill();
+      await session.close();
     }
   }
 }
 
-/** Waits for `p`, failing early if the agent process dies or the run is cancelled. */
-function race<T>(
-  p: Promise<T>,
-  session: JsonRpcChild,
-  signal: AbortSignal,
-): Promise<T> {
+type Client = AcpClient.AcpClient["Service"];
+
+/**
+ * Keeps only JSON lines of the agent's stdout. Some agents print log lines there; T3 Code's ACP
+ * client treats any non-JSON line as a protocol error, so they are dropped before it (the same
+ * hook T3 Code uses for agents with extra stdout output).
+ */
+function jsonLinesOnly(stdout: Stream.Stream<Uint8Array, unknown>): Stream.Stream<Uint8Array, never> {
+  return Stream.suspend(() => {
+    let pending = "";
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    const keep = (line: string) => line.trimStart().startsWith("{");
+    return stdout.pipe(
+      Stream.map((chunk) => {
+        pending += decoder.decode(chunk, { stream: true });
+        const lines = pending.split("\n");
+        pending = lines.pop() ?? "";
+        const out = lines.filter(keep).map((l) => l + "\n").join("");
+        return encoder.encode(out);
+      }),
+      Stream.concat(
+        Stream.suspend(() =>
+          Stream.make(encoder.encode(keep(pending) ? pending + "\n" : "")),
+        ),
+      ),
+      Stream.filter((b) => b.byteLength > 0),
+      Stream.orDie,
+    );
+  }) as never;
+}
+
+/** Waits for `p`, failing early if the agent process ends or the run is cancelled. */
+function race<T>(p: Promise<T>, ended: Promise<string>, signal: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(new ProviderError("Cancelled"));
     if (signal.aborted) return onAbort();
     signal.addEventListener("abort", onAbort, { once: true });
-    p.then(resolve, reject).finally(() =>
-      signal.removeEventListener("abort", onAbort),
-    );
-    void session.exited.then((code) =>
-      reject(new ProviderError(session.failure(code))),
-    );
+    p.then(resolve, async (err) => {
+      // A request that failed because the agent died: prefer the reason with its stderr tail.
+      const why = await Promise.race([
+        ended,
+        new Promise<string>((r) => setTimeout(() => r(""), 300).unref()),
+      ]);
+      reject(why ? new ProviderError(why) : err);
+    }).finally(() => signal.removeEventListener("abort", onAbort));
+    void ended.then((why) => reject(new ProviderError(why || "The agent stopped")));
   });
 }
 

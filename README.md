@@ -47,7 +47,10 @@ Subscriptions don't come with API keys, so MultiCode drives each vendor's offici
 machine, connected the way T3 Code connects them: **Claude Code through the official Claude Agent
 SDK** (typed streaming, usage and cost, and every tool call checked by MultiCode's own policy) and
 **Codex through `codex app-server`**, Codex's JSON-RPC protocol (sign-in checked up front, the
-model list read from Codex, approvals answered by policy). If either can't start (for example an
+model list read from Codex, approvals answered by policy). Codex and every ACP agent run on
+**T3 Code's own protocol clients**, `effect-codex-app-server` and `effect-acp`, copied from the
+T3 Code repository under its MIT license (see `server/vendor/t3code`), so every message is checked
+against the same generated schemas T3 Code uses. If either can't start (for example an
 older Codex), MultiCode falls back to the plain CLI mode by itself. Install the CLI and sign in once:
 
 ```bash
@@ -122,7 +125,7 @@ the opening animation. Saved in your browser and applied before the first paint.
 
 **Download:** [`downloads/MultiCode-Setup-0.1.0.exe`](downloads/MultiCode-Setup-0.1.0.exe)
 (open it on GitHub and press *Download raw file*), run it, and MultiCode opens from the Start menu.
-SHA-256 `cb35e09bb632fe54118c4cd8eccd82d0ac783284e124bd86e6652679dbe7014b`. Windows SmartScreen may
+SHA-256 `229c990a0d5b56b951b2b5f5ef2a9321845a3053277fdb4a28729bb0fe07ce6f`. Windows SmartScreen may
 warn because the installer isn't signed yet: choose *More info → Run anyway*. To build the installer yourself:
 
 ```bash

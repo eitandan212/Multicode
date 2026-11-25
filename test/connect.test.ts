@@ -17,32 +17,35 @@ import {
 import { FallbackProvider } from "../server/providers/fallback.js";
 import type { Provider } from "../server/providers/types.js";
 
-/** A stand-in `codex app-server`: Codex's JSON-RPC protocol, one message per line. */
+/** A stand-in `codex app-server`: Codex's JSON-RPC protocol, one message per line, in the shapes
+ * Codex's generated schema requires (T3 Code's client validates every message). */
 const FAKE_CODEX = `
 const rl = require("node:readline").createInterface({ input: process.stdin });
 const signedIn = process.env.FAKE_SIGNED_IN !== "0";
 let id = 9000; const waits = new Map(); let sawDev = "";
+const usage = { inputTokens: 120, outputTokens: 30, cachedInputTokens: 0, reasoningOutputTokens: 0, totalTokens: 150 };
+const model = (id, hidden) => ({ id, model: id, displayName: id, description: "", hidden, isDefault: !hidden, defaultReasoningEffort: "medium", supportedReasoningEfforts: [] });
 const send = (m) => process.stdout.write(JSON.stringify(m) + "\\n");
 const ask = (method, params) => new Promise((r) => { const i = id++; waits.set(i, r); send({ id: i, method, params }); });
 rl.on("line", async (line) => {
   const m = JSON.parse(line);
   if (m.id !== undefined && !m.method) return waits.get(m.id)?.(m);
-  if (m.method === "initialize") return send({ id: m.id, result: { userAgent: "fake" } });
+  if (m.method === "initialize") return send({ id: m.id, result: { userAgent: "fake", codexHome: "/tmp", platformFamily: "unix", platformOs: "linux" } });
   if (m.method === "initialized") return;
-  if (m.method === "account/read") return send({ id: m.id, result: { account: signedIn ? { type: "chatgpt" } : null, requiresOpenaiAuth: true } });
-  if (m.method === "model/list") return send({ id: m.id, result: { data: [{ id: "gpt-5.6-luna" }, { id: "hidden", hidden: true }], nextCursor: null } });
-  if (m.method === "thread/start") { sawDev = m.params.developerInstructions + "|" + m.params.sandbox + "|" + m.params.approvalPolicy + "|" + (m.params.model ?? ""); return send({ id: m.id, result: { thread: { id: "th1" } } }); }
+  if (m.method === "account/read") return send({ id: m.id, result: { account: signedIn ? { type: "chatgpt", email: "a@b.c", planType: "plus" } : null, requiresOpenaiAuth: true } });
+  if (m.method === "model/list") return send({ id: m.id, result: { data: [model("gpt-5.6-luna", false), model("hidden", true)], nextCursor: null } });
+  if (m.method === "thread/start") { sawDev = m.params.developerInstructions + "|" + m.params.sandbox + "|" + m.params.approvalPolicy + "|" + (m.params.model ?? ""); return send({ id: m.id, result: { approvalPolicy: "never", approvalsReviewer: "user", cwd: "/tmp", model: "m", modelProvider: "openai", sandbox: { type: "readOnly" }, thread: { id: "th1", cliVersion: "0", createdAt: 0, updatedAt: 0, cwd: "/tmp", ephemeral: true, modelProvider: "openai", preview: "", projectId: null, sessionId: "s1", source: "appServer", status: { type: "idle" }, turns: [] } } }); }
   if (m.method === "turn/start") {
-    send({ id: m.id, result: { turn: { id: "tu1" } } });
+    send({ id: m.id, result: { turn: { id: "tu1", items: [], status: "inProgress" } } });
     const t = { threadId: "th1", turnId: "tu1" };
-    send({ method: "item/started", params: { ...t, item: { type: "commandExecution", command: "npm test" } } });
+    send({ method: "item/started", params: { ...t, startedAtMs: 0, item: { type: "commandExecution", id: "c1", command: "npm test", commandActions: [], cwd: "/tmp", status: "inProgress" } } });
     const cmd = await ask("item/commandExecution/requestApproval", { ...t, itemId: "i1", startedAtMs: 0 });
     const edit = await ask("item/fileChange/requestApproval", { ...t, itemId: "i2", startedAtMs: 0 });
-    send({ method: "item/started", params: { ...t, item: { type: "fileChange", changes: [{ path: "a.js" }] } } });
+    send({ method: "item/started", params: { ...t, startedAtMs: 0, item: { type: "fileChange", id: "f1", changes: [{ path: "a.js", kind: { type: "add" }, diff: "" }], status: "inProgress" } } });
     send({ method: "item/agentMessage/delta", params: { ...t, itemId: "m", delta: "Done: " + cmd.result.decision + "/" + edit.result.decision + " " } });
     send({ method: "item/agentMessage/delta", params: { ...t, itemId: "m", delta: sawDev } });
-    send({ method: "thread/tokenUsage/updated", params: { ...t, tokenUsage: { total: { inputTokens: 120, outputTokens: 30 }, last: {} } } });
-    send({ method: "turn/completed", params: { threadId: "th1", turn: { id: "tu1", status: process.env.FAKE_FAIL ? "failed" : "completed", error: process.env.FAKE_FAIL ? { message: "model overloaded" } : null } } });
+    send({ method: "thread/tokenUsage/updated", params: { ...t, tokenUsage: { total: usage, last: usage } } });
+    send({ method: "turn/completed", params: { threadId: "th1", turn: { id: "tu1", items: [], status: process.env.FAKE_FAIL ? "failed" : "completed", error: process.env.FAKE_FAIL ? { message: "model overloaded" } : null } } });
   }
 });
 `;
