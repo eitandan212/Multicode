@@ -128,13 +128,6 @@ export function AppearanceDialog({
             text="Animations"
           />
         </Row>
-        <Row label="Background">
-          <Toggle
-            checked={a.ribbons}
-            onChange={(ribbons) => set({ ribbons })}
-            text="Ribbons on the start screen"
-          />
-        </Row>
         <Row label="Intro">
           <Toggle
             checked={a.intro}

@@ -1,6 +1,6 @@
 {
   "name": "multicode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Connect your AI subscriptions and API keys \u2014 and let them build together as a crew.",
   "type": "module",
   "license": "MIT",
@@ -65,6 +65,7 @@
       "dist/**/*",
       "desktop/main.js",
       "desktop/preload.cjs",
+      "desktop/updater.js",
       "build/icon.ico",
       "build/icon.png",
       "package.json",

@@ -3,6 +3,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkForUpdate, installUpdate } from "./updater.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(here, "..", "build", process.platform === "win32" ? "icon.ico" : "icon.png");
@@ -124,6 +125,20 @@ function createWindow() {
 ipcMain.on("multicode:theme", (event, theme) => {
   if (!win || event.sender !== win.webContents) return;
   if (theme === "system" || theme === "light" || theme === "dark") nativeTheme.themeSource = theme;
+});
+
+// Updates: the page asks; progress goes back to it.
+ipcMain.handle("multicode:update-check", async (event) => {
+  if (!win || event.sender !== win.webContents) return null;
+  const { latest: _l, ...info } = await checkForUpdate();
+  return info;
+});
+ipcMain.handle("multicode:update-install", async (event) => {
+  if (!win || event.sender !== win.webContents) return null;
+  const r = await installUpdate((p) => {
+    if (win && !win.isDestroyed()) win.webContents.send("multicode:update-progress", p);
+  });
+  return { version: r.version };
 });
 
 // "Open folder": the native folder picker.

@@ -32,7 +32,6 @@ import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
 
 import { LogoLoader, LogoMark } from "./components/Logo";
-import { Ribbons } from "./components/Ribbons";
 import { SettingsPage } from "./components/SettingsPage";
 import { ProjectDialog } from "./components/ProjectDialog";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
@@ -609,7 +608,6 @@ export function App() {
       </>
     ) : tutorial || !project ? (
       <div className="hero">
-        <Ribbons />
         {tutorial ? (
           <Tutorial
             hasConnection={state.connections.length > 0}
@@ -640,7 +638,6 @@ export function App() {
       // An empty thread, as in T3 Code: a quiet line in the middle, the composer docked below.
       <>
         <div className="scroll empty-thread">
-          <Ribbons />
           {state.connections.length === 0 ? (
             <p className="muted">
               <button className="link" onClick={() => setDialog("connections")}>

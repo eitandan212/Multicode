@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { UpdateButton } from "./UpdateButton";
 import type {
   ConnectionView,
   ProjectInfo,
@@ -289,6 +290,7 @@ export function Sidebar(p: Props) {
         {showSettled && <div className="sb-settled">{done.map(card)}</div>}
       </div>
 
+      <UpdateButton />
       <div className="sb-foot">
         <button
           className="sb-settings"

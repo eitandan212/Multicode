@@ -398,9 +398,11 @@ export function Thread({
       )}
       {run.answered.length > 0 && (
         <p className="muted small answered-line">
-          You allowed {run.answered.filter((a) => a.allow).length} and declined{" "}
-          {run.answered.filter((a) => !a.allow).length} action
-          {run.answered.length === 1 ? "" : "s"} in this thread.
+          {(() => {
+            const yes = run.answered.filter((a) => a.allow).length;
+            const no = run.answered.length - yes;
+            return `You approved ${yes}${no ? ` and declined ${no}` : ""} action${run.answered.length === 1 ? "" : "s"} in this thread.`;
+          })()}
         </p>
       )}
       {run.asks.length > 0 && onAnswer && (

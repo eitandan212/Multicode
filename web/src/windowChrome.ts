@@ -13,6 +13,12 @@ declare global {
       setTheme(theme: string): void;
       /** The desktop app's native folder picker (undefined in a browser). */
       pickFolder?: () => Promise<string | null>;
+      /** In-app updates (desktop app only). */
+      update?: {
+        check(): Promise<{ current: string; available: boolean; version?: string; size?: number; error?: string } | null>;
+        install(): Promise<{ version: string } | null>;
+        onProgress(fn: (p: number) => void): () => void;
+      };
     };
   }
 }

@@ -14,7 +14,6 @@ export interface Appearance {
   font: FontChoice;
   size: SizeChoice;
   reducedMotion: boolean;
-  ribbons: boolean;
   intro: boolean;
 }
 
@@ -24,7 +23,6 @@ export const DEFAULT_APPEARANCE: Appearance = {
   font: "inter",
   size: "default",
   reducedMotion: false,
-  ribbons: false,
   intro: true,
 };
 
@@ -93,7 +91,6 @@ export function applyAppearance(a: Appearance): void {
   set("data-accent", a.accent ? "custom" : null);
   set("data-size", a.size === "default" ? null : a.size);
   set("data-motion", a.reducedMotion ? "reduced" : null);
-  set("data-ribbons", a.ribbons ? null : "off");
   if (a.accent) root.style.setProperty("--user-accent", a.accent);
   else root.style.removeProperty("--user-accent");
   root.style.setProperty("--font", FONTS[a.font].stack);

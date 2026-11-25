@@ -5,4 +5,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("multicodeDesktop", {
   setTheme: (theme) => ipcRenderer.send("multicode:theme", String(theme)),
   pickFolder: () => ipcRenderer.invoke("multicode:pick-folder"),
+  update: {
+    check: () => ipcRenderer.invoke("multicode:update-check"),
+    install: () => ipcRenderer.invoke("multicode:update-install"),
+    onProgress: (fn) => {
+      const listener = (_e, p) => fn(Number(p));
+      ipcRenderer.on("multicode:update-progress", listener);
+      return () => ipcRenderer.removeListener("multicode:update-progress", listener);
+    },
+  },
 });

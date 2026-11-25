@@ -78,6 +78,14 @@ Section "Install"
   File /r "${SRC_DIR}\*.*"
 
   WriteUninstaller "$INSTDIR\Uninstall ${APP_NAME}.exe"
+
+  ; In-app updates run this installer silently (/S) with --relaunch: start the new version.
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "--relaunch" $R1
+  ${IfNot} ${Errors}
+    Exec '"$INSTDIR\${APP_EXE}"'
+  ${EndIf}
   WriteRegStr HKCU "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
 
   CreateShortCut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0 SW_SHOWNORMAL "" "${APP_NAME}"
