@@ -35,7 +35,7 @@ import {
 } from "../server/providers/types.js";
 import { RunManager } from "../server/runs.js";
 import { Approvals } from "../server/approvals.js";
-import { linkProject, listProjects, unlinkProject } from "../server/workspace.js";
+import { linkProject, listProjects, setProjectEmoji, unlinkProject, validateEmoji } from "../server/workspace.js";
 import { homedir } from "node:os";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
 import { selectPacks, SKILL_PACKS } from "../server/skills.js";
@@ -462,6 +462,28 @@ describe("approvals (as in Claude Code)", () => {
     expect(await a.ask("m", { kind: "edit", title: "three" })).toBe(true); // no longer asks
     a.declineAll();
     expect(await tool).toBe(false); // other kinds still needed an answer
+  });
+});
+
+describe("project emoji", () => {
+  it("accepts one emoji of any kind and nothing else", () => {
+    for (const e of ["🚀", "👨‍💻", "🇮🇱", "👍🏽", "❤️", "1️⃣"]) expect(validateEmoji(e)).toBe(e);
+    for (const e of ["a", "🚀 hi", "<b>", "🚀🚀", "🚀".repeat(20)]) expect(() => validateEmoji(e)).toThrow(/single emoji/);
+    expect(validateEmoji(null)).toBeNull();
+  });
+
+  it("is saved per project, shown in the list and can be removed", async () => {
+    const data = await mkdtemp(path.join(tmpdir(), "mc-emoji-"));
+    const projectsDir = path.join(data, "projects");
+    try {
+      await Workspace.open(projectsDir, "site");
+      await setProjectEmoji(projectsDir, "site", "🍕");
+      expect((await listProjects(projectsDir)).find((p) => p.name === "site")?.emoji).toBe("🍕");
+      await setProjectEmoji(projectsDir, "site", null);
+      expect((await listProjects(projectsDir)).find((p) => p.name === "site")?.emoji).toBeUndefined();
+    } finally {
+      await rm(data, { recursive: true, force: true });
+    }
   });
 });
 

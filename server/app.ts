@@ -33,6 +33,7 @@ import {
 import {
   linkProject,
   listProjects,
+  setProjectEmoji,
   unlinkProject,
   validateProjectName,
   Workspace,
@@ -363,6 +364,13 @@ export function createApp(opts: AppOptions) {
     "/projects/open",
     wrap(async (req, res) => {
       res.status(201).json({ name: await linkProject(projectsDir, req.body?.path) });
+    }),
+  );
+  api.put(
+    "/projects/:name/emoji",
+    wrap(async (req, res) => {
+      await setProjectEmoji(projectsDir, param(req, "name"), req.body?.emoji ?? null);
+      res.status(204).end();
     }),
   );
   api.post(

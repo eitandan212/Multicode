@@ -3,6 +3,7 @@ const PATHS = {
   sidebar: "M4 5h16v14H4zM9 5v14",
   panelRight: "M4 5h16v14H4zM15 5v14",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4",
+  smile: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 14.5s1.3 2 3.5 2 3.5-2 3.5-2M9 9.5h.01M15 9.5h.01",
   download: "M12 4v11M7 10l5 5 5-5M5 20h14",
   pencil: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
   wrench: "M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 8-8-1.3-1.3a4 4 0 0 0-5-5L14 2z",

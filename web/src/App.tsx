@@ -38,7 +38,7 @@ import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { usePresence } from "./motion";
 import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
-import { Sidebar } from "./components/Sidebar";
+import { ProjectEmojis, Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
@@ -262,6 +262,13 @@ export function App() {
     });
   }, [runId, bumpPreview, reload]);
 
+  const projectEmojis = useMemo(
+    () =>
+      Object.fromEntries(
+        (state?.projects ?? []).flatMap((p) => (p.emoji ? [[p.name, p.emoji]] : [])),
+      ) as Record<string, string>,
+    [state?.projects],
+  );
   const busy = useMemo(
     () =>
       new Set(
@@ -663,6 +670,7 @@ export function App() {
     );
 
   return (
+    <ProjectEmojis.Provider value={projectEmojis}>
     <div
       className={`shell ${sidebarOpen ? "with-sidebar" : ""} ${panelOpen ? "with-panel" : ""}`}
     >
@@ -719,6 +727,10 @@ export function App() {
                   onNew={newProject}
                   onUnlink={async (name) => {
                     await api.unlinkProject(name);
+                    await reload();
+                  }}
+                  onEmoji={async (name, emoji) => {
+                    await api.setProjectEmoji(name, emoji);
                     await reload();
                   }}
                 />
@@ -823,8 +835,9 @@ export function App() {
       {dialog === "project" && (
         <ProjectDialog
           onClose={() => setDialog(null)}
-          onCreate={async (name) => {
+          onCreate={async (name, emoji) => {
             const p = await api.createProject(name);
+            if (emoji) await api.setProjectEmoji(p.name, emoji).catch(() => {});
             await reload();
             selectProject(p.name);
           }}
@@ -902,5 +915,6 @@ export function App() {
       )}
       {splash}
     </div>
+    </ProjectEmojis.Provider>
   );
 }

@@ -209,6 +209,45 @@ export class Workspace {
   }
 }
 
+/** Per-project look (an emoji), kept in MultiCode's data and never in the project folder. */
+const META = ".project-meta.json";
+type ProjectMeta = Record<string, { emoji?: string }>;
+
+async function readMeta(projectsDir: string): Promise<ProjectMeta> {
+  try {
+    const raw = JSON.parse(await readFile(path.join(projectsDir, META), "utf8"));
+    return raw && typeof raw === "object" ? (raw as ProjectMeta) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** One emoji (flags, skin tones and joined sequences included), nothing else. */
+const EMOJI =
+  /^(?:[0-9#*]\ufe0f?\u20e3|(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|\u200d|\ufe0f|\u20e3)*)$/u;
+
+export function validateEmoji(emoji: unknown): string | null {
+  if (emoji === null || emoji === "") return null;
+  const graphemes =
+    typeof emoji === "string"
+      ? [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(emoji.trim())].length
+      : 0;
+  if (typeof emoji !== "string" || emoji.length > 32 || graphemes !== 1 || !EMOJI.test(emoji.trim()))
+    throw new HttpError(400, "pick a single emoji");
+  return emoji.trim();
+}
+
+/** Sets (or with null, removes) a project's emoji. */
+export async function setProjectEmoji(projectsDir: string, name: string, emoji: unknown): Promise<void> {
+  validateProjectName(name);
+  const value = validateEmoji(emoji);
+  const meta = await readMeta(projectsDir);
+  if (value) meta[name] = { ...meta[name], emoji: value };
+  else if (meta[name]) delete meta[name].emoji;
+  await mkdir(projectsDir, { recursive: true });
+  await writeFile(path.join(projectsDir, META), JSON.stringify(meta, null, 2));
+}
+
 /** Folders opened from elsewhere: project name → absolute folder. */
 const LINKS = ".linked-projects.json";
 
@@ -284,5 +323,7 @@ export async function listProjects(
     const files = await new Workspace(folder).list();
     out.push({ name, fileCount: files.length, updatedAt: s.mtimeMs, path: folder });
   }
+  const meta = await readMeta(projectsDir);
+  for (const p of out) if (meta[p.name]?.emoji) p.emoji = meta[p.name]!.emoji;
   return out.sort((a, b) => b.updatedAt - a.updatedAt);
 }

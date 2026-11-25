@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { UpdateButton } from "./UpdateButton";
 import type {
   ConnectionView,
@@ -51,6 +51,9 @@ function useNow(ms: number): number {
 }
 
 /** Two-letter project mark on a colour derived from the name. */
+/** Project name → its emoji, provided once by the app for every badge. */
+export const ProjectEmojis = createContext<Record<string, string>>({});
+
 export function ProjectBadge({
   name,
   size = 18,
@@ -58,6 +61,17 @@ export function ProjectBadge({
   name: string;
   size?: number;
 }) {
+  const emoji = useContext(ProjectEmojis)[name];
+  if (emoji)
+    return (
+      <span
+        className="project-badge is-emoji"
+        style={{ width: size, height: size, fontSize: Math.round(size * 0.8) }}
+        aria-hidden
+      >
+        {emoji}
+      </span>
+    );
   const parts = name.split(/[-_\s]+/).filter(Boolean);
   const letters = (
     parts.length > 1 ? parts[0]![0]! + parts[1]![0]! : name.slice(0, 2)

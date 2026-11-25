@@ -124,6 +124,8 @@ export const api = {
   cancelSignIn: (id: string) => request<void>("POST", `/api/signin/${id}/cancel`),
   approve: (runId: string, approvalId: string, allow: boolean, always = false) =>
     request<void>("POST", `/api/runs/${runId}/approvals/${approvalId}`, { allow, always }),
+  setProjectEmoji: (name: string, emoji: string | null) =>
+    request<void>("PUT", `/api/projects/${name}/emoji`, { emoji }),
   openFolder: (path: string) =>
     request<{ name: string }>("POST", "/api/projects/open", { path }),
   unlinkProject: (name: string) =>

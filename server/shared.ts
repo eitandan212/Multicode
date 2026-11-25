@@ -343,6 +343,8 @@ export interface ProjectInfo {
   updatedAt: number;
   /** Set for a folder opened from elsewhere on this computer (the crew works in it directly). */
   path?: string;
+  /** The project's emoji, shown instead of its initials. */
+  emoji?: string;
 }
 
 export interface PlanTask {

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ProjectInfo } from "../../../server/shared";
 import { usePresence } from "../motion";
 import { Icon } from "./Icon";
+import { EmojiPicker } from "./EmojiPicker";
 import { ProjectBadge } from "./Sidebar";
 
 /** The project chip in the top bar (as in T3 Code): badge + name, and a menu to switch. */
@@ -12,9 +14,13 @@ export function ProjectSwitcher(p: {
   onNew: () => void;
   /** Removes an opened folder from the list (the folder is not touched). */
   onUnlink?: (name: string) => void;
+  /** Sets or removes a project's emoji. */
+  onEmoji?: (name: string, emoji: string | null) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
   const presence = usePresence(open, 160);
+  const current = p.projects.find((x) => x.name === p.project);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -51,6 +57,17 @@ export function ProjectSwitcher(p: {
           role="menu"
           inert={!open}
         >
+          {p.onEmoji && (
+            <button
+              className="menu-item"
+              onClick={() => {
+                setOpen(false);
+                setPicking(true);
+              }}
+            >
+              <Icon name="smile" size={15} /> {current?.emoji ? "Change" : "Choose"} emoji for {p.project}…
+            </button>
+          )}
           <div className="team-list-head">Projects</div>
           {p.projects.map((pr) => (
             <div key={pr.name} className="menu-row">
@@ -97,6 +114,25 @@ export function ProjectSwitcher(p: {
           </button>
         </div>
       )}
+      {picking &&
+        p.onEmoji &&
+        createPortal(
+          <EmojiPicker
+            value={current?.emoji}
+            onPick={(e) => p.onEmoji!(p.project, e)}
+            onClose={() => setPicking(false)}
+            style={(() => {
+              const r = ref.current?.getBoundingClientRect();
+              return {
+                position: "fixed",
+                top: (r?.bottom ?? 48) + 6,
+                left: Math.max(12, Math.min(r?.left ?? 12, window.innerWidth - 344)),
+                zIndex: 60,
+              };
+            })()}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

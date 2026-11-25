@@ -4702,3 +4702,31 @@ pre,
 .update-text{ display: grid; gap: 2px; flex: 1; min-width: 0; font-size: 13px; }
 .update-bar{ height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 4px; }
 .update-bar > span{ display: block; height: 100%; background: var(--brand); transition: width 200ms linear; }
+
+/* ---- Project emoji ---- */
+.project-badge.is-emoji { background: none; color: inherit; line-height: 1; font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
+.project-switcher { position: relative; }
+.emoji-picker {
+  display: grid; gap: 10px; width: min(332px, calc(100vw - 24px)); padding: 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow-pop);
+  animation: menu-pop-in 160ms var(--ease) both;
+}
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 2px; }
+.emoji-cell {
+  height: 32px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+  font-size: 19px; line-height: 1; font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  transition: background 120ms var(--ease), transform 120ms var(--ease);
+}
+.emoji-cell:hover { background: var(--hover); transform: scale(1.12); }
+.emoji-cell.is-active { background: var(--accent-soft); outline: 1px solid var(--brand); }
+.emoji-own { display: flex; gap: 6px; }
+.emoji-own input {
+  flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
+}
+.emoji-foot { display: flex; gap: 6px; align-items: center; }
+.emoji-choose {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--line-strong);
+  border-radius: 8px; background: var(--card); color: var(--muted); cursor: pointer; font-size: 19px;
+}
+.emoji-choose:hover { border-color: var(--brand); color: var(--text); }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useOpenDialog } from "./embed";
+import { EmojiPicker } from "./EmojiPicker";
 import { Icon } from "./Icon";
 
 /** New project: start an empty one, or open a folder that already exists on this computer. */
 export function ProjectDialog(p: {
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string, emoji?: string) => Promise<void>;
   onOpenFolder: (path: string) => Promise<void>;
   onClose: () => void;
 }) {
@@ -15,6 +16,8 @@ export function ProjectDialog(p: {
   }, []);
   const [tab, setTab] = useState<"new" | "open">("new");
   const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState<string | undefined>();
+  const [picking, setPicking] = useState(false);
   const [folder, setFolder] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -64,13 +67,27 @@ export function ProjectDialog(p: {
             className="project-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (clean) void act(() => p.onCreate(clean));
+              if (clean) void act(() => p.onCreate(clean, emoji));
             }}
           >
             <label>
               Name
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. coffee-shop" maxLength={48} autoFocus />
+              <div className="row-input">
+                <button
+                  type="button"
+                  className="emoji-choose"
+                  onClick={() => setPicking(!picking)}
+                  title="Choose an emoji"
+                  aria-label={emoji ? `Emoji ${emoji}, change` : "Choose an emoji"}
+                >
+                  {emoji ?? <Icon name="smile" size={16} />}
+                </button>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. coffee-shop" maxLength={48} autoFocus />
+              </div>
             </label>
+            {picking && (
+              <EmojiPicker value={emoji} onPick={(e) => setEmoji(e ?? undefined)} onClose={() => setPicking(false)} />
+            )}
             {name && clean !== name.trim() && <span className="muted small">Saved as {clean || "…"}</span>}
             <button className="btn primary" disabled={!clean || busy}>
               {busy ? "Creating…" : "Create project"}
