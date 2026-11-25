@@ -67,7 +67,7 @@ export function Composer(p: Props) {
   };
 
   const submit = async () => {
-    if ((!prompt.trim() && !pics.length) || (p.running && !p.sleep) || !p.canRun || uploading) return;
+    if ((!prompt.trim() && !pics.length) || !p.canRun || uploading) return;
     setSending(true);
     setError("");
     try {
@@ -305,7 +305,7 @@ export function Composer(p: Props) {
             onSettings={p.onSettings}
             onOpenSafety={p.onOpenSafety}
           />
-          {p.running && p.sleep && (
+          {p.running && (
             <button
               className="send"
               disabled={!p.canRun || (!prompt.trim() && !pics.length) || sending || uploading > 0}

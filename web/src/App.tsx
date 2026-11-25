@@ -254,7 +254,11 @@ export function App() {
     setSleepState(on);
     store.set("sleep", on ? "1" : "0");
   };
-  const [queue, setQueue] = useState<{ id: string; project: string; prompt: string; mode: RunMode }[]>([]);
+  // Messages typed while the crew works wait their turn (as in Claude Code); each follows up the
+  // thread that was working when you wrote it.
+  const [queue, setQueue] = useState<
+    { id: string; project: string; prompt: string; mode: RunMode; sleep: boolean; afterRun?: string }[]
+  >([]);
   const [queueError, setQueueError] = useState("");
   const starting = useRef(false);
   const [draft, setDraft] = useState<{ text: string; n: number } | undefined>();
@@ -307,19 +311,26 @@ export function App() {
   const anyRunning = runs.some((r) => r.status === "running");
   useEffect(() => {
     const next = queue.find((q) => q.project === project);
-    if (!sleep || anyRunning || !next || starting.current || !project) return;
+    if (!next || starting.current || !project || queueError) return;
+    if (runs.some((r) => r.project === next.project && (r.status === "running" || r.pending))) return;
+    // Follow up the newest turn of the thread that was working when the message was queued.
+    const after = next.afterRun ? runs.find((r) => r.id === next.afterRun) : undefined;
+    const key = after ? (after.threadId ?? after.id) : undefined;
+    const parent = key
+      ? runs.filter((r) => (r.threadId ?? r.id) === key).sort((a, b) => b.startedAt - a.startedAt)[0]
+      : undefined;
     starting.current = true;
     setQueue((q) => q.filter((x) => x.id !== next.id));
-    launch(next.project, next.prompt, next.mode, true)
+    launch(next.project, next.prompt, next.mode, next.sleep, parent?.id)
       .then(() => setQueueError(""))
       .catch((e: Error) => {
         setQueue((q) => [next, ...q]);
         setQueueError(e.message);
-        setSleep(false);
+        if (next.sleep) setSleep(false);
       })
       .finally(() => (starting.current = false));
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- launch is recreated each render
-  }, [sleep, anyRunning, queue, project]);
+  }, [runs, queue, project, queueError]);
   useEffect(() => {
     window.multicodeDesktop?.keepAwake?.(sleep && (anyRunning || queue.length > 0));
   }, [sleep, anyRunning, queue.length]);
@@ -365,9 +376,14 @@ export function App() {
   };
   const startRun = async (prompt: string, mode: RunMode = "build") => {
     if (!project) return;
-    // Sleep mode: more work while the crew is busy waits its turn.
-    if (sleep && runs.some((r) => r.status === "running")) {
-      setQueue((q) => [...q, { id: crypto.randomUUID(), project, prompt, mode }]);
+    // While the crew is busy in this project, the message waits its turn.
+    const busyRun = runs.find((r) => r.project === project && r.status === "running");
+    if (busyRun || queue.some((q) => q.project === project)) {
+      const following = run && runs.find((r) => r.id === run.id && r.project === project);
+      setQueue((q) => [
+        ...q,
+        { id: crypto.randomUUID(), project, prompt, mode, sleep, afterRun: following?.id ?? busyRun?.id },
+      ]);
       return;
     }
     // A message in an open, finished thread continues it: the crew remembers the conversation.
@@ -626,6 +642,29 @@ export function App() {
   const queued = queue.filter((q) => q.project === project);
   const composer = project && (
     <>
+    {!sleep && !queueError && queued.length > 0 && (
+      <div className="sleep-banner queue-banner" role="status">
+        <Icon name="list" size={16} />
+        <div className="sleep-text">
+          <strong>Queued next ({queued.length})</strong>{" "}
+          <span className="muted">Each one starts by itself when the crew finishes, in this thread.</span>
+          <ol className="sleep-queue">
+            {queued.map((q) => (
+              <li key={q.id} className="pop-in">
+                <span className="truncate">{plainPrompt(q.prompt)}</span>
+                <button
+                  className="icon-btn small-btn"
+                  aria-label="Remove from the queue"
+                  onClick={() => setQueue((all) => all.filter((x) => x.id !== q.id))}
+                >
+                  <Icon name="x" size={12} />
+                </button>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    )}
     {(sleep || queueError) && (
       <div className={`sleep-banner ${sleep ? "" : "is-off"}`} role="status">
         <Icon name="moon" size={16} />
@@ -639,7 +678,7 @@ export function App() {
               </span>
             </>
           ) : (
-            <span className="err-text">Sleep mode stopped: {queueError}</span>
+            <span className="err-text">The queue stopped: {queueError}</span>
           )}
           {queued.length > 0 && <span className="sleep-queue-head">Queued next ({queued.length})</span>}
           {queued.length > 0 && (
@@ -662,11 +701,13 @@ export function App() {
         <button
           className="btn small"
           onClick={() => {
-            setSleep(!sleep);
+            // A stopped queue retries; Sleep mode turns on or off.
+            if (!sleep && queueError && !queue.some((q) => q.sleep)) setQueueError("");
+            else setSleep(!sleep);
             setQueueError("");
           }}
         >
-          {sleep ? "Turn off" : "Resume"}
+          {sleep ? "Turn off" : queueError && !queue.some((q) => q.sleep) ? "Try again" : "Resume"}
         </button>
       </div>
     )}
@@ -696,8 +737,8 @@ export function App() {
           : undefined
       }
       placeholder={
-        sleep && running
-          ? "Add more work: it starts by itself when this one finishes."
+        running
+          ? "Add a follow-up: it starts by itself when the crew finishes."
           : canRun
           ? run
             ? "Reply in this thread. The crew remembers the conversation."
