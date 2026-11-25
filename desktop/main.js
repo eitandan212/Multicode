@@ -52,7 +52,7 @@ function createWindow() {
     title: "MultiCode",
     icon: ICON,
     show: false,
-    backgroundColor: dark ? "#0b0d0c" : "#f5f5ef",
+    backgroundColor: dark ? "#0b0c0f" : "#fcfcfb",
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,

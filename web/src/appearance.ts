@@ -8,7 +8,7 @@ export type SizeChoice = "compact" | "default" | "large";
 
 export interface Appearance {
   theme: ThemeMode;
-  /** null = MultiCode's own accent green (#A8E5B6). */
+  /** null = MultiCode's own Cobalt accent (#2563FF). */
   accent: string | null;
   font: FontChoice;
   size: SizeChoice;
@@ -28,10 +28,10 @@ export const DEFAULT_APPEARANCE: Appearance = {
 };
 
 export const ACCENTS: { name: string; value: string | null; swatch: string }[] = [
-  { name: "MultiCode green", value: null, swatch: "#a8e5b6" },
-  { name: "Ocean", value: "#2f7fd1", swatch: "#2f7fd1" },
+  { name: "MultiCode cobalt", value: null, swatch: "#2563ff" },
+  { name: "Amber", value: "#f59e0b", swatch: "#f59e0b" },
+  { name: "Emerald", value: "#10b981", swatch: "#10b981" },
   { name: "Violet", value: "#7c5cff", swatch: "#7c5cff" },
-  { name: "Sunset", value: "#e2702f", swatch: "#e2702f" },
   { name: "Rose", value: "#d9467a", swatch: "#d9467a" },
   { name: "Graphite", value: "#5b6470", swatch: "#5b6470" },
 ];

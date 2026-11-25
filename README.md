@@ -1,8 +1,8 @@
-<p align="center"><img src="assets/brand/logo.svg" width="140" alt="MultiCode logo"></p>
+<p align="center"><img src="assets/brand/logo-reference.png" width="520" alt="MultiCode: Multi-engine vibe coding"></p>
 
 # MultiCode
 
-**One workspace. Many minds.**
+**One workspace. Many engines.**
 
 Connect the AI accounts you already have — **subscriptions or API keys** — and let them
 build your project together as a crew.
@@ -146,11 +146,11 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the architecture.
 
 | | |
 |---|---|
-| Accent Green | `#A8E5B6` |
-| Canvas | `#F5F5EF` |
-| Stone | `#9CA3AF` |
-| Charcoal | `#0B0D0C` |
-| Type | Inter (UI and headings), JetBrains Mono (code) |
+| Graphite | `#0B0C0F` |
+| Off-White | `#F5F4EF` |
+| Cobalt (primary) | `#2563FF` |
+| Amber (highlight) | `#F59E0B` |
+| Type | Inter (Semibold / Medium / Regular) |
 
 Logo, app icon and the brand sheet live in [`assets/brand/`](assets/brand/).
 

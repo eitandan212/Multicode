@@ -43,7 +43,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
             </span>
           ))}
         </h1>
-        <p className="splash-tag">One workspace. Many minds.</p>
+        <p className="splash-tag">One workspace. Many engines.</p>
       </div>
     </div>
   );

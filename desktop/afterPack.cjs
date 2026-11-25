@@ -33,7 +33,7 @@ exports.default = async function afterPack(context) {
       { lang, codepage: 1200 },
       {
         ProductName: "MultiCode",
-        FileDescription: "MultiCode: one workspace, many minds",
+        FileDescription: "MultiCode: one workspace, many engines",
         CompanyName: "MultiCode",
         OriginalFilename: `${productFilename}.exe`,
         InternalName: "MultiCode",

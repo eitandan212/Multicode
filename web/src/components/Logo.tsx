@@ -1,31 +1,16 @@
-import { useId } from "react";
+/** The MultiCode mark: an isometric M of three ribbons (Cobalt, Off-White, Amber), one per engine. */
+export const MARK_PATHS = [
+  "M0 34 L53.5 0 L106.5 36 L75 57.5 L40 34 L40 107.5 L0 132.5Z",
+  "M75 57.5 L160 0 L160 50 L108.5 81 L108.5 112.5 L75 135Z",
+  "M160 0 L199 26 L199 107.5 L137.5 145 L137.5 102.5 L160 86Z",
+] as const;
 
-/**
- * The MultiCode mark: an M folded like a ribbon between code brackets.
- * Same artwork as assets/brand/logo.svg, with ids scoped per instance.
- */
 export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
-  const id = useId().replace(/:/g, "");
   return (
-    <svg className={className} viewBox="0 0 120 80" width={size * 1.5} height={size} aria-hidden>
-      <defs>
-        <linearGradient id={`${id}s`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--logo-stem-top)" }} />
-          <stop offset="1" style={{ stopColor: "var(--logo-stem-bottom)" }} />
-        </linearGradient>
-        <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--logo-fold-top)" }} />
-          <stop offset="1" style={{ stopColor: "var(--logo-fold-bottom)" }} />
-        </linearGradient>
-      </defs>
-      <path className="lm-bracket lm-left" d="M22 27 L9 40 L22 53" fill="none" stroke="var(--logo-bracket)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
-      <path className="lm-bracket lm-right" d="M98 27 L111 40 L98 53" fill="none" stroke="var(--logo-bracket)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
-      <g className="lm-m">
-        <path d="M44 13 L60 39 L60 56 L44 30 Z" fill={`url(#${id}f)`} />
-        <path d="M76 13 L60 39 L60 56 L76 30 Z" fill={`url(#${id}f)`} opacity="0.85" />
-        <path d="M31 19 Q31 15 34.5 13.3 L44 9 L44 67 L31 67 Z" fill={`url(#${id}s)`} />
-        <path d="M89 19 Q89 15 85.5 13.3 L76 9 L76 67 L89 67 Z" fill={`url(#${id}s)`} />
-      </g>
+    <svg className={className} viewBox="0 0 200 145" width={Math.round((size * 200) / 145)} height={size} aria-hidden>
+      <path className="lm-a" d={MARK_PATHS[0]} fill="var(--logo-a)" />
+      <path className="lm-b" d={MARK_PATHS[1]} fill="var(--logo-b)" />
+      <path className="lm-c" d={MARK_PATHS[2]} fill="var(--logo-c)" />
     </svg>
   );
 }

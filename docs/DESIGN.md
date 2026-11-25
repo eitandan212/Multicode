@@ -88,11 +88,14 @@ Shared instructions + the last 15 project-memory entries are written as a marked
 Layout in the spirit of T3 Code (MIT); palette and motion in the spirit of Qoder. MultiCode uses
 its own name, logo, illustrations and code; no assets or trademarks of either product are used.
 
-* **Brand** (assets/brand): Accent Green `#A8E5B6`, Canvas `#F5F5EF`, Stone `#9CA3AF`, Charcoal
-  `#0B0D0C`; Inter for UI and headings, JetBrains Mono for code; dark is the default theme. The
-  logo is an M folded like a ribbon between code brackets, with a deeper-green variant for light
-  backgrounds. Crew colours are the only other hues.
-* **Motion** (one easing, `cubic-bezier(.22,1,.36,1)`): new thread items settle in from a slight blur;
+* **Brand** (assets/brand): Graphite `#0B0C0F`, Off-White `#F5F4EF`, Cobalt `#2563FF` (primary),
+  Amber `#F59E0B` (highlight); Inter for UI. The logo is an isometric M of three ribbons, one per
+  engine (Cobalt, Off-White, Amber); on light backgrounds the middle ribbon turns Graphite.
+  Tagline: "One workspace. Many engines."
+* **Surfaces** follow T3 Code's token values: neutral canvas, 8px control radius, hairline borders
+  (white 8% in dark), a 52px top bar, a 46rem chat column, a flat composer with a 1px shadow in
+  light and none in dark, and the drawer easing `cubic-bezier(.32,.72,0,1)`.
+* **Motion** (one easing, `cubic-bezier(.32,.72,0,1)`): new thread items settle in from a slight blur;
   running titles carry a light sweep; a breathing dot marks thinking agents; queued tasks pulse;
   dialogs rise from 95%; the start screen's ribbons draw in once. All of it is off under
   `prefers-reduced-motion`.
