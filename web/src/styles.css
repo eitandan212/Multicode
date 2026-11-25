@@ -1,33 +1,33 @@
-/* MultiCode: quiet, neutral workspace in the T3 Code style. Color is reserved for the crew. */
+/* MultiCode: quiet, neutral workspace. Palette tokens adapted from T3 Code (MIT, (c) 2026 T3 Tools Inc.). */
 /* Brand: Graphite #0B0C0F · Off-White #F5F4EF · Cobalt #2563FF · Amber #F59E0B · Inter */
 :root {
-  --bg: #fcfcfb;
-  --sidebar: #f5f4ef;
+  --bg: #fcfcfc;
+  --sidebar: #fafafa;
   --card: #ffffff;
-  --hover: #efeee9;
-  --bubble: #f1f0eb;
-  --line: #e4e4e0;
-  --line-strong: #d4d4cf;
-  --text: #0b0c0f;
+  --hover: #f4f4f5;
+  --bubble: #ececee;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --text: #18181b;
   --muted: #71717a;
-  --brand: #2563ff;
-  --brand-hover: #1d4fe0;
+  --brand: oklch(0.488 0.217 264);
+  --brand-hover: color-mix(in srgb, oklch(0.488 0.217 264) 90%, #fcfcfc);
   --brand-ink: #ffffff;
-  --accent: #2253e0;
-  --accent-soft: #ebf0ff;
+  --accent: oklch(0.488 0.217 264);
+  --accent-soft: color-mix(in srgb, oklch(0.488 0.217 264) 8%, transparent);
   --amber: #b45309;
   --amber-soft: #fdf3e1;
   --ribbon-1: #2563ff;
   --ribbon-2: #f59e0b;
-  --link: #2253e0;
-  --ok: #16a34a;
-  --warn: #b7791f;
-  --bad: #d9413a;
+  --link: oklch(0.488 0.217 264);
+  --ok: #047857;
+  --warn: #b45309;
+  --bad: #b91c1c;
   --send: var(--brand);
   --send-ink: var(--brand-ink);
-  --focus: #2563ff;
+  --focus: oklch(0.488 0.217 264);
   --logo-a: #2563ff;
-  --logo-b: #0b0c0f;
+  --logo-b: #18181b;
   --logo-c: #f59e0b;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05);
   --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px rgb(11 12 15 / 0.1);
@@ -61,33 +61,33 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b0c0f;
-    --sidebar: #111216;
-    --card: #15161a;
-    --hover: rgb(255 255 255 / 0.05);
-    --bubble: rgb(255 255 255 / 0.06);
+    --bg: #000000;
+    --sidebar: #111111;
+    --card: #111111;
+    --hover: rgb(255 255 255 / 0.04);
+    --bubble: #1d1d1d;
     --line: rgb(255 255 255 / 0.08);
-    --line-strong: rgb(255 255 255 / 0.13);
-    --text: #f5f4ef;
-    --muted: #a1a1aa;
-    --brand: #2563ff;
-    --brand-hover: #3d75ff;
+    --line-strong: rgb(255 255 255 / 0.11);
+    --text: #f5f5f5;
+    --muted: #a3a3a3;
+    --brand: oklch(0.571 0.21 264);
+    --brand-hover: color-mix(in srgb, oklch(0.571 0.21 264) 90%, white);
     --brand-ink: #ffffff;
-    --accent: #7c9dff;
-    --accent-soft: rgb(37 99 255 / 0.14);
+    --accent: #60a5fa;
+    --accent-soft: color-mix(in srgb, oklch(0.571 0.21 264) 16%, transparent);
     --amber: #f59e0b;
     --amber-soft: rgb(245 158 11 / 0.14);
     --ribbon-1: #2563ff;
     --ribbon-2: #f59e0b;
-    --link: #7c9dff;
-    --ok: #4ade80;
-    --warn: #f5b13d;
-    --bad: #ff6b62;
-    --focus: #5b86ff;
+    --link: #60a5fa;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --focus: oklch(0.571 0.21 264);
     --logo-a: #2563ff;
-    --logo-b: #f5f4ef;
+    --logo-b: #f5f5f5;
     --logo-c: #f59e0b;
-    --shadow: none;
+    --shadow: 0 14px 32px -18px rgb(0 0 0 / 0.75);
     --shadow-pop:
       0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px rgb(0 0 0 / 0.5);
     color-scheme: dark;
@@ -95,33 +95,33 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0c0f;
-  --sidebar: #111216;
-  --card: #15161a;
-  --hover: rgb(255 255 255 / 0.05);
-  --bubble: rgb(255 255 255 / 0.06);
+  --bg: #000000;
+  --sidebar: #111111;
+  --card: #111111;
+  --hover: rgb(255 255 255 / 0.04);
+  --bubble: #1d1d1d;
   --line: rgb(255 255 255 / 0.08);
-  --line-strong: rgb(255 255 255 / 0.13);
-  --text: #f5f4ef;
-  --muted: #a1a1aa;
-  --brand: #2563ff;
-  --brand-hover: #3d75ff;
+  --line-strong: rgb(255 255 255 / 0.11);
+  --text: #f5f5f5;
+  --muted: #a3a3a3;
+  --brand: oklch(0.571 0.21 264);
+  --brand-hover: color-mix(in srgb, oklch(0.571 0.21 264) 90%, white);
   --brand-ink: #ffffff;
-  --accent: #7c9dff;
-  --accent-soft: rgb(37 99 255 / 0.14);
+  --accent: #60a5fa;
+  --accent-soft: color-mix(in srgb, oklch(0.571 0.21 264) 16%, transparent);
   --amber: #f59e0b;
   --amber-soft: rgb(245 158 11 / 0.14);
   --ribbon-1: #2563ff;
   --ribbon-2: #f59e0b;
-  --link: #7c9dff;
-  --ok: #4ade80;
-  --warn: #f5b13d;
-  --bad: #ff6b62;
-  --focus: #5b86ff;
+  --link: #60a5fa;
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --focus: oklch(0.571 0.21 264);
   --logo-a: #2563ff;
-  --logo-b: #f5f4ef;
+  --logo-b: #f5f5f5;
   --logo-c: #f59e0b;
-  --shadow: none;
+  --shadow: 0 14px 32px -18px rgb(0 0 0 / 0.75);
   --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 32px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }
@@ -4861,3 +4861,7 @@ pre,
   .msg-actions { opacity: 1; }
 }
 @media (max-width: 640px), (hover: none) { .shortcut-hint { display: none; } }
+
+/* T3 Code look: no decorative ribbons, plain centered empty states. */
+.ribbons { display: none; }
+.splash-ribbons { display: none; }

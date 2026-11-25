@@ -31,7 +31,6 @@ import { ConnectionsDialog } from "./components/ConnectionsDialog";
 import { CrewDialog } from "./components/CrewDialog";
 import { Icon } from "./components/Icon";
 
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
 import { LogoLoader, LogoMark } from "./components/Logo";
 import { Ribbons } from "./components/Ribbons";
 import { SettingsPage } from "./components/SettingsPage";
@@ -670,9 +669,6 @@ export function App() {
                   </button>
                 ))}
               </div>
-              <p className="muted small shortcut-hint">
-                <kbd>/</kbd> type · <kbd>{MOD}</kbd>+<kbd>K</kbd> commands · <kbd>{MOD}</kbd>+<kbd>B</kbd> sidebar · <kbd>{MOD}</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> new thread
-              </p>
             </div>
           )}
         </div>
