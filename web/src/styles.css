@@ -4865,3 +4865,4 @@ pre,
 /* T3 Code look: no decorative ribbons, plain centered empty states. */
 .ribbons { display: none; }
 .splash-ribbons { display: none; }
+@media (max-width: 640px) { .composer-bar .mode-switch svg { display: none; } .composer-bar { gap: 6px; } }

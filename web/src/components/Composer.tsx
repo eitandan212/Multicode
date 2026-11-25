@@ -113,8 +113,9 @@ export function Composer(p: Props) {
               aria-checked={mode === "build"}
               className={mode === "build" ? "is-active" : ""}
               onClick={() => setMode("build")}
+              title="The crew plans, builds and reviews it together"
             >
-              Build
+              <Icon name="hammer" size={13} /> MultiBuild
             </button>
             <button
               type="button"
