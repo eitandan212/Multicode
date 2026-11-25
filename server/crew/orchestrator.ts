@@ -122,8 +122,6 @@ export interface RunOptions {
   limited?: Map<string, number>;
   /** Paths agents must never read or change. */
   isProtected?: (rel: string) => boolean;
-  /** One model alone: no planning call and no review rounds; it builds the request directly. */
-  solo?: boolean;
 }
 
 /** What the run changed, so it can be undone later. */
@@ -329,42 +327,27 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
   const digest = (maxChars: number, focus: string[] = []) =>
     ws.contextDigest(maxChars, focus, isProtected);
 
-  // 1. Plan (a single model skips it, unless the plan itself is the deliverable)
-  const direct = Boolean(o.solo) && o.settings.safety !== "readonly";
-  if (!direct) emit({ type: "phase", phase: "planning", round: 0 });
-  const archCtx = direct ? { tree: "" } : await digest(0);
+  // 1. Plan (always: even a single model thinks the work through before it builds)
+  emit({ type: "phase", phase: "planning", round: 0 });
+  const archCtx = await digest(0);
   const smart = o.settings.dispatch === "smart" && roles.builders.length > 1;
   const builderIds = new Set(roles.builders.map((b) => b.id));
-  const planText = direct
-    ? ""
-    : await withFallback(roles.architect, (m) =>
-        call(
-          m,
-          ws,
-          smart ? "Planning and dispatching" : "Planning the work",
-          P.architectSystem(smart, economy),
-          P.architectPrompt(
-            o.prompt,
-            archCtx.tree,
-            o.history,
-            smart ? P.roster(roles.builders) : "",
-          ),
-          "text",
-        ),
-      );
-  const plan: Plan = direct
-    ? {
-        summary: "",
-        tasks: [
-          {
-            id: "t1",
-            title: o.prompt.split("\n")[0]!.slice(0, 120),
-            description: o.prompt,
-            files: [],
-          },
-        ],
-      }
-    : parsePlan(planText, o.prompt);
+  const planText = await withFallback(roles.architect, (m) =>
+    call(
+      m,
+      ws,
+      smart ? "Planning and dispatching" : "Planning the work",
+      P.architectSystem(smart, economy),
+      P.architectPrompt(
+        o.prompt,
+        archCtx.tree,
+        o.history,
+        smart ? P.roster(roles.builders) : "",
+      ),
+      "text",
+    ),
+  );
+  const plan: Plan = parsePlan(planText, o.prompt);
   for (const t of plan.tasks) {
     if (!smart || !t.assignee || !builderIds.has(t.assignee)) {
       delete t.assignee;
@@ -541,11 +524,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     );
 
   // 3. Review loop (Economy: one round, by the cheapest member)
-  const rounds = o.solo
-    ? 0
-    : economy
-      ? Math.min(1, o.settings.maxReviewRounds)
-      : o.settings.maxReviewRounds;
+  const rounds = economy
+    ? Math.min(1, o.settings.maxReviewRounds)
+    : o.settings.maxReviewRounds;
   const reviewer = economy
     ? cheapest([roles.reviewer, roles.architect, ...roles.builders])
     : roles.reviewer;

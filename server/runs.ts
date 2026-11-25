@@ -584,7 +584,6 @@ export class RunManager {
       const { summary, changedFiles, checkpoint } = await runCrew({
         ...common,
         workspace: ws,
-        solo: team.kind === "solo",
       });
       if (checkpoint.files.length) {
         await this.saveCheckpoint(run.id, checkpoint).catch((err: Error) =>

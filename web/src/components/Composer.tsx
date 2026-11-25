@@ -176,10 +176,6 @@ export function Composer(p: Props) {
         )}
         {error ? (
           <span className="err-text">{error}</span>
-        ) : p.team.kind === "solo" ? (
-          <span className="meta-item">
-            Builds directly · no planning or review
-          </span>
         ) : (
           <label className="meta-item meta-select">
             <Icon name="shield" size={13} />

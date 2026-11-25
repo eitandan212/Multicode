@@ -126,8 +126,9 @@ The button next to *Send* chooses who works on the next request:
   strongest reviews, the rest build in parallel, and the dispatcher gives each task to the
   best-fitting builder.
 * **My crew**: the agents and roles you set in *Edit crew*.
-* **Single model**: one model (for example Claude Opus 5.5 through Claude Code) builds the whole
-  request directly: no planning call and no review rounds, so it's the fastest and cheapest way.
+* **Single model**: one model (for example Claude Opus 5.5 through Claude Code) does every step
+  itself: it plans the work first, builds it, then reviews and fixes its own result (as many
+  rounds as the *Review* setting says).
 
 Your choice is remembered in this browser.
 

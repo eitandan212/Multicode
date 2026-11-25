@@ -72,7 +72,7 @@ export function autoTeam(connections: Connection[]): CrewMember[] {
   }));
 }
 
-/** One model alone: it builds the whole request itself. */
+/** One model alone: it plans the work, builds it and reviews its own result. */
 export function soloMember(conn: Connection, model?: string): CrewMember {
   const m = model || conn.defaultModel;
   return {

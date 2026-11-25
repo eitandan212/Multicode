@@ -345,39 +345,37 @@ describe("team choice", () => {
   });
   afterAll(() => rm(dir, { recursive: true, force: true }));
 
-  it("a single model builds directly: no planning call, no review", async () => {
+  it("a single model still plans, builds and reviews its own work", async () => {
     const ws = await Workspace.open(dir, "solo");
-    const systems: string[] = [];
-    const p: Provider = {
-      editsFiles: false,
-      async generate(req, onDelta) {
-        systems.push(req.system);
-        const out = '<file path="index.html">\n<h1>Solo</h1>\n</file>';
-        onDelta(out);
-        return out;
-      },
-    };
+    const p = fakeProvider({ review: [] });
     const events: RunEvent[] = [];
+    const solo = soloMember({
+      id: "one",
+      kind: "openai-compatible",
+      label: "one",
+      baseUrl: "http://x",
+    });
     const result = await runCrew({
-      prompt: "make a page\nwith a heading",
+      prompt: "make a page",
       history: [],
       workspace: ws,
-      roles: assignRoles([member("one", "builder", p)]),
-      settings: { maxReviewRounds: 3, dispatch: "smart" },
+      roles: assignRoles([{ ...solo, connection: conn("one"), provider: p }]),
+      settings: { maxReviewRounds: 1, dispatch: "smart" },
       emit: (e) => events.push(e),
       signal: new AbortController().signal,
-      solo: true,
     });
-    expect(result.changedFiles).toEqual(["index.html"]);
-    expect(systems).toHaveLength(1);
-    expect(systems[0]).not.toContain("ARCHITECT");
+    expect(result.changedFiles).toEqual(["app.js", "index.html"]);
     expect(
       events.some((e) => e.type === "phase" && e.phase === "planning"),
-    ).toBe(false);
-    expect(events.filter((e) => e.type === "review")).toHaveLength(0);
-    expect(events.find((e) => e.type === "plan")).toMatchObject({
-      plan: { tasks: [{ title: "make a page" }] },
-    });
+    ).toBe(true);
+    expect(events.filter((e) => e.type === "review")).toHaveLength(1);
+    // Every step ran on the one model.
+    const who = new Set(
+      events.flatMap((e) =>
+        e.type === "task.status" && e.memberId ? [e.memberId] : [],
+      ),
+    );
+    expect([...who]).toEqual(["solo-one"]);
   });
 
   it("auto ranks models: the strongest plans, the next reviews, the rest build", () => {
