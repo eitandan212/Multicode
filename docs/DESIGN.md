@@ -138,3 +138,18 @@ browser UI), Electron packaging (planned next).
 * **agent-desktop** (vercel-labs/agent-desktop, Apache-2.0): a computer-control plugin running
   `npx -y agent-desktop@1.2.0 mcp` (the first release with the MCP server). High risk, off by default,
   needs explicit consent like the other computer plugins.
+
+## Native connections (as in T3 Code)
+* **Claude Code** (`server/providers/claude.ts`): `query()` from `@anthropic-ai/claude-agent-sdk`
+  (pinned), run against the user's installed `claude` via `pathToClaudeCodeExecutable` (the SDK's own
+  per-platform binaries are excluded from the installer: a Windows build made on Linux would carry the
+  Linux one). `permissionMode` acceptEdits/plan plus a `canUseTool` callback: read tools and enabled MCP
+  plugins allowed; Edit/Write only in edit tasks and inside the project; Bash, WebFetch and anything
+  unknown refused. Text streams from partial messages; usage and cost come from the result message.
+* **Codex** (`server/providers/codex.ts`): `codex app-server` over JSON-RPC (`server/providers/jsonrpc.ts`,
+  shared with ACP): `initialize` → `account/read` (a missing sign-in fails fast) → `thread/start`
+  (ephemeral, `developerInstructions` = system prompt, sandbox workspace-write/read-only, approvals
+  `never` = the `codex exec` behaviour) → `turn/start`; deltas, item labels, token usage and
+  `turn/completed` drive the result; `turn/interrupt` on cancel; `model/list` feeds the model picker.
+* `server/providers/fallback.ts` drops to the old CLI mode only when the native one fails before any
+  output, and never for sign-in, limit or cancel errors.

@@ -43,8 +43,12 @@ build your project together as a crew.
 | No paid account at all: 80+ free providers | OpenAI-compatible → **FreeLLMAPI** preset | [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) (MIT) running on your computer |
 | Any other coding agent: Copilot, Cursor, Goose, Kiro, Qoder, Cline, Junie, Amp, Devin… | Any ACP agent | the [Agent Client Protocol](https://agentclientprotocol.com) registry |
 
-Subscriptions don't come with API keys, so MultiCode drives each vendor's official CLI
-on your machine. Install the CLI and sign in once:
+Subscriptions don't come with API keys, so MultiCode drives each vendor's official CLI on your
+machine, connected the way T3 Code connects them: **Claude Code through the official Claude Agent
+SDK** (typed streaming, usage and cost, and every tool call checked by MultiCode's own policy) and
+**Codex through `codex app-server`**, Codex's JSON-RPC protocol (sign-in checked up front, the
+model list read from Codex, approvals answered by policy). If either can't start (for example an
+older Codex), MultiCode falls back to the plain CLI mode by itself. Install the CLI and sign in once:
 
 ```bash
 npm i -g @anthropic-ai/claude-code   # then run: claude
