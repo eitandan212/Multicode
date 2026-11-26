@@ -422,6 +422,18 @@ export class RunManager {
     );
   }
 
+  /** Every action waiting for your approval, in every running chat. */
+  pendingApprovals(): { runId: string; project: string; chat: string; id: string; kind: string; memberId: string; title: string; at: number }[] {
+    return [...this.runs.values()]
+      .filter((r) => r.status === "running" && r.approvals)
+      .flatMap((r) => {
+        const first = this.runs.get(r.threadId ?? r.id) ?? r;
+        const chat = first.title || r.prompt.slice(0, 80);
+        return r.approvals!.pending().map((a) => ({ runId: r.id, project: r.project, chat, ...a }));
+      })
+      .sort((a, b) => a.at - b.at);
+  }
+
   /** The runs of one chat (its first run and every follow-up), oldest first. */
   private chat(id: string): Run[] {
     const first = this.get(id);

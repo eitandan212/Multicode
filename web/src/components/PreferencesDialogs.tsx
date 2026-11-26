@@ -80,6 +80,13 @@ export function GeneralDialog({ onClose }: { onClose: () => void }) {
           </button>
         )}
       </Row>
+      <Row label="Pet">
+        <Toggle
+          checked={p.pet}
+          onChange={(v) => set({ pet: v })}
+          text={window.multicodeDesktop?.setPet ? "A little helper on your screen: approvals, finished work, news" : "A little helper in the corner: approvals, finished work, news"}
+        />
+      </Row>
       <Row label="Sound">
         <Toggle checked={p.sound} onChange={(v) => { set({ sound: v }); if (v) chime(); }} text="A soft chime when a thread finishes" />
       </Row>

@@ -8,9 +8,11 @@ export interface Prefs {
   notifyApproval: boolean;
   /** A soft chime when a thread finishes. */
   sound: boolean;
+  /** The pet: approvals, finished work and news, on your screen. */
+  pet: boolean;
 }
 
-export const DEFAULT_PREFS: Prefs = { sendKey: "enter", notifyDone: true, notifyApproval: true, sound: false };
+export const DEFAULT_PREFS: Prefs = { sendKey: "enter", notifyDone: true, notifyApproval: true, sound: false, pet: true };
 const KEY = "multicode:prefs";
 
 export function loadPrefs(): Prefs {

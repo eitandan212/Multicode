@@ -46,7 +46,8 @@ import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
 import { plainPrompt } from "./components/PromptText";
 import { AboutDialog, GeneralDialog, HooksDialog, KeybindingsDialog, ProjectsDialog } from "./components/PreferencesDialogs";
-import { chime, loadPrefs, notify } from "./prefs";
+import { chime, loadPrefs, notify, type Prefs } from "./prefs";
+import { Pet } from "./components/Pet";
 import { emptyRun, reduceRun, type RunView } from "./runState";
 
 /** The IDE (Monaco) loads only when you open it, so Chat view stays light. */
@@ -86,6 +87,16 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [projectsDir, setProjectsDir] = useState<string | null>(null);
+  // The pet: its own window in the desktop app, a corner of the page in the browser.
+  const [petOn, setPetOn] = useState(() => loadPrefs().pet);
+  useEffect(() => {
+    const onPrefs = (e: Event) => setPetOn((e as CustomEvent<Prefs>).detail.pet);
+    window.addEventListener("multicode:prefs", onPrefs);
+    return () => window.removeEventListener("multicode:prefs", onPrefs);
+  }, []);
+  useEffect(() => {
+    window.multicodeDesktop?.setPet?.(petOn);
+  }, [petOn]);
   const [reviewError, setReviewError] = useState("");
   useEffect(() => {
     if (!reviewError) return;
@@ -431,6 +442,15 @@ export function App() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
+
+  // Open a chat by its run id (from the pet).
+  const openRunById = (id: string) => {
+    const r = runs.find((x) => x.id === id);
+    if (r) selectRun(r);
+  };
+  const openRunRef = useRef(openRunById);
+  openRunRef.current = openRunById;
+  useEffect(() => window.multicodeDesktop?.onOpenRun?.((id) => openRunRef.current(id)), []);
 
   const focusComposer = () =>
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus());
@@ -1299,6 +1319,7 @@ export function App() {
         />
       )}
       {splash}
+      {petOn && !window.multicodeDesktop?.setPet && <Pet onOpen={(id) => openRunById(id)} />}
     </div>
     </ProjectEmojis.Provider>
   );

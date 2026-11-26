@@ -633,6 +633,7 @@ export function createApp(opts: AppOptions) {
     }),
   );
   api.get("/runs", (_req, res) => res.json(runs.list()));
+  api.get("/approvals", (_req, res) => res.json(runs.pendingApprovals()));
   // Chats: rename, pin, archive (hide) or delete one, with all its turns.
   api.patch("/chats/:id", wrap(async (req, res) => res.json(await runs.updateChat(param(req, "id"), req.body ?? {}))));
   api.delete(

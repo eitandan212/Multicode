@@ -6,6 +6,13 @@ contextBridge.exposeInMainWorld("multicodeDesktop", {
   setTheme: (theme) => ipcRenderer.send("multicode:theme", String(theme)),
   pickFolder: () => ipcRenderer.invoke("multicode:pick-folder"),
   openPath: (p) => ipcRenderer.invoke("multicode:open-path", String(p)),
+  setPet: (on) => ipcRenderer.send("multicode:set-pet", on === true),
+  openRun: (runId) => ipcRenderer.send("multicode:open-run", String(runId)),
+  onOpenRun: (fn) => {
+    const listener = (_e, id) => fn(String(id));
+    ipcRenderer.on("multicode:open-run", listener);
+    return () => ipcRenderer.removeListener("multicode:open-run", listener);
+  },
   keepAwake: (on) => ipcRenderer.send("multicode:keep-awake", Boolean(on)),
   update: {
     check: () => ipcRenderer.invoke("multicode:update-check"),

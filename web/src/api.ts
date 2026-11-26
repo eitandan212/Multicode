@@ -207,6 +207,11 @@ export const api = {
       `/api/projects/${project}/file?path=${encodeURIComponent(path)}`,
     ),
   allRuns: () => request<RunSummary[]>("GET", "/api/runs"),
+  approvals: () =>
+    request<{ runId: string; project: string; chat: string; id: string; kind: string; memberId: string; title: string; at: number }[]>(
+      "GET",
+      "/api/approvals",
+    ),
   updateChat: (id: string, patch: { title?: string | null; pinned?: boolean; archived?: boolean }) =>
     request<RunSummary>("PATCH", `/api/chats/${id}`, patch),
   deleteChat: (id: string) => request<void>("DELETE", `/api/chats/${id}`),

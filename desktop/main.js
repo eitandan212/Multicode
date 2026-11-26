@@ -1,6 +1,6 @@
 // MultiCode desktop: starts the local MultiCode server inside Electron and shows it in a
 // window. Everything stays on this computer; the window only ever loads the local app.
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker, screen, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkForUpdate, installUpdate } from "./updater.js";
@@ -120,6 +120,67 @@ function createWindow() {
   });
   void win.loadURL(started.url);
 }
+
+// ---- The pet: a small always-on-top window in the corner of the screen ----
+let pet = null;
+function setPet(on) {
+  if (!on) {
+    if (pet && !pet.isDestroyed()) pet.close();
+    pet = null;
+    return;
+  }
+  if (pet && !pet.isDestroyed()) return;
+  const area = screen.getPrimaryDisplay().workArea;
+  const W = 320;
+  const H = 260;
+  pet = new BrowserWindow({
+    width: W,
+    height: H,
+    x: area.x + area.width - W - 16,
+    y: area.y + area.height - H - 16,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    focusable: true,
+    show: false,
+    title: "MultiCode pet",
+    webPreferences: {
+      preload: path.join(here, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  pet.setAlwaysOnTop(true, "floating");
+  pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  pet.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  pet.webContents.on("will-navigate", (event) => event.preventDefault());
+  pet.once("ready-to-show", () => pet?.showInactive());
+  pet.on("closed", () => {
+    pet = null;
+  });
+  void pet.loadURL(`${started.url.replace(/\/$/, "")}/?pet=1`);
+}
+
+const fromApp = (event) =>
+  (win && event.sender === win.webContents) || (pet && !pet.isDestroyed() && event.sender === pet.webContents);
+
+ipcMain.on("multicode:set-pet", (event, on) => {
+  if (!win || event.sender !== win.webContents) return;
+  setPet(on === true);
+});
+// The pet's "Open": bring MultiCode to the front on that chat.
+ipcMain.on("multicode:open-run", (event, runId) => {
+  if (!fromApp(event) || typeof runId !== "string" || !/^[0-9a-f-]{36}$/.test(runId)) return;
+  if (!win) createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  win.webContents.send("multicode:open-run", runId);
+});
 
 // The page tells us the theme it shows ("system", "light" or "dark").
 ipcMain.on("multicode:theme", (event, theme) => {

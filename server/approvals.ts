@@ -9,8 +9,13 @@ import type { ApprovalAsk, ApprovalMode, RunEvent } from "./shared.js";
 export class Approvals {
   private waiting = new Map<
     string,
-    { kind: ApprovalAsk["kind"]; done: (allow: boolean) => void }
+    { kind: ApprovalAsk["kind"]; done: (allow: boolean) => void; memberId: string; title: string; at: number }
   >();
+
+  /** What waits for your answer right now (for the pet and other places outside the thread). */
+  pending(): { id: string; kind: ApprovalAsk["kind"]; memberId: string; title: string; at: number }[] {
+    return [...this.waiting].map(([id, w]) => ({ id, kind: w.kind, memberId: w.memberId, title: w.title, at: w.at }));
+  }
   private always = new Set<ApprovalAsk["kind"]>();
 
   constructor(
@@ -28,7 +33,7 @@ export class Approvals {
     if (this.free(a.kind)) return Promise.resolve(true);
     const id = randomUUID();
     return new Promise<boolean>((done) => {
-      this.waiting.set(id, { kind: a.kind, done });
+      this.waiting.set(id, { kind: a.kind, done, memberId, title: a.title.slice(0, 300), at: Date.now() });
       this.emit({
         type: "approval.request",
         id,

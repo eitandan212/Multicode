@@ -5660,3 +5660,90 @@ button.git-branch:hover{ background: color-mix(in srgb, var(--brand) 22%, transp
 .custom-skill-form textarea{ font-family: var(--mono); font-size: 12.5px; }
 .custom-skill-actions{ display: grid; gap: 8px; justify-items: start; }
 .custom-skill-actions .git-commit{ width: 100%; }
+
+/* ---- The pet ---- */
+.pet{
+  position: fixed;
+  right: 20px;
+  bottom: 96px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.pet > *{ pointer-events: auto; }
+html.pet-window, html.pet-window body, html.pet-window #root{ background: transparent !important; overflow: hidden; }
+.pet.is-standalone{ right: 12px; bottom: 12px; }
+.pet.is-standalone .pet-body{ -webkit-app-region: drag; cursor: grab; }
+.pet.is-standalone .pet-bubble{ -webkit-app-region: no-drag; }
+.pet-bubble{
+  display: grid;
+  gap: 6px;
+  width: min(280px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 4px 14px;
+  background: var(--card);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.22);
+  animation: pet-bubble-in 380ms var(--spring) both;
+}
+@keyframes pet-bubble-in { from { opacity: 0; transform: translateY(8px) scale(0.94); transform-origin: 100% 100%; } }
+.pet-kicker{ font-size: 11.5px; font-weight: 600; color: var(--brand); }
+.pet-text{ font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pet-actions{ display: flex; gap: 6px; flex-wrap: wrap; }
+.pet-btn{
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 200ms var(--spring), background-color 140ms var(--ease-soft);
+}
+.pet-btn:active{ transform: scale(0.95); }
+.pet-btn.primary{ border-color: transparent; background: var(--brand); color: var(--brand-ink); }
+.pet-btn.ghost{ border-color: transparent; background: none; color: var(--muted); }
+.pet-btn:disabled{ opacity: 0.5; }
+.pet-more{ font-size: 11.5px; color: var(--muted); }
+.pet-body{ position: relative; width: 56px; height: 56px; filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.25)); }
+.pet-body svg{ display: block; overflow: visible; }
+.pet-blob{ transform-box: fill-box; transform-origin: 50% 100%; }
+.pet-body.is-idle .pet-blob{ animation: pet-breathe 3.2s var(--ease-soft) infinite; }
+.pet-body.is-busy svg{ animation: pet-bounce 0.9s var(--ease-soft) infinite; }
+.pet-body.is-alert svg{ animation: pet-wiggle 1.2s var(--ease-soft) infinite; }
+.pet-body.is-happy svg{ animation: pet-jump 0.7s var(--spring) 2; }
+.pet-eyes ellipse{ transition: ry 200ms var(--ease-soft); }
+.pet-body:not(.is-idle) .pet-eyes{ animation: pet-blink 4.5s infinite; transform-box: fill-box; transform-origin: center; }
+.pet-z{ color: var(--muted); animation: pet-z 2.4s var(--ease-soft) infinite; }
+.pet-badge{
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  animation: status-pop 420ms var(--spring) both;
+}
+@keyframes pet-breathe { 50% { transform: scaleY(0.96) scaleX(1.02); } }
+@keyframes pet-bounce { 50% { transform: translateY(-5px); } }
+@keyframes pet-wiggle { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-8deg); } 80% { transform: rotate(8deg); } 90% { transform: rotate(-4deg); } }
+@keyframes pet-jump { 50% { transform: translateY(-10px) scale(1.05); } }
+@keyframes pet-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+@keyframes pet-z { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -8px); } }
+@media (prefers-reduced-motion: reduce) {
+  .pet-body svg, .pet-blob, .pet-eyes, .pet-z, .pet-bubble{ animation: none !important; }
+}
+@media (max-width: 600px) { .pet:not(.is-standalone){ bottom: 150px; right: 12px; } }
