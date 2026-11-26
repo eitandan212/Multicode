@@ -30,6 +30,8 @@ interface Props {
   /** Text to place in the box (e.g. an example picked in the tutorial); n changes per pick. */
   draft?: { text: string; n: number };
   onSubmit: (prompt: string, mode: RunMode) => Promise<void>;
+  /** While the crew works: start this now, beside it, in its own copy. */
+  onSubmitParallel?: (prompt: string, mode: RunMode) => Promise<void>;
   onOpenSafety: () => void;
   onStop: () => void;
   onOpenCrew: () => void;
@@ -66,7 +68,7 @@ export function Composer(p: Props) {
     }
   };
 
-  const submit = async () => {
+  const submit = async (parallel = false) => {
     if ((!prompt.trim() && !pics.length) || !p.canRun || uploading) return;
     setSending(true);
     setError("");
@@ -74,7 +76,7 @@ export function Composer(p: Props) {
       const text = [prompt.trim() || "Look at this picture.", pics.map((x) => `@${x.path}`).join(" ")]
         .filter(Boolean)
         .join("\n\n");
-      await p.onSubmit(text, mode);
+      await (parallel && p.onSubmitParallel ? p.onSubmitParallel(text, mode) : p.onSubmit(text, mode));
       setPrompt("");
       setPics([]);
     } catch (e) {
@@ -99,7 +101,7 @@ export function Composer(p: Props) {
     setTrigger(null);
     const safety = { plan: "readonly", direct: "direct", sandbox: "sandbox" } as const;
     const approvals = { ask: "ask", "auto-edit": "edits", "approve-all": "all" } as const;
-    if (id === "build" || id === "design") setMode(id);
+    if (id === "build" || id === "design" || id === "compare") setMode(id);
     else if (id === "sleep") p.onSleep(!p.sleep);
     else if (id in safety) void p.onSettings({ safety: safety[id as keyof typeof safety] });
     else if (id in approvals) void p.onSettings({ approvals: approvals[id as keyof typeof approvals] });
@@ -291,6 +293,16 @@ export function Composer(p: Props) {
             >
               <Icon name="palette" size={13} /> MultiDesign
             </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={mode === "compare"}
+              className={mode === "compare" ? "is-active" : ""}
+              onClick={() => setMode("compare")}
+              title="Several models do the same task at the same time, each in its own copy; the reviewer recommends one and you pick"
+            >
+              <Icon name="users" size={13} /> Compare
+            </button>
           </div>
           <TeamPicker
             team={p.team}
@@ -307,6 +319,18 @@ export function Composer(p: Props) {
             sleep={p.sleep}
             onSleep={p.onSleep}
           />
+          {p.running && p.onSubmitParallel && (
+            <button
+              type="button"
+              className="send parallel"
+              onClick={() => void submit(true)}
+              disabled={!p.canRun || (!prompt.trim() && !pics.length) || sending || uploading > 0}
+              aria-label="Start now in parallel"
+              title="Start now, beside the running task, in its own copy (you apply it when it's done)"
+            >
+              <Icon name="users" size={15} />
+            </button>
+          )}
           {p.running && (
             <button
               className="send"

@@ -2616,3 +2616,97 @@ describe("a request for what is already there", () => {
     }
   });
 });
+
+describe("models at the same time", () => {
+  const mk = async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-cmp-"));
+    const config = new ConfigStore(dir);
+    await config.load();
+    await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+    const a = await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://a", defaultModel: "alpha", label: "Alpha" });
+    const b = await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://b", defaultModel: "beta", label: "Beta" });
+    let active = 0;
+    let peak = 0;
+    const judged: string[] = [];
+    const factory = (conn: Connection): Provider => ({
+      editsFiles: false,
+      async generate(req, onDelta) {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((r) => setTimeout(r, 250));
+        active--;
+        let out: string;
+        if (req.system.includes("comparing several versions")) {
+          judged.push(req.prompt);
+          out = JSON.stringify({ best: "v2", why: "Beta handles the empty case." });
+        } else if (req.system.includes("ARCHITECT"))
+          out = JSON.stringify({ summary: "One file.", tasks: [{ title: "Sum", description: "x", files: ["sum.js"] }] });
+        else out = `<file path="sum.js">\nexport const sum = (a, b) => a + b; // ${conn.label}\n</file>`;
+        onDelta(out);
+        return out;
+      },
+    });
+    const sync = { harness: new HarnessSync(path.join(dir, "sync"), new ProjectMemory(path.join(dir, "memory"))), memory: new ProjectMemory(path.join(dir, "memory")), dataDir: dir, previewOrigin: "http://localhost:1" };
+    const runs = new RunManager(config, path.join(dir, "projects"), factory, path.join(dir, "runs"), sync);
+    const wait = (id: string) =>
+      new Promise<RunEvent[]>((resolve) => {
+        const seen: RunEvent[] = [];
+        const off = runs.subscribe(id, (e) => {
+          seen.push(e);
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve(seen);
+          }
+        });
+      });
+    return { dir, config, runs, wait, peak: () => peak, judged, ids: [a.id, b.id] };
+  };
+
+  it("Compare: every model does the same task at once, the reviewer recommends one, you apply it", async () => {
+    const t = await mk();
+    try {
+      const r = await t.runs.start("site", "Write a sum function", "compare");
+      const events = await t.wait(r.id);
+      expect(t.peak()).toBeGreaterThanOrEqual(2);
+      const variants = events.find((e) => e.type === "variants") as Extract<RunEvent, { type: "variants" }>;
+      expect(new Set(variants.variants.map((v) => v.title)).size).toBe(2);
+      const verdict = events.find((e) => e.type === "verdict") as Extract<RunEvent, { type: "verdict" }>;
+      expect(verdict.best).toBe("v2");
+      expect(verdict.files.v1).toEqual(["sum.js"]);
+      expect(t.judged[0]).toContain("Version v1");
+      expect(t.runs.get(r.id)?.pending).toBe("design");
+      await t.runs.apply(r.id, "v2");
+      const ws = await Workspace.open(path.join(t.dir, "projects"), "site");
+      expect(await ws.read("sum.js")).toContain("// ");
+    } finally {
+      await rm(t.dir, { recursive: true, force: true });
+    }
+  });
+
+  it("Compare needs two different models", async () => {
+    const t = await mk();
+    try {
+      await t.config.deleteConnection(t.ids[1]!);
+      const r = await t.runs.start("site", "Write a sum function", "compare");
+      const events = await t.wait(r.id);
+      expect(JSON.stringify(events.find((e) => e.type === "run.error"))).toContain("at least two different models");
+    } finally {
+      await rm(t.dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a task started in parallel runs beside a direct run, in its own copy", async () => {
+    const t = await mk();
+    try {
+      const a = await t.runs.start("site", "First task");
+      const b = await t.runs.start("site", "Second task", "build", { kind: "crew" }, false, undefined, { parallel: true });
+      await expect(t.runs.start("site", "Third, direct")).rejects.toThrow(/crew at work/);
+      await Promise.all([t.wait(a.id), t.wait(b.id)]);
+      expect(t.peak()).toBeGreaterThanOrEqual(2);
+      expect(t.runs.get(a.id)?.pending).toBeUndefined();
+      expect(t.runs.get(b.id)?.pending).toBe("sandbox");
+    } finally {
+      await rm(t.dir, { recursive: true, force: true });
+    }
+  });
+});

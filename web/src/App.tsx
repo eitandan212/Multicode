@@ -374,21 +374,21 @@ export function App() {
     if (!narrow()) store.set("sidebar", open ? "1" : "0");
   };
 
-  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean, parentId?: string, review = false) => {
-    const summary = await api.startRun(proj, prompt, mode, team, asleep, parentId, review);
+  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean, parentId?: string, review = false, parallel = false) => {
+    const summary = await api.startRun(proj, prompt, mode, team, asleep, parentId, review, parallel);
     setReviewError("");
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
   };
-  const startRun = async (prompt: string, mode: RunMode = "build", review = false) => {
+  const startRun = async (prompt: string, mode: RunMode = "build", review = false, parallelNow = false) => {
     if (!project) return;
     // While the crew is busy in this project, the message waits its turn; in a sandbox (or
     // MultiDesign) it starts right away as a parallel task in its own copy.
     const busyRun = runs.find((r) => r.project === project && r.status === "running");
-    const parallel = Boolean(state?.settings.safety === "sandbox" || mode === "design") && !review;
+    const parallel = Boolean(state?.settings.safety === "sandbox" || mode === "design" || mode === "compare" || parallelNow) && !review;
     if (busyRun && parallel) {
-      await launch(project, prompt, mode, sleep, undefined, false);
+      await launch(project, prompt, mode, sleep, undefined, false, parallelNow);
       return;
     }
     if (busyRun || queue.some((q) => q.project === project)) {
@@ -815,6 +815,7 @@ export function App() {
       }
       draft={draft}
       onSubmit={startRun}
+      onSubmitParallel={(prompt, mode) => startRun(prompt, mode, false, true)}
       onCommand={(id) => {
         if (id === "new") newThread();
         else if (id === "export") exportThread();

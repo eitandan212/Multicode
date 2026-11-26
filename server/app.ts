@@ -612,7 +612,7 @@ export function createApp(opts: AppOptions) {
           parseTeam(req.body?.team, (id) => config.connection(id)),
           req.body?.sleep === true,
           req.body?.parentId,
-          { review: req.body?.review === true },
+          { review: req.body?.review === true, parallel: req.body?.parallel === true },
         ),
       ),
     ),

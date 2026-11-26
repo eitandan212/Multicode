@@ -12,6 +12,7 @@ export type SlashId =
   | "sandbox"
   | "build"
   | "design"
+  | "compare"
   | "sleep"
   | "ask"
   | "auto-edit"
@@ -35,6 +36,7 @@ export const SLASH: { id: SlashId; hint: string; icon: IconName }[] = [
   { id: "sandbox", hint: "Work in a sandbox; you apply the result", icon: "shield" },
   { id: "build", hint: "MultiBuild: plan, build and review together", icon: "hammer" },
   { id: "design", hint: "MultiDesign: several designs, you pick one", icon: "palette" },
+  { id: "compare", hint: "Compare: several models do the same task at once; you pick the best", icon: "users" },
   { id: "sleep", hint: "Sleep mode on or off: the crew works alone", icon: "moon" },
   { id: "ask", hint: "Ask before every change and tool", icon: "eye" },
   { id: "auto-edit", hint: "Accept edits, ask for other tools", icon: "check" },

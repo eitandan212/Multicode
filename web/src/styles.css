@@ -5458,3 +5458,8 @@ pre,
   color: var(--ok);
   animation: status-pop 420ms var(--spring) both;
 }
+
+/* Compare: the reviewer's pick stands out. */
+.verdict{ display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.verdict svg{ flex: none; margin-top: 3px; color: var(--brand); }
+.variant.is-best{ box-shadow: 0 0 0 2px var(--brand); }

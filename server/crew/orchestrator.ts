@@ -1002,6 +1002,10 @@ export const DESIGN_DIRECTIONS = [
 ];
 
 export interface DesignOptions extends Omit<RunOptions, "workspace"> {
+  /** design: different looks. compare: the same task, each model its own way. */
+  kind?: "design" | "compare";
+  /** Compare: the member who judges the finished versions. */
+  judge?: ResolvedMember;
   /** One sandbox workspace per variant. */
   variants: {
     variant: DesignVariant;
@@ -1019,6 +1023,8 @@ export async function runDesign(
 ): Promise<{ summary: string; done: string[] }> {
   const { call, withFallback } = agentKit(o);
   const { emit, signal } = o;
+  const compare = o.kind === "compare";
+  const changedBy: Record<string, string[]> = {};
   emit({ type: "variants", variants: o.variants.map((v) => v.variant) });
   emit({ type: "phase", phase: "building", round: 0 });
   const done: string[] = [];
@@ -1037,20 +1043,22 @@ export async function runDesign(
           const ctx = cli
             ? { tree: (await workspace.contextDigest(0)).tree, files: "" }
             : await workspace.contextDigest(60_000, [], o.isProtected);
+          const skills = cli || !o.skillText ? "" : `\n\nSkills to apply:${o.skillText}`;
           const reply = await call(
             m,
             workspace,
-            `Design: ${variant.title}`,
-            P.designerSystem(cli, m.instructions) +
-              (cli || !o.skillText ? "" : `\n\nSkills to apply:${o.skillText}`),
-            P.designerPrompt(o.prompt, variant.direction, ctx.tree, ctx.files),
+            compare ? `Version by ${m.name}` : `Design: ${variant.title}`,
+            (compare ? P.competitorSystem(cli, m.instructions) : P.designerSystem(cli, m.instructions)) + skills,
+            compare
+              ? P.competitorPrompt(o.prompt, ctx.tree, ctx.files)
+              : P.designerPrompt(o.prompt, variant.direction, ctx.tree, ctx.files),
             "edit",
           );
           if (!cli) {
             const ops = parseFileOps(reply).filter(
               (op) => !o.isProtected?.(op.path),
             );
-            if (!ops.length) throw new Error("The designer returned no files.");
+            if (!ops.length) throw new Error(compare ? `${m.name} returned no changes.` : "The designer returned no files.");
             for (const op of ops) {
               if (op.change === "write")
                 await workspace.write(op.path, op.content ?? "");
@@ -1058,8 +1066,10 @@ export async function runDesign(
             }
           }
         });
-        if (!Workspace.diff(before, await workspace.snapshot()).length)
-          throw new Error(`${member.name} didn't produce a design.`);
+        const changes = Workspace.diff(before, await workspace.snapshot());
+        if (!changes.length)
+          throw new Error(compare ? `${member.name} changed nothing.` : `${member.name} didn't produce a design.`);
+        changedBy[variant.id] = changes.map((c) => c.path).sort();
         done.push(variant.id);
         emit({
           type: "task.status",
@@ -1082,10 +1092,49 @@ export async function runDesign(
   if (signal.aborted) throw new Error("Cancelled");
   if (!done.length)
     throw new Error(
-      "No design variant was produced — check the agent errors above.",
+      compare ? "No model finished the task: check the errors above." : "No design variant was produced — check the agent errors above.",
     );
+  if (!compare)
+    return {
+      summary: `${done.length} design${done.length === 1 ? "" : "s"} ready. Pick the one you like to apply it.`,
+      done,
+    };
+
+  // Compare: the reviewer reads every finished version and recommends one.
+  let verdict: { best?: string; why: string } = { why: "" };
+  if (done.length > 1 && o.judge) {
+    emit({ type: "phase", phase: "reviewing", round: 1 });
+    try {
+      const versions = await Promise.all(
+        o.variants
+          .filter((v) => done.includes(v.variant.id))
+          .map(async (v) => {
+            let text = "";
+            for (const f of changedBy[v.variant.id] ?? []) {
+              if (text.length > 14_000) break;
+              const body = await v.workspace.tryRead(f);
+              text += `<file path="${f}">\n${body === undefined ? "(deleted)" : body.slice(0, 6000)}\n</file>\n`;
+            }
+            return { id: v.variant.id, by: v.member.name, files: text };
+          }),
+      );
+      const raw = await withFallback(o.judge, (m) =>
+        call(m, o.variants[0]!.workspace, "Comparing the versions", P.JUDGE_SYSTEM, P.judgePrompt(o.prompt, versions), "text"),
+      );
+      const j = extractJson(raw) as { best?: unknown; why?: unknown } | undefined;
+      if (j && typeof j.best === "string" && done.includes(j.best))
+        verdict = { best: j.best, why: typeof j.why === "string" ? j.why.slice(0, 600) : "" };
+    } catch (err) {
+      if (signal.aborted) throw new Error("Cancelled");
+      verdict = { why: `Couldn't compare automatically: ${(err as Error).message}` };
+    }
+  }
+  emit({ type: "verdict", ...verdict, files: changedBy });
+  const byId = (id: string) => o.variants.find((v) => v.variant.id === id)?.member.name ?? id;
   return {
-    summary: `${done.length} design${done.length === 1 ? "" : "s"} ready. Pick the one you like to apply it.`,
+    summary: verdict.best
+      ? `${done.length} versions ready. The reviewer recommends ${byId(verdict.best)}'s: ${verdict.why}`
+      : `${done.length} version${done.length === 1 ? "" : "s"} ready. Compare them and apply the one you want.`,
     done,
   };
 }

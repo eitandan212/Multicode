@@ -6,7 +6,7 @@ goes further, ◐ = partly, — = not available (with the reason).
 | Feature | Claude Code | Codex | MultiCode |
 |---|---|---|---|
 | Chat that edits your project | ✅ | ✅ | ✅ MultiBuild: plan → parallel builders → review |
-| Several models on one task | — | — | ➕ crew of any connected models; MultiDesign variants |
+| Several models on one task | — | — | ➕ MultiBuild splits a task between models; Compare gives the same task to several models at once and the reviewer recommends the best; MultiDesign variants |
 | Conversation memory in a thread | ✅ | ✅ | ✅ follow-ups remember earlier turns and answers |
 | Resume earlier threads | ✅ `/resume` | ✅ | ✅ sidebar, search, settle |
 | Type while it works (queue) | ✅ | ✅ | ✅ queued follow-ups start by themselves |
@@ -41,4 +41,4 @@ goes further, ◐ = partly, — = not available (with the reason).
 | Any API / local model | — | ◐ | ➕ Anthropic, OpenAI, Gemini, any OpenAI-compatible, Ollama, ACP agents |
 | Automatic updates | ✅ | ✅ | ✅ verified (SHA-256) one-click update |
 | Hooks (run scripts on events) | ✅ | ◐ | ✅ UserPromptSubmit (can block, adds context), PostToolUse (glob), Notification, Stop; plus a check command per project (e.g. `npm test`) whose failure becomes a fix |
-| Parallel background tasks | ◐ | ✅ cloud tasks | ✅ in sandbox mode up to 4 tasks run side by side, each in its own copy; you apply each one (on your computer, not in a cloud) |
+| Parallel background tasks | ◐ | ✅ cloud tasks | ✅ start a task beside a running one ("start now in parallel"); each works in its own copy and you apply it (on your computer, not in a cloud) |

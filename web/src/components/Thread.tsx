@@ -858,20 +858,33 @@ function DesignGallery({
   const [error, setError] = useState("");
   const ready = (id: string) =>
     run.tasks.find((t) => t.id === id)?.status === "done";
+  // Compare: the same task by several models (variants have no design direction).
+  const compare = run.variants!.every((v) => !v.direction);
+  const thing = compare ? "version" : "design";
   return (
     <div className="msg-agent wide enter">
       <p>
         {review.pending === "design"
-          ? "Your designs are ready. Try each one, then use the one you like."
+          ? compare
+            ? "Every model did the task in its own copy. Compare them, then use the one you want."
+            : "Your designs are ready. Try each one, then use the one you like."
           : review.resolution === "applied"
-            ? "You applied one of these designs."
-            : "You discarded these designs."}
+            ? `You applied one of these ${thing}s.`
+            : `You discarded these ${thing}s.`}
       </p>
+      {compare && run.verdict?.best && (
+        <p className="verdict">
+          <Icon name="spark" size={14} />
+          <span>
+            <b>Reviewer's pick: {name(run.variants!.find((v) => v.id === run.verdict!.best)?.memberId)}.</b> {run.verdict.why}
+          </span>
+        </p>
+      )}
       <div className="gallery">
         {run.variants!.map((v) => (
           <figure
             key={v.id}
-            className={`variant ${ready(v.id) ? "" : "is-failed"}`}
+            className={`variant ${ready(v.id) ? "" : "is-failed"} ${run.verdict?.best === v.id ? "is-best" : ""}`}
           >
             <div className="variant-frame">
               {ready(v.id) && review.pending === "design" ? (
@@ -883,7 +896,7 @@ function DesignGallery({
                 />
               ) : (
                 <span className="muted small">
-                  {ready(v.id) ? "Closed" : "No design"}
+                  {ready(v.id) ? "Closed" : `No ${thing}`}
                 </span>
               )}
             </div>
@@ -891,7 +904,13 @@ function DesignGallery({
               <span className="variant-title">
                 {logo(v.memberId)} <b>{v.title}</b>
               </span>
-              <span className="muted small">{name(v.memberId)}</span>
+              <span className="muted small">
+                {compare
+                  ? v.files?.length
+                    ? `${v.files.length} file${v.files.length === 1 ? "" : "s"}: ${v.files.slice(0, 3).join(", ")}${v.files.length > 3 ? "…" : ""}`
+                    : name(v.memberId)
+                  : name(v.memberId)}
+              </span>
               {review.pending === "design" && ready(v.id) && (
                 <div className="variant-actions">
                   <a
@@ -917,7 +936,7 @@ function DesignGallery({
                       }
                     }}
                   >
-                    {busy === v.id ? "Applying…" : "Use this design"}
+                    {busy === v.id ? "Applying…" : `Use this ${thing}`}
                   </button>
                 </div>
               )}
@@ -931,7 +950,7 @@ function DesignGallery({
           className="btn small ghost align-start"
           onClick={() => onDiscard()}
         >
-          Discard all designs
+          Discard all {thing}s
         </button>
       )}
     </div>

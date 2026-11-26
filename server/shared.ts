@@ -249,7 +249,8 @@ export interface ApprovalAsk {
   files?: string[];
 }
 /** Request kind chosen in the composer. */
-export type RunMode = "build" | "design";
+/** build: the crew splits the work. design: several designs. compare: several models do the same task. */
+export type RunMode = "build" | "design" | "compare";
 
 export interface Settings {
   maxReviewRounds: number;
@@ -431,6 +432,8 @@ export interface DesignVariant {
   title: string;
   direction: string;
   memberId: string;
+  /** Files this version changed (set when it finishes). */
+  files?: string[];
 }
 
 export type RunEvent =
@@ -506,6 +509,8 @@ export type RunEvent =
   | { type: "protected"; paths: string[] }
   | { type: "variants"; variants: DesignVariant[] }
   | { type: "approval"; kind: "sandbox" | "design" }
+  /** Compare: which version the reviewer recommends, and why. */
+  | { type: "verdict"; best?: string; why: string; files: Record<string, string[]> }
   | { type: "run.done"; summary: string; changedFiles: string[]; at: number }
   | { type: "run.error"; error: string; at: number };
 

@@ -216,6 +216,37 @@ export function designerPrompt(
     .join("\n\n");
 }
 
+// ---- Compare: several models do the same task; the reviewer picks the best ----
+
+export function competitorSystem(editsFiles: boolean, specialty?: string): string {
+  return `${builderSystem(editsFiles, specialty)}
+
+Several models are doing this same task at the same time, each in its own copy of the project, and
+the best version is kept. Do the whole task yourself, completely and correctly; quality wins, not
+speed. Don't leave TODOs.`;
+}
+
+export function competitorPrompt(request: string, tree: string, files: string): string {
+  return [
+    `Task:\n${request}`,
+    `Project files:\n${tree}`,
+    files ? `Current contents:\n${files}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export const JUDGE_SYSTEM = `You are the REVIEWER comparing several versions of the same task, each made by a different model.
+Judge correctness first, then completeness, then code quality and simplicity. Answer with JSON only:
+{"best": "<version id>", "why": "<two or three sentences: why it wins, and the main weakness of the others>"}`;
+
+export function judgePrompt(request: string, versions: { id: string; by: string; files: string }[]): string {
+  return [
+    `Task:\n${request}`,
+    ...versions.map((v) => `=== Version ${v.id} (by ${v.by}) ===\n${v.files || "(no changes)"}`),
+  ].join("\n\n");
+}
+
 // ---- Manager: a free or cheap model that staffs the work and routes tasks ----
 
 const STRENGTH_LABEL = ["", "light", "strong", "frontier"];

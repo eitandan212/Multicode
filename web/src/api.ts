@@ -206,6 +206,7 @@ export const api = {
     sleep = false,
     parentId?: string,
     review = false,
+    parallel = false,
   ) =>
     request<RunSummary>("POST", `/api/projects/${project}/runs`, {
       prompt,
@@ -214,6 +215,7 @@ export const api = {
       ...(sleep ? { sleep: true } : {}),
       ...(parentId ? { parentId } : {}),
       ...(review ? { review: true } : {}),
+      ...(parallel ? { parallel: true } : {}),
     }),
   apply: (id: string, variant?: string, force = false) =>
     request<{ applied: string[]; conflicts: string[] }>(

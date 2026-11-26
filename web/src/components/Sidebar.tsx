@@ -209,7 +209,7 @@ export function Sidebar(p: Props) {
             <span className="sb-state">Stopped</span>
           ) : (
             <span className="sb-state">
-              {r.mode === "design" ? "Designs ready" : "Done"}
+              {r.mode === "design" ? "Designs ready" : r.mode === "compare" && r.pending ? "Versions ready" : "Done"}
             </span>
           )}
           {!manyProjects && <span className="muted sb-age">{age(r)}</span>}

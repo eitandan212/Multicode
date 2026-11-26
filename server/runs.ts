@@ -564,13 +564,13 @@ export class RunManager {
     /** A follow-up: the run whose conversation this continues. */
     parentId?: string,
     /** review: the crew reviews what changed since the last commit and changes nothing. */
-    opts: { review?: boolean } = {},
+    opts: { review?: boolean; parallel?: boolean } = {},
   ): Promise<RunSummary> {
     if (typeof prompt !== "string" || !prompt.trim())
       throw new HttpError(400, "prompt is required");
     if (prompt.length > 20_000) throw new HttpError(400, "prompt is too long");
-    if (mode !== "build" && mode !== "design")
-      throw new HttpError(400, "mode must be build or design");
+    if (mode !== "build" && mode !== "design" && mode !== "compare")
+      throw new HttpError(400, "mode must be build, design or compare");
 
     // Auto always lets the dispatcher pick the best builder for each task.
     const settings = {
@@ -578,12 +578,16 @@ export class RunManager {
       ...(team.kind === "auto" ? { dispatch: "smart" as const } : {}),
       ...(sleep ? { approvals: "all" as const } : {}),
       ...(opts.review ? { safety: "readonly" as const } : {}),
+      // A task started beside a running one works in its own copy; you apply it when it's done.
+      ...(opts.parallel && !opts.review ? { safety: "sandbox" as const } : {}),
     };
-    const sandboxed = mode === "design" || settings.safety === "sandbox";
+    const sandboxed = mode === "design" || mode === "compare" || settings.safety === "sandbox";
     // Parallel tasks (like Codex's): runs in their own sandbox copies work side by side, and each
     // waits for you to apply it. A run that edits the project directly needs it to itself.
     const others = [...this.runs.values()].filter((r) => r.project === project && (r.status === "running" || r.pending));
-    if (others.length && (!sandboxed || others.some((r) => r.status === "running" && !r.sandboxed)))
+    // A run that works in its own copy may start beside anything; applying it later checks for
+    // conflicts. A run that edits the project directly needs the project to itself.
+    if (others.length && !sandboxed)
       throw new HttpError(
         409,
         "this project has a crew at work or changes waiting for your review",
@@ -806,6 +810,30 @@ export class RunManager {
     };
 
     const work = async () => {
+      if (mode === "compare") {
+        // The same task, once per model (each different connection or model), in parallel sandboxes.
+        const seen = new Set<string>();
+        const racers = [roles.architect, ...roles.builders, roles.reviewer].filter((m) => {
+          const key = `${m.connectionId}|${m.model || m.connection.defaultModel || ""}`;
+          return seen.has(key) ? false : (seen.add(key), true);
+        }).slice(0, 4);
+        if (racers.length < 2)
+          throw new Error("Compare needs at least two different models: connect another one, or add it to the crew.");
+        const variants = await Promise.all(
+          racers.map(async (member, i) => {
+            const id = `v${i + 1}`;
+            const dir = this.sandboxDir(run.id, id);
+            await copyToSandbox(projectWs.root, dir, isProtected);
+            return { variant: { id, title: member.name, direction: "", memberId: member.id }, member, workspace: new Workspace(dir) };
+          }),
+        );
+        const { summary, done } = await runDesign({ ...common, variants, kind: "compare", judge: roles.reviewer });
+        run.pending = "design";
+        await this.savePending(run.id, { variants: done });
+        emit({ type: "approval", kind: "design" });
+        await finish("done", { type: "run.done", summary, changedFiles: [], at: Date.now() });
+        return;
+      }
       if (mode === "design") {
         // One sandbox per variant, one variant per builder (at least two, at most four).
         const count = Math.min(4, Math.max(2, roles.builders.length));

@@ -71,6 +71,8 @@ export interface RunView {
   }[];
   protectedHits: string[];
   variants?: DesignVariant[];
+  /** Compare: the version the reviewer recommends, and why. */
+  verdict?: { best?: string; why: string };
   approval?: "sandbox" | "design";
   /** Agent actions waiting for your yes, oldest first. */
   asks: AskView[];
@@ -158,6 +160,12 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
       return {
         ...s,
         protectedHits: [...new Set([...s.protectedHits, ...e.paths])],
+      };
+    case "verdict":
+      return {
+        ...s,
+        verdict: { best: e.best, why: e.why },
+        variants: s.variants?.map((v) => ({ ...v, files: e.files[v.id] ?? v.files })),
       };
     case "variants":
       return {
