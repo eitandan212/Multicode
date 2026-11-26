@@ -24,6 +24,8 @@ export function newer(a, b) {
 }
 
 /** @returns {Promise<{ current: string, available: boolean, version?: string, size?: number, error?: string }>} */
+const RELEASES = /^https:\/\/github\.com\/eitandan212\/Multicode\/releases\/download\/v\d+\.\d+\.\d+\/[\w.-]+\.exe$/;
+
 export async function checkForUpdate() {
   const current = app.getVersion();
   try {
@@ -49,7 +51,12 @@ export async function installUpdate(onProgress) {
   if (process.platform !== "win32" && !process.env.MULTICODE_UPDATE_DRYRUN)
     throw new Error("In-app updates install the Windows build; on this system, update from GitHub");
   const { latest } = info;
-  const url = new URL(latest.file, FEED).toString();
+  // The installer sits next to the feed, or (newer feeds) on this repository's GitHub Releases.
+  // Either way its SHA-256 must match the feed before it runs.
+  const url =
+    typeof latest.url === "string" && RELEASES.test(latest.url) && latest.url.endsWith(`/${latest.file}`)
+      ? latest.url
+      : new URL(latest.file, FEED).toString();
   const dir = path.join(os.tmpdir(), "multicode-update");
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, latest.file);

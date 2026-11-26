@@ -53,6 +53,7 @@ import {
 import {
   linkProject,
   listProjects,
+  setProjectCheck,
   setProjectEmoji,
   unlinkProject,
   validateProjectName,
@@ -514,6 +515,13 @@ export function createApp(opts: AppOptions) {
     wrap(async (req, res) => res.json(await gitCommit(await projectRoot(req), req.body?.message))),
   );
   api.post("/projects/:name/git/push", wrap(async (req, res) => res.json(await gitPush(await projectRoot(req)))));
+  api.put(
+    "/projects/:name/check",
+    wrap(async (req, res) => {
+      await setProjectCheck(projectsDir, param(req, "name"), req.body?.check ?? null);
+      res.status(204).end();
+    }),
+  );
   api.post(
     "/projects/:name/unlink",
     wrap(async (req, res) => {

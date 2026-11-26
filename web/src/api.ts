@@ -169,6 +169,8 @@ export const api = {
     request<void>("PUT", `/api/projects/${name}/emoji`, { emoji }),
   openFolder: (path: string) =>
     request<{ name: string }>("POST", "/api/projects/open", { path }),
+  setProjectCheck: (name: string, check: string) =>
+    request<void>("PUT", `/api/projects/${name}/check`, { check }),
   unlinkProject: (name: string) =>
     request<void>("POST", `/api/projects/${name}/unlink`),
   saveFile: (project: string, path: string, content: string) =>

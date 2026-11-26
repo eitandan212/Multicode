@@ -14,6 +14,7 @@ import {
   type ImageInput,
   type Provider,
 } from "../providers/types.js";
+import { runCheck, type CheckResult } from "../check.js";
 import {
   AGENT_KINDS,
   type CrewMember,
@@ -123,6 +124,8 @@ export interface RunOptions {
   mentions?: string;
   /** Pictures attached to the request, shown to the architect. */
   images?: ImageInput[];
+  /** The project's check command (e.g. "npm test"), run after building. */
+  check?: string;
   workspace: Workspace;
   roles: CrewRoles;
   settings: Settings;
@@ -802,7 +805,19 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
       ? roles.reviewers
       : [roles.reviewer];
   let reviewSummary = "";
+  // The project's check (e.g. tests) runs before each review; the reviewer sees its result.
+  const check = async (round: number) => {
+    if (!o.check) return undefined;
+    emit({ type: "phase", phase: "checking", round });
+    const r = await runCheck(ws.root, o.check, signal);
+    emit({ type: "check", command: o.check, ...r, round });
+    checkAbort();
+    return r;
+  };
+  let lastCheck: CheckResult | undefined;
+  if (rounds === 0) lastCheck = await check(0);
   for (let round = 1; round <= rounds; round++) {
+    lastCheck = await check(round);
     emit({ type: "phase", phase: "reviewing", round });
     const verdicts = await Promise.all(
       reviewers.map(async (reviewer) => {
@@ -821,7 +836,14 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
             ws,
             `${round === 1 ? "Reviewing the build" : `Re-review (round ${round})`}${reviewers.length > 1 && what ? ` · ${what}` : ""}`,
             P.reviewerSystem(reviewer.instructions),
-            P.reviewerPrompt(o.prompt, plan, ctx.tree, ctx.files),
+            P.reviewerPrompt(
+              o.prompt,
+              plan,
+              ctx.tree,
+              lastCheck
+                ? `${ctx.files}\n\nThe project's check \`${o.check}\` ${lastCheck.ok ? "passed" : `FAILED:\n${lastCheck.output}`}`
+                : ctx.files,
+            ),
             "text",
           );
         }).catch((err: Error) => {
@@ -838,16 +860,20 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     );
     // One verdict: approved only if every reviewer approves; issues from all of them.
     const seen = new Set<string>();
+    // A failing check is never approved: it becomes a fix task even if every reviewer liked the code.
+    const checkIssue =
+      lastCheck && !lastCheck.ok
+        ? [{ file: "", problem: `The check \`${o.check}\` fails:\n${lastCheck.output.slice(-2500)}`, fix: "Make it pass without weakening or skipping tests." }]
+        : [];
     const review = {
-      approved: verdicts.every((v) => v.review.approved),
+      approved: verdicts.every((v) => v.review.approved) && !checkIssue.length,
       summary:
         verdicts.length === 1
           ? verdicts[0]!.review.summary
           : verdicts
               .map((v) => `${v.reviewer.name}: ${v.review.summary}`)
               .join("\n"),
-      issues: verdicts
-        .flatMap((v) => v.review.issues)
+      issues: [...checkIssue, ...verdicts.flatMap((v) => v.review.issues)]
         .filter((i) => {
           const key = `${i.file}|${i.problem}`;
           return seen.has(key) ? false : (seen.add(key), true);
@@ -878,7 +904,14 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     type: "run.diff",
     files: await diffChanges(ws, baseline, changedFiles),
   });
-  const summary = [plan.summary, reviewSummary].filter(Boolean).join("\n\n");
+  // The last fixes ran after the last check: check once more so the answer says how it ends.
+  if (o.check && rounds > 0 && lastCheck && !lastCheck.ok) lastCheck = await check(rounds + 1);
+  const checkLine = lastCheck
+    ? lastCheck.ok
+      ? `✅ \`${o.check}\` passes.`
+      : `⚠️ \`${o.check}\` still fails.`
+    : "";
+  const summary = [plan.summary, reviewSummary, checkLine].filter(Boolean).join("\n\n");
 
   const checkpoint: Checkpoint = { files: [], skipped: [] };
   for (const path of changedFiles) {

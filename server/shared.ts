@@ -357,6 +357,8 @@ export interface ProjectInfo {
   path?: string;
   /** The project's emoji, shown instead of its initials. */
   emoji?: string;
+  /** Runs after the crew builds (e.g. "npm test"); a failure becomes a fix. */
+  check?: string;
 }
 
 export interface PlanTask {
@@ -433,7 +435,7 @@ export type RunEvent =
     }
   | {
       type: "phase";
-      phase: "planning" | "building" | "reviewing" | "fixing";
+      phase: "planning" | "building" | "checking" | "reviewing" | "fixing";
       round: number;
     }
   | { type: "plan"; plan: Plan }
@@ -470,6 +472,7 @@ export type RunEvent =
       memberId: string;
     }
   | { type: "review"; review: Review; round: number }
+  | { type: "check"; command: string; ok: boolean; output: string; ms: number; round: number }
   | { type: "run.diff"; files: FileDiff[] }
   | {
       type: "usage";

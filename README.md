@@ -28,6 +28,9 @@ build your project together as a crew.
   Roblox & Luau. In Auto they switch on from your request and the project's files, land in
   `.claude/skills`, `.agents/skills`, `.gemini/skills`, `.qwen/skills`, and are inlined for API agents.
 
+
+How it compares with Claude Code and Codex, feature by feature: [docs/PARITY.md](docs/PARITY.md).
+
 ## Connect your AI
 
 | You have | Choose | What MultiCode uses |

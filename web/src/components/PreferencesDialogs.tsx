@@ -175,6 +175,31 @@ export function ProjectsDialog({
                   {where(pr) ? ` · ${where(pr)}` : ""}
                 </span>
               </span>
+              <form
+                className="proj-check"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = (new FormData(e.currentTarget).get("check") as string) ?? "";
+                  setBusy(`check:${pr.name}`);
+                  setError("");
+                  api
+                    .setProjectCheck(pr.name, v)
+                    .then(onChanged, (err: Error) => setError(err.message))
+                    .finally(() => setBusy(""));
+                }}
+              >
+                <input
+                  name="check"
+                  defaultValue={pr.check ?? ""}
+                  placeholder="Check after each build, e.g. npm test"
+                  aria-label={`Check command for ${pr.name}`}
+                  maxLength={500}
+                  spellCheck={false}
+                />
+                <button className="btn small" disabled={busy === `check:${pr.name}`}>
+                  {busy === `check:${pr.name}` ? <Spinner /> : "Save"}
+                </button>
+              </form>
               <span className="proj-actions">
                 <button className="btn small" onClick={() => onOpen(pr.name)}>Open</button>
                 {reveal && where(pr) && (

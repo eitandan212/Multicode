@@ -51,7 +51,7 @@ import {
   type McpServer,
   type RunMode,
 } from "./shared.js";
-import { Workspace } from "./workspace.js";
+import { projectCheck, Workspace } from "./workspace.js";
 
 type Listener = (e: RunEvent) => void;
 
@@ -730,6 +730,7 @@ export class RunManager {
     };
 
     const mentioned = await readMentions(projectWs, run.prompt, isProtected);
+    const checkCommand = await projectCheck(this.projectsDir, project);
     if (reviewDiff)
       mentioned.text = `${REVIEW_BRIEF}\n\n<diff>\n${withoutSecrets(reviewDiff, isProtected)}\n</diff>${mentioned.text ? `\n\n${mentioned.text}` : ""}`;
     const common = {
@@ -737,6 +738,7 @@ export class RunManager {
       history,
       ...(mentioned.text ? { mentions: mentioned.text } : {}),
       ...(mentioned.images.length ? { images: mentioned.images } : {}),
+      ...(checkCommand && settings.safety !== "readonly" ? { check: checkCommand } : {}),
       roles,
       settings,
       mcpServers: ctx.servers,

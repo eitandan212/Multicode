@@ -212,7 +212,7 @@ export class Workspace {
 
 /** Per-project look (an emoji), kept in MultiCode's data and never in the project folder. */
 const META = ".project-meta.json";
-type ProjectMeta = Record<string, { emoji?: string }>;
+type ProjectMeta = Record<string, { emoji?: string; check?: string }>;
 
 async function readMeta(projectsDir: string): Promise<ProjectMeta> {
   try {
@@ -247,6 +247,23 @@ export async function setProjectEmoji(projectsDir: string, name: string, emoji: 
   else if (meta[name]) delete meta[name].emoji;
   await mkdir(projectsDir, { recursive: true });
   await writeFile(path.join(projectsDir, META), JSON.stringify(meta, null, 2));
+}
+
+/** The command run after each build (e.g. "npm test"); empty removes it. */
+export async function setProjectCheck(projectsDir: string, name: string, command: unknown): Promise<void> {
+  validateProjectName(name);
+  if (command !== null && typeof command !== "string") throw new HttpError(400, "check must be a command");
+  const value = (command ?? "").trim();
+  if (value.length > 500 || /[\r\n]/.test(value)) throw new HttpError(400, "the check command must be one line (500 characters at most)");
+  const meta = await readMeta(projectsDir);
+  if (value) meta[name] = { ...meta[name], check: value };
+  else if (meta[name]) delete meta[name].check;
+  await mkdir(projectsDir, { recursive: true });
+  await writeFile(path.join(projectsDir, META), JSON.stringify(meta, null, 2));
+}
+
+export async function projectCheck(projectsDir: string, name: string): Promise<string | undefined> {
+  return (await readMeta(projectsDir))[name]?.check;
 }
 
 /** Folders opened from elsewhere: project name → absolute folder. */
@@ -325,6 +342,9 @@ export async function listProjects(
     out.push({ name, fileCount: files.length, updatedAt: s.mtimeMs, path: folder });
   }
   const meta = await readMeta(projectsDir);
-  for (const p of out) if (meta[p.name]?.emoji) p.emoji = meta[p.name]!.emoji;
+  for (const p of out) {
+    if (meta[p.name]?.emoji) p.emoji = meta[p.name]!.emoji;
+    if (meta[p.name]?.check) p.check = meta[p.name]!.check;
+  }
   return out.sort((a, b) => b.updatedAt - a.updatedAt);
 }

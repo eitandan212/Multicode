@@ -353,6 +353,18 @@ export function Thread({
         </div>
       )}
 
+      {run.checks.map((c, i) => (
+        <details key={`check-${i}`} className={`check-line enter ${c.ok ? "is-ok" : "is-bad"}`}>
+          <summary>
+            <Icon name={c.ok ? "check" : "x"} size={13} />
+            <code>{c.command}</code>
+            <span className="muted small">
+              {c.ok ? "passed" : "failed"} · {Math.max(1, Math.round(c.ms / 1000))}s
+            </span>
+          </summary>
+          {c.output && <pre className="check-output">{c.output}</pre>}
+        </details>
+      ))}
       {run.reviews.map(({ round, review }) => (
         <div key={round} className="msg-agent enter">
           <p className="review-line">

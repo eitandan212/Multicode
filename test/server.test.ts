@@ -2364,3 +2364,49 @@ describe("reasoning effort", () => {
     }
   });
 });
+
+describe("check command (like a hook on edits)", () => {
+  it("runs after the build, turns a failure into a fix, and reports the final result", async () => {
+    const { setProjectCheck } = await import("../server/workspace.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-check-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 1, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const reviewerPrompts: string[] = [];
+      const base = fakeProvider({ review: [] });
+      const provider: Provider = {
+        ...base,
+        async generate(req, onDelta) {
+          if (req.system.includes("REVIEWER")) reviewerPrompts.push(req.prompt);
+          return base.generate(req, onDelta);
+        },
+      };
+      const projects = path.join(dir, "projects");
+      const runs = new RunManager(config, projects, () => provider, path.join(dir, "runs"));
+      await Workspace.open(projects, "site");
+      await setProjectCheck(projects, "site", `node -e "process.exit(require('fs').readFileSync('app.js','utf8').includes('fixed')?0:1)"`);
+      const events: RunEvent[] = [];
+      const r = await runs.start("site", "Build it");
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          events.push(e);
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      const checks = events.filter((e): e is Extract<RunEvent, { type: "check" }> => e.type === "check");
+      expect(checks.map((c) => c.ok)).toEqual([false, true]);
+      expect(reviewerPrompts[0]).toContain("FAILED");
+      expect(events.some((e) => e.type === "tasks.added")).toBe(true);
+      const done = events.find((e) => e.type === "run.done") as Extract<RunEvent, { type: "run.done" }>;
+      expect(done.summary).toContain("passes");
+      await expect(setProjectCheck(projects, "site", "a\nb")).rejects.toThrow(/one line/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
