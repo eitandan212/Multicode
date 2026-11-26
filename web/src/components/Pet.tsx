@@ -6,13 +6,17 @@ import { todosChanged, useTodos } from "./TodoList";
 import { loadPrefs, PREFS_KEY, type PetKind, type Prefs } from "../prefs";
 
 type Approval = Awaited<ReturnType<typeof api.approvals>>[number];
-type Mood = "idle" | "busy" | "alert" | "happy" | "sad";
+type Mood = "idle" | "thinking" | "busy" | "alert" | "happy" | "sad" | "sleep";
 
 /** The pet's picture for a mood. The cat has a face per mood; the others show a small sign beside them. */
 function petImage(kind: PetKind, mood: Mood): string {
-  return kind === "cat" ? `/pets/cat-${mood}.png` : `/pets/${kind}.png`;
+  return kind === "cat" ? `/pets/cat-${mood === "sad" ? "angry" : mood}.png` : `/pets/${kind}.png`;
 }
-const MOOD_SIGN: Record<Mood, string> = { idle: "z", busy: "", alert: "!", happy: "✓", sad: "×" };
+const MOOD_SIGN: Record<Mood, string> = { idle: "", thinking: "…", busy: "", alert: "!", happy: "✓", sad: "×", sleep: "z" };
+/** After this long with nothing going on, the pet curls up and sleeps. */
+const SLEEP_AFTER = 3 * 60_000;
+/** A task this new is still being planned: the pet thinks before it types. */
+const THINK_FOR = 25_000;
 
 /** The chosen pet, kept in step with Preferences (in this window and in the pet's own window). */
 function usePetKind(): PetKind {
@@ -151,7 +155,7 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
       </>
     );
   } else if (working.length) {
-    mood = "busy";
+    mood = Math.max(...working.map((r) => r.startedAt)) > now - THINK_FOR ? "thinking" : "busy";
     if (hover)
       bubble = (
         <>
@@ -178,6 +182,11 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
     bubble = <span className="pet-text">All quiet. Ctrl+K finds anything; / opens commands.</span>;
   }
 
+  // Asleep after a quiet while; anything happening, or a hover, wakes it.
+  const lastActive = useRef(Date.now());
+  if (mood !== "idle" || hover || bubble) lastActive.current = now;
+  if (mood === "idle" && !hover && now - lastActive.current > SLEEP_AFTER) mood = "sleep";
+
   return (
     <div className={`pet ${standalone ? "is-standalone" : ""}`} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       {bubble && (
@@ -186,9 +195,18 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
         </div>
       )}
       <div className={`pet-body is-${mood}`} title="MultiCode" aria-hidden>
-        <img className="pet-img" src={petImage(kind, mood)} alt="" draggable={false} width={64} height={64} />
-        {kind !== "cat" && MOOD_SIGN[mood] && <span className={`pet-sign is-${mood}`}>{MOOD_SIGN[mood]}</span>}
-        {mood === "busy" && <span className="pet-dots"><i /><i /><i /></span>}
+        <img key={mood} className={`pet-img ${kind === "cat" ? "is-cat" : ""}`} src={petImage(kind, mood)} alt="" draggable={false} />
+        {kind === "cat" ? (
+          <>
+            {mood === "thinking" && <span className="pet-think"><i /><i /><i /></span>}
+            {mood === "alert" && <span className="pet-bang">!</span>}
+            {mood === "sleep" && <span className="pet-zz"><b>z</b><b>z</b><b>Z</b></span>}
+            {mood === "happy" && <span className="pet-sparks"><i /><i /><i /><i /></span>}
+          </>
+        ) : (
+          MOOD_SIGN[mood] && <span className={`pet-sign is-${mood}`}>{MOOD_SIGN[mood]}</span>
+        )}
+        {mood === "busy" && kind !== "cat" && <span className="pet-dots"><i /><i /><i /></span>}
         {approvals.length > 0 && <span className="pet-badge">{approvals.length}</span>}
       </div>
     </div>

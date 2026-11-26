@@ -157,7 +157,7 @@ function setPet(on) {
   if (pet && !pet.isDestroyed()) return;
   const area = screen.getPrimaryDisplay().workArea;
   const W = 320;
-  const H = 260;
+  const H = 290;
   pet = new BrowserWindow({
     width: W,
     height: H,

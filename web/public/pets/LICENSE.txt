@@ -1,2 +1,3 @@
-Pet images: Fluent Emoji by Microsoft (https://github.com/microsoft/fluentui-emoji), MIT License.
-Copyright (c) Microsoft Corporation.
+cat-*.png: MultiCode's own cat mascot, made for this app.
+dog, fox, frog, owl, panda, penguin, robot: Fluent Emoji by Microsoft
+(https://github.com/microsoft/fluentui-emoji), MIT License. Copyright (c) Microsoft Corporation.
