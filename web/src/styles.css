@@ -5350,3 +5350,15 @@ pre,
 .sb-card-title > .truncate{ display: block; flex: 1 1 auto; min-width: 0; }
 .sb-card-meta .sb-age{ margin-left: auto; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .sb-card-meta .sb-age + .sb-team{ margin-left: 8px; }
+
+/* Crew: on narrow screens the manager's picker goes under its description, not beside it. */
+@container (max-width: 520px) {
+  .dispatch-head{ flex-wrap: wrap; }
+  .dispatch-head > div:not(.seg){ flex: 1 1 calc(100% - 40px); min-width: 0; }
+  .dispatch-head .manager-select{ flex: 1 1 100%; max-width: none; margin-left: 0; }
+}
+@media (max-width: 520px) {
+  .dispatch-head{ flex-wrap: wrap; }
+  .dispatch-head > div:not(.seg){ flex: 1 1 calc(100% - 40px); min-width: 0; }
+  .dispatch-head .manager-select{ flex: 1 1 100%; max-width: none; margin-left: 0; }
+}
