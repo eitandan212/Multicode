@@ -11,6 +11,7 @@ import type {
 } from "../../../server/shared";
 import { Icon } from "./Icon";
 import { TeamPicker } from "./TeamPicker";
+import { ContextRing } from "./ContextRing";
 import { usePresence } from "../motion";
 import { SuggestMenu, triggerAt, useSuggest, type SlashId, type Trigger } from "./ComposerSuggest";
 
@@ -39,6 +40,8 @@ interface Props {
   /** Sleep mode: the crew works alone; while it's busy, new work is queued. */
   sleep: boolean;
   onSleep: (on: boolean) => void;
+  /** The open thread's last call, for the context ring. */
+  lastCall?: { memberId: string; tokens: number };
   /** A "/" command the app handles (new thread, open a panel or a setting). */
   onCommand?: (id: SlashId) => void;
 }
@@ -312,6 +315,7 @@ export function Composer(p: Props) {
             onEditCrew={p.onOpenCrew}
             manager={p.manager}
           />
+          <ContextRing lastCall={p.lastCall} crew={p.crew} connections={p.connections} onOpenUsage={() => p.onCommand?.("usage")} />
           <MoreControls
             settings={p.settings}
             onSettings={p.onSettings}

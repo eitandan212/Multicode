@@ -667,3 +667,21 @@ export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 export const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
 /** Connections whose effort MultiCode can set. */
 export const EFFORT_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "anthropic"];
+
+/**
+ * How many tokens a model can read at once (its context window), from its kind and name. A
+ * best estimate for the context ring; unknown models count as 128k.
+ */
+export function contextWindow(kind: ProviderKind, model = ""): number {
+  const m = model.toLowerCase();
+  if (/claude|opus|sonnet|haiku|fable|mythos/.test(m) || kind === "anthropic" || kind === "claude-cli") {
+    if (/haiku-4|claude-3|sonnet-4-5|opus-4-5|opus-4-1|sonnet-4-0|opus-4-0/.test(m)) return 200_000;
+    return 1_000_000;
+  }
+  if (/gemini/.test(m) || kind === "gemini" || kind === "gemini-cli" || kind === "antigravity") return 1_000_000;
+  if (/gpt-4\.1/.test(m)) return 1_000_000;
+  if (/gpt-5|codex|o3|o4/.test(m) || kind === "codex-cli") return 400_000;
+  if (/gpt-4o|gpt-4-turbo/.test(m)) return 128_000;
+  if (/qwen.*(coder|max)|kimi|glm-4\.[56]|deepseek-v3/.test(m)) return 128_000;
+  return 128_000;
+}

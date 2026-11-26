@@ -814,6 +814,7 @@ export function App() {
           : "Connect an AI to start"
       }
       draft={draft}
+      lastCall={run?.lastCall}
       onSubmit={startRun}
       onSubmitParallel={(prompt, mode) => startRun(prompt, mode, false, true)}
       onCommand={(id) => {

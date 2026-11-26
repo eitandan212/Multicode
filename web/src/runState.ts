@@ -43,6 +43,8 @@ export interface RunView {
   hookFailures: { event: string; command: string; output: string }[];
   /** Requests that were too long for a model and were compacted automatically. */
   compactions: { memberId: string; from: number; to: number }[];
+  /** The last call's size: how full its model's context was (for the context ring). */
+  lastCall?: { memberId: string; tokens: number };
   changed: string[];
   status: "running" | "done" | "error";
   summary?: string;
@@ -138,6 +140,7 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
     case "usage":
       return {
         ...s,
+        lastCall: { memberId: e.memberId, tokens: e.input + (e.cached ?? 0) },
         usage: {
           input: s.usage.input + e.input,
           output: s.usage.output + e.output,

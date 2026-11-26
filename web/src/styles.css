@@ -5476,3 +5476,50 @@ button.git-branch:hover{ background: color-mix(in srgb, var(--brand) 22%, transp
 .git-branch-item .small{ margin-left: auto; font-family: var(--font); }
 .git-dot{ width: 12px; }
 .git-branches .git-commit{ margin-top: 4px; }
+
+/* The context ring next to the send button. */
+.ctx-ring-wrap{ position: relative; flex: none; }
+.ctx-ring{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease-soft), color 140ms var(--ease-soft);
+}
+.ctx-ring:hover, .ctx-ring[aria-expanded="true"]{ background: var(--hover); color: var(--text); }
+.ctx-ring-track{ fill: none; stroke: var(--line-strong); stroke-width: 2.4; }
+.ctx-ring-fill{ fill: none; stroke: var(--brand); stroke-width: 2.4; stroke-linecap: round; transition: stroke-dashoffset 600ms var(--ease), stroke 200ms var(--ease-soft); }
+.ctx-ring.is-mid .ctx-ring-fill{ stroke: var(--amber); }
+.ctx-ring.is-high .ctx-ring-fill{ stroke: var(--bad); }
+.ctx-pop{
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  width: min(320px, calc(100vw - 32px));
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 0.2);
+}
+.ctx-pop-section{ display: grid; gap: 6px; }
+.ctx-pop-section strong{ font-size: 13px; font-weight: 600; }
+.ctx-pop-section .link{ justify-self: start; }
+.usage-track.is-mid > span{ background: var(--amber); }
+.usage-track.is-high > span{ background: var(--bad); }
+@container composer (max-width: 460px) { .ctx-ring-pct{ display: none; } }
+@media (max-width: 600px) {
+  .ctx-pop{ position: fixed; left: 16px; right: 16px; bottom: 150px; width: auto; }
+}

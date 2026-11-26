@@ -41,7 +41,7 @@ import { homedir } from "node:os";
 import { enabledPlugins, PLUGINS } from "../server/plugins.js";
 import { selectPacks, SKILL_PACKS } from "../server/skills.js";
 import { recordRun } from "../server/graph.js";
-import { connectionName } from "../server/shared.js";
+import { connectionName, contextWindow } from "../server/shared.js";
 import { costTier } from "../server/crew/prompts.js";
 import {
   codexMcpArgs,
@@ -2821,5 +2821,16 @@ describe("auto-compact", () => {
     expect(out[0]).toContain("Earlier in this thread (compacted)");
     expect(out[0]).toContain("request 0 → answer 0");
     expect(out[3]).toBe("Request: request 9\nAnswer: answer 9");
+  });
+});
+
+describe("context ring", () => {
+  it("knows each model's context window", () => {
+    expect(contextWindow("anthropic", "claude-opus-5-5")).toBe(1_000_000);
+    expect(contextWindow("anthropic", "claude-haiku-4-5")).toBe(200_000);
+    expect(contextWindow("codex-cli", "")).toBe(400_000);
+    expect(contextWindow("openai", "gpt-4o")).toBe(128_000);
+    expect(contextWindow("gemini", "gemini-2.5-pro")).toBe(1_000_000);
+    expect(contextWindow("openai-compatible", "some-local-model")).toBe(128_000);
   });
 });
