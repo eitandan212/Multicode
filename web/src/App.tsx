@@ -1197,6 +1197,11 @@ export function App() {
             await reload();
             selectProject(p.name);
           }}
+          onClone={async (url) => {
+            const p = await api.cloneRepo(url);
+            await reload();
+            selectProject(p.name);
+          }}
         />
       )}
       {dialog === "palette" && (

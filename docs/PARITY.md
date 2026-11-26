@@ -20,7 +20,8 @@ goes further, ◐ = partly, — = not available (with the reason).
 | Sandbox | ◐ | ✅ | ✅ sandbox copy, apply or discard |
 | Undo / checkpoints | ✅ | ◐ | ✅ undo a run's changes |
 | Code review of your changes | ✅ `/review` | ✅ `/review` | ✅ `/review` (git diff, secrets stripped) |
-| Git: status, commit, push | via agent | ✅ | ✅ Changes tab |
+| Git: status, commit, push | via agent | ✅ | ✅ Changes tab: branches, pull, commit, push |
+| Work on a GitHub repository | ✅ | ✅ | ✅ clone from GitHub (owner/repo or a URL), branch, push, open a pull request |
 | Diff view | ✅ | ✅ | ✅ |
 | MCP servers | ✅ | ✅ | ✅ shared with every agent; one-click catalog |
 | Import MCP from other tools | — | — | ➕ Claude Code, Codex, Cursor, Gemini CLI, Claude Desktop, Windsurf |

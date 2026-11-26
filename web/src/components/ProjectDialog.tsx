@@ -7,6 +7,7 @@ import { Icon } from "./Icon";
 export function ProjectDialog(p: {
   onCreate: (name: string, emoji?: string) => Promise<void>;
   onOpenFolder: (path: string) => Promise<void>;
+  onClone: (url: string) => Promise<void>;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -14,7 +15,8 @@ export function ProjectDialog(p: {
   useEffect(() => {
     openDialog(ref.current);
   }, []);
-  const [tab, setTab] = useState<"new" | "open">("new");
+  const [tab, setTab] = useState<"new" | "open" | "github">("new");
+  const [repo, setRepo] = useState("");
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState<string | undefined>();
   const [picking, setPicking] = useState(false);
@@ -60,9 +62,38 @@ export function ProjectDialog(p: {
           <button role="tab" aria-selected={tab === "open"} className={tab === "open" ? "is-active" : ""} onClick={() => setTab("open")}>
             <Icon name="folder" size={14} /> Open folder
           </button>
+          <button role="tab" aria-selected={tab === "github"} className={tab === "github" ? "is-active" : ""} onClick={() => setTab("github")}>
+            <Icon name="download" size={14} /> From GitHub
+          </button>
         </div>
 
-        {tab === "new" ? (
+        {tab === "github" ? (
+          <form
+            className="project-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (repo.trim()) void act(() => p.onClone(repo.trim()));
+            }}
+          >
+            <label>
+              Repository
+              <input
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                placeholder="github.com/owner/repo or owner/repo"
+                spellCheck={false}
+                autoFocus
+              />
+            </label>
+            <p className="muted small">
+              MultiCode downloads it into a new project. Work on a branch, then commit, push and open a pull request from
+              the Changes tab. Private repositories use your own GitHub sign-in (git or gh in a terminal, once).
+            </p>
+            <button className="btn primary" disabled={!repo.trim() || busy}>
+              {busy ? "Cloning… (big repositories take a minute)" : "Clone repository"}
+            </button>
+          </form>
+        ) : tab === "new" ? (
           <form
             className="project-form"
             onSubmit={(e) => {

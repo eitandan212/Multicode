@@ -87,6 +87,12 @@ export const api = {
   gitCommit: (project: string, message: string) =>
     request<GitStatus>("POST", `/api/projects/${project}/git/commit`, { message }),
   gitPush: (project: string) => request<GitStatus>("POST", `/api/projects/${project}/git/push`),
+  gitPull: (project: string) => request<GitStatus>("POST", `/api/projects/${project}/git/pull`),
+  gitBranches: (project: string) =>
+    request<{ current: string; branches: string[]; defaultBranch?: string }>("GET", `/api/projects/${project}/git/branches`),
+  gitCheckout: (project: string, branch: string, create = false) =>
+    request<GitStatus>("POST", `/api/projects/${project}/git/checkout`, { branch, create }),
+  cloneRepo: (url: string) => request<{ name: string }>("POST", "/api/projects/clone", { url }),
   attachmentUrl: (project: string, rel: string) =>
     `/api/projects/${project}/attachments/${rel.replace(/^\.attachments\//, "")}`,
   state: () => request<AppState>("GET", "/api/state"),

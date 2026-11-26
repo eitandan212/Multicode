@@ -652,6 +652,8 @@ export interface GitStatus {
   /** False when git itself isn't installed. */
   installed: boolean;
   branch?: string;
+  /** "owner/repo" when the remote is on GitHub. */
+  github?: string;
   upstream?: string;
   ahead?: number;
   behind?: number;

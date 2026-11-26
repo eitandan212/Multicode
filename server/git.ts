@@ -92,9 +92,12 @@ export async function gitStatus(root: string): Promise<GitStatus> {
     const code = (xy.trim()[0] ?? "M") as keyof typeof STATE;
     return { path: file.replace(/^"|"$/g, ""), status: xy.includes("U") ? "conflict" : (STATE[code] ?? "modified") };
   });
+  const remote = (await git(root, ["remote", "get-url", "origin"])).stdout.trim();
+  const gh = /github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/.exec(remote);
   return {
     repo: true,
     installed: true,
+    ...(gh ? { github: `${gh[1]}/${gh[2]}` } : {}),
     branch: branch || "HEAD",
     ...(upstream ? { upstream } : {}),
     ahead,
@@ -170,4 +173,72 @@ export async function gitDiff(root: string, max = 40_000): Promise<string | unde
     out += `\n--- /dev/null\n+++ b/${f} (new file)\n${text.slice(0, 8000).split("\n").map((l) => `+${l}`).join("\n")}\n`;
   }
   return out.length > max ? `${out.slice(0, max)}\n…(diff trimmed)` : out;
+}
+
+// ---- GitHub (or any git host): clone a repository, branches, pull, pull requests ----
+
+/** "owner/repo", an https URL or git@host:owner/repo → a clone URL. Never an option or a local path. */
+export function cloneUrl(input: unknown): string {
+  const raw = typeof input === "string" ? input.trim() : "";
+  if (/^[\w.-]+\/[\w.-]+$/.test(raw)) return `https://github.com/${raw.replace(/\.git$/, "")}.git`;
+  if (/^https:\/\/[\w.-]+(:\d+)?\/[\w.~/-]+$/.test(raw.replace(/\/$/, ""))) return raw.replace(/\/$/, "");
+  if (/^git@[\w.-]+:[\w.~/-]+$/.test(raw)) return raw;
+  throw new HttpError(400, "Paste a repository address like github.com/owner/repo or owner/repo");
+}
+
+/** A project name from the repository's name. */
+export function repoName(url: string): string {
+  const last = url.replace(/\.git$/, "").split(/[/:]/).filter(Boolean).pop() ?? "repo";
+  return last.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "repo";
+}
+
+/** Clones into <dir> (a fresh folder). Uses your own git sign-in for private repositories. */
+export async function gitClone(dir: string, url: string): Promise<void> {
+  const parent = (await import("node:path")).dirname(dir);
+  const r = await git(parent, ["clone", "--filter=blob:none", "--", url, dir], 10 * 60_000);
+  if (r.code === 127) throw new HttpError(400, "Git isn't installed on this computer. Get it from git-scm.com.");
+  if (r.code !== 0) {
+    const why = r.stderr.trim();
+    if (/not found|Repository not found|could not read Username|Authentication failed|403|terminal prompts disabled/i.test(why))
+      throw new HttpError(400, "Couldn't open that repository. Check the address; for a private one, sign in to GitHub once in a terminal (git or gh auth login), then try again.");
+    if (/Could not resolve host|unable to access/i.test(why)) throw new HttpError(400, "Couldn't reach the repository. Check the internet connection and the address.");
+    throw new HttpError(500, why.split("\n").slice(-2).join(" ") || "git clone failed");
+  }
+}
+
+export async function gitBranches(root: string): Promise<{ current: string; branches: string[]; defaultBranch?: string }> {
+  const s = await gitStatus(root);
+  if (!s.repo) throw new HttpError(400, "This project isn't under version control.");
+  const local = (await git(root, ["for-each-ref", "--format=%(refname:short)", "refs/heads"])).stdout.split("\n").filter(Boolean);
+  const head = (await git(root, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])).stdout.trim().replace(/^origin\//, "");
+  return { current: s.branch ?? "", branches: local, ...(head ? { defaultBranch: head } : {}) };
+}
+
+const BRANCH = /^(?!-)(?!.*\.\.)(?!.*\/\/)[\w./-]{1,100}(?<![./])$/;
+
+/** Switches to a branch, creating it from the current one when asked. Your uncommitted changes come along. */
+export async function gitCheckout(root: string, branch: unknown, create: boolean): Promise<GitStatus> {
+  if (typeof branch !== "string" || !BRANCH.test(branch)) throw new HttpError(400, "Branch names use letters, digits, -, _, / and .");
+  const r = await git(root, create ? ["switch", "-c", branch] : ["switch", branch]);
+  if (r.code !== 0) {
+    const why = r.stderr.trim();
+    if (/already exists/i.test(why)) throw new HttpError(409, `A branch named ${branch} already exists.`);
+    if (/would be overwritten/i.test(why)) throw new HttpError(409, "Commit your changes first: switching would overwrite them.");
+    throw new HttpError(500, why.split("\n").slice(-2).join(" ") || "git switch failed");
+  }
+  return gitStatus(root);
+}
+
+/** Brings in new commits from the remote (fast-forward only: never a surprise merge). */
+export async function gitPull(root: string): Promise<GitStatus> {
+  const r = await git(root, ["pull", "--ff-only"], 2 * 60_000);
+  if (r.code !== 0) {
+    const why = r.stderr.trim();
+    if (/Not possible to fast-forward|diverged/i.test(why))
+      throw new HttpError(409, "Your branch and the remote both have new commits. Merge them in a terminal (git pull), then continue.");
+    if (/no tracking information/i.test(why)) throw new HttpError(400, "This branch isn't on the remote yet: push it first.");
+    if (/would be overwritten/i.test(why)) throw new HttpError(409, "Commit your changes first: the pull would overwrite them.");
+    throw new HttpError(500, why.split("\n").slice(-2).join(" ") || "git pull failed");
+  }
+  return gitStatus(root);
 }

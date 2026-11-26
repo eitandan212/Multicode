@@ -5463,3 +5463,16 @@ pre,
 .verdict{ display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
 .verdict svg{ flex: none; margin-top: 3px; color: var(--brand); }
 .variant.is-best{ box-shadow: 0 0 0 2px var(--brand); }
+button.git-branch{ border: 0; cursor: pointer; font: 12px var(--mono); }
+button.git-branch:hover{ background: color-mix(in srgb, var(--brand) 22%, transparent); }
+.git-head .btn.small.primary{ text-decoration: none; }
+.git-branches{ display: grid; gap: 2px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.git-branch-item{
+  display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px;
+  border: 0; border-radius: 7px; background: none; color: inherit; font: 12.5px var(--mono); text-align: left; cursor: pointer;
+}
+.git-branch-item:hover:not(:disabled){ background: var(--hover); }
+.git-branch-item.is-current{ color: var(--brand); cursor: default; }
+.git-branch-item .small{ margin-left: auto; font-family: var(--font); }
+.git-dot{ width: 12px; }
+.git-branches .git-commit{ margin-top: 4px; }

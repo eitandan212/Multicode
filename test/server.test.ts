@@ -2710,3 +2710,46 @@ describe("models at the same time", () => {
     }
   });
 });
+
+describe("work on a GitHub repository", () => {
+  it("accepts owner/repo and https addresses, never options or local paths", async () => {
+    const { cloneUrl, repoName } = await import("../server/git.js");
+    expect(cloneUrl("eitandan212/Multicode")).toBe("https://github.com/eitandan212/Multicode.git");
+    expect(cloneUrl("https://github.com/a/b.git")).toBe("https://github.com/a/b.git");
+    expect(cloneUrl("git@github.com:a/b.git")).toBe("git@github.com:a/b.git");
+    for (const bad of ["--upload-pack=x", "/etc", "file:///etc", "ext::sh -c x", "http://x/y", ""])
+      expect(() => cloneUrl(bad)).toThrow(/repository address/);
+    expect(repoName("https://github.com/eitandan212/Multicode.git")).toBe("multicode");
+  });
+
+  it("clones, branches, pulls new commits and knows it's on GitHub", async () => {
+    const { gitBranches, gitCheckout, gitClone, gitPull, gitStatus } = await import("../server/git.js");
+    const { execFileSync } = await import("node:child_process");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-clone-"));
+    const sh = (cwd: string, ...a: string[]) => execFileSync("git", a, { cwd, env: { ...process.env, GIT_AUTHOR_NAME: "T", GIT_AUTHOR_EMAIL: "t@e", GIT_COMMITTER_NAME: "T", GIT_COMMITTER_EMAIL: "t@e" } }).toString();
+    try {
+      const origin = path.join(dir, "origin");
+      await mkdir(origin);
+      sh(origin, "init", "-b", "main");
+      await writeFile(path.join(origin, "README.md"), "hi\n");
+      sh(origin, "add", "-A");
+      sh(origin, "commit", "-m", "first");
+      const work = path.join(dir, "work");
+      await gitClone(work, origin);
+      expect(await readFile(path.join(work, "README.md"), "utf8")).toBe("hi\n");
+      expect((await gitBranches(work)).current).toBe("main");
+      const s = await gitCheckout(work, "feature/login", true);
+      expect(s.branch).toBe("feature/login");
+      await expect(gitCheckout(work, "--bad", true)).rejects.toThrow(/Branch names/);
+      await gitCheckout(work, "main", false);
+      await writeFile(path.join(origin, "README.md"), "hi again\n");
+      sh(origin, "commit", "-am", "second");
+      await gitPull(work);
+      expect(await readFile(path.join(work, "README.md"), "utf8")).toBe("hi again\n");
+      sh(work, "remote", "set-url", "origin", "https://github.com/acme/site.git");
+      expect((await gitStatus(work)).github).toBe("acme/site");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -25,7 +25,7 @@ import { checkConnection } from "./health.js";
 import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
-import { gitCommit, gitInit, gitPush, gitStatus } from "./git.js";
+import { cloneUrl, gitBranches, gitCheckout, gitClone, gitCommit, gitInit, gitPull, gitPush, gitStatus, repoName } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
 import { readFileSync } from "node:fs";
 
@@ -525,6 +525,26 @@ export function createApp(opts: AppOptions) {
     wrap(async (req, res) => res.json(await gitCommit(await projectRoot(req), req.body?.message))),
   );
   api.post("/projects/:name/git/push", wrap(async (req, res) => res.json(await gitPush(await projectRoot(req)))));
+  api.get("/projects/:name/git/branches", wrap(async (req, res) => res.json(await gitBranches(await projectRoot(req)))));
+  api.post(
+    "/projects/:name/git/checkout",
+    wrap(async (req, res) => res.json(await gitCheckout(await projectRoot(req), req.body?.branch, req.body?.create === true))),
+  );
+  api.post("/projects/:name/git/pull", wrap(async (req, res) => res.json(await gitPull(await projectRoot(req)))));
+  // Work on a GitHub (or any git) repository: clone it as a new project.
+  api.post(
+    "/projects/clone",
+    wrap(async (req, res) => {
+      const url = cloneUrl(req.body?.url);
+      const existing = new Set((await listProjects(projectsDir)).map((p) => p.name));
+      const base = repoName(url);
+      let name = base;
+      for (let i = 2; existing.has(name) || existsSync(path.join(projectsDir, name)); i++) name = `${base}-${i}`;
+      await mkdir(projectsDir, { recursive: true });
+      await gitClone(path.join(projectsDir, validateProjectName(name)), url);
+      res.status(201).json({ name });
+    }),
+  );
   api.put(
     "/projects/:name/check",
     wrap(async (req, res) => {

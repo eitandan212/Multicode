@@ -7,7 +7,10 @@ import { Icon, Spinner } from "./Icon";
 export function GitBar({ project, refreshKey, suggestion }: { project: string; refreshKey: number; suggestion: string }) {
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState<"" | "commit" | "push" | "init">("");
+  const [busy, setBusy] = useState<"" | "commit" | "push" | "init" | "pull" | "branch">("");
+  const [branches, setBranches] = useState<{ current: string; branches: string[]; defaultBranch?: string } | null>(null);
+  const [newBranch, setNewBranch] = useState("");
+  const [menu, setMenu] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -18,6 +21,41 @@ export function GitBar({ project, refreshKey, suggestion }: { project: string; r
     };
   }, [project, refreshKey]);
   useEffect(() => setMessage(""), [project]);
+  useEffect(() => {
+    if (!status?.repo) return;
+    let live = true;
+    api.gitBranches(project).then((b) => live && setBranches(b)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [project, status?.repo, status?.branch]);
+
+  const branchAct = async (name: string, create: boolean) => {
+    setBusy("branch");
+    setNote(null);
+    try {
+      setStatus(await api.gitCheckout(project, name, create));
+      setMenu(false);
+      setNewBranch("");
+      setNote({ ok: true, text: create ? `Created ${name} and switched to it.` : `Switched to ${name}.` });
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy("");
+    }
+  };
+  const pull = async () => {
+    setBusy("pull");
+    setNote(null);
+    try {
+      setStatus(await api.gitPull(project));
+      setNote({ ok: true, text: "Up to date with the remote." });
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy("");
+    }
+  };
 
   const act = async (kind: "commit" | "push" | "init") => {
     setBusy(kind);
@@ -61,14 +99,37 @@ export function GitBar({ project, refreshKey, suggestion }: { project: string; r
   return (
     <div className="git-bar">
       <div className="git-head">
-        <span className="git-branch" title={status.upstream ? `Tracks ${status.upstream}` : "No remote branch yet"}>
+        <button
+          type="button"
+          className="git-branch"
+          onClick={() => setMenu(!menu)}
+          aria-expanded={menu}
+          title={`${status.upstream ? `Tracks ${status.upstream}. ` : ""}Switch or create a branch`}
+        >
           <Icon name="sync" size={13} /> {status.branch}
-        </span>
+          <Icon name="chevronDown" size={11} />
+        </button>
         <span className="muted small">
           {count ? `${count} change${count === 1 ? "" : "s"}` : "No changes"}
           {status.ahead ? ` · ${status.ahead} to push` : ""}
           {status.behind ? ` · ${status.behind} to pull` : ""}
         </span>
+        {status.upstream && (
+          <button className="btn small" onClick={() => void pull()} disabled={busy !== ""} title="Bring in new commits from the remote">
+            {busy === "pull" ? <Spinner /> : <Icon name="download" size={13} />} Pull
+          </button>
+        )}
+        {status.github && status.upstream && branches?.defaultBranch && status.branch !== branches.defaultBranch && !(status.ahead ?? 0) && (
+          <a
+            className="btn small primary"
+            href={`https://github.com/${status.github}/compare/${encodeURIComponent(status.branch ?? "")}?expand=1`}
+            target="_blank"
+            rel="noreferrer"
+            title="Open a pull request for this branch on GitHub"
+          >
+            <Icon name="external" size={12} /> Open pull request
+          </a>
+        )}
         {(status.ahead ?? 0) > 0 || (!status.upstream && count === 0) ? (
           <button
             className="btn small push-right"
@@ -80,6 +141,29 @@ export function GitBar({ project, refreshKey, suggestion }: { project: string; r
           </button>
         ) : null}
       </div>
+      {menu && (
+        <div className="git-branches pop-in">
+          {(branches?.branches ?? []).map((b) => (
+            <button key={b} type="button" className={`git-branch-item ${b === status.branch ? "is-current" : ""}`} disabled={busy !== "" || b === status.branch} onClick={() => void branchAct(b, false)}>
+              {b === status.branch ? <Icon name="check" size={12} /> : <span className="git-dot" />}
+              {b}
+              {b === branches?.defaultBranch && <span className="muted small">default</span>}
+            </button>
+          ))}
+          <form
+            className="git-commit"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (newBranch.trim()) void branchAct(newBranch.trim(), true);
+            }}
+          >
+            <input value={newBranch} onChange={(e) => setNewBranch(e.target.value)} placeholder="New branch, e.g. feature/login" aria-label="New branch name" spellCheck={false} />
+            <button className="btn small" disabled={!newBranch.trim() || busy !== ""}>
+              {busy === "branch" ? <Spinner /> : <Icon name="plus" size={13} />} Create
+            </button>
+          </form>
+        </div>
+      )}
       {count > 0 && (
         <form
           className="git-commit"
