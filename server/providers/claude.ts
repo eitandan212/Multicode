@@ -175,6 +175,7 @@ export class ClaudeSdkProvider implements Provider {
           ...(await this.executable()),
           cwd: req.cwd,
           ...(model ? { model } : {}),
+          ...(this.conn.effort ? { effort: this.conn.effort } : {}),
           systemPrompt: {
             type: "preset",
             preset: "claude_code",

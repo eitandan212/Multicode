@@ -5,6 +5,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import {
   API_KINDS,
+  EFFORT_KINDS,
+  EFFORTS,
+  type Effort,
   KIND_LABELS,
   connectionName,
   type ConnectionView,
@@ -32,6 +35,8 @@ export interface Connection {
   headers?: Record<string, string>;
   /** ACP connections: a registry agent, or a custom command the user typed. */
   acp?: AcpRef;
+  /** Reasoning effort (Claude Code, Codex, Anthropic API). Unset: the model's default. */
+  effort?: Effort;
 }
 
 const BLOCKED_HEADERS = new Set(["host", "content-length", "connection", "transfer-encoding", "cookie"]);
@@ -241,6 +246,7 @@ export class ConfigStore {
       hasKey: Boolean(c.apiKey),
       keyHint: c.apiKey ? `…${c.apiKey.slice(-4)}` : undefined,
       ...(c.headers ? { headerNames: Object.keys(c.headers) } : {}),
+      ...(c.effort ? { effort: c.effort } : {}),
     }));
   }
 
@@ -286,6 +292,16 @@ export class ConfigStore {
           : str(input.defaultModel, "defaultModel", 200),
       headers: input.headers === undefined ? existing?.headers : parseHeaders(input.headers),
       acp,
+      effort:
+        input.effort === undefined
+          ? existing?.effort
+          : input.effort === null || input.effort === ""
+            ? undefined
+            : EFFORTS.includes(input.effort as Effort) && EFFORT_KINDS.includes(kind)
+              ? (input.effort as Effort)
+              : (() => {
+                  throw new HttpError(400, "effort must be low, medium, high, xhigh or max (Claude Code, Codex, Anthropic)");
+                })(),
     };
     if (next.baseUrl && !/^https?:\/\//i.test(next.baseUrl))
       throw new HttpError(400, "baseUrl must be http(s)");

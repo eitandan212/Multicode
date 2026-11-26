@@ -51,6 +51,7 @@ export class AnthropicProvider implements Provider {
       {
         model,
         max_tokens: MAX_OUTPUT_TOKENS,
+        ...(this.conn.effort ? { output_config: { effort: this.conn.effort } } : {}),
         // The system text is fixed per role, so it is cached across calls (~90% cheaper on a hit).
         system: [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }],
         messages: [

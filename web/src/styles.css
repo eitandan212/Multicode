@@ -5274,3 +5274,14 @@ pre,
 .mcp-found label{ display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; }
 .mcp-found .truncate{ min-width: 0; flex: 1; }
 .mcp-added{ flex: none; padding: 1px 7px; border-radius: 99px; background: var(--hover); color: var(--muted); font-size: 11px; }
+.conn-effort{ display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; }
+.conn-effort select{
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+}

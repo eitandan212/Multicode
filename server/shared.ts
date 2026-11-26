@@ -209,6 +209,7 @@ export interface ConnectionView {
   keyHint?: string;
   /** Names of extra request headers (their values stay on the server, like the key). */
   headerNames?: string[];
+  effort?: Effort;
 }
 
 export type Role = "architect" | "builder" | "reviewer";
@@ -637,3 +638,9 @@ export interface GitStatus {
   behind?: number;
   files: { path: string; status: "modified" | "added" | "deleted" | "renamed" | "conflict" }[];
 }
+
+/** How hard a model thinks before answering. Unset: the model's own default. */
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+export const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
+/** Connections whose effort MultiCode can set. */
+export const EFFORT_KINDS: ProviderKind[] = ["claude-cli", "codex-cli", "anthropic"];

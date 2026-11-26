@@ -2343,3 +2343,24 @@ describe("custom / commands", () => {
     }
   });
 });
+
+describe("reasoning effort", () => {
+  it("is stored for Claude Code, Codex and Anthropic only, and cleared with null", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-effort-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      const a = await config.upsertConnection({ kind: "anthropic", apiKey: "sk-ant-x", effort: "high" });
+      expect(config.connection(a.id)?.effort).toBe("high");
+      expect(config.views().find((c) => c.id === a.id)?.effort).toBe("high");
+      await config.upsertConnection({ effort: null }, a.id);
+      expect(config.connection(a.id)?.effort).toBeUndefined();
+      await expect(config.upsertConnection({ effort: "extreme" }, a.id)).rejects.toThrow(/effort/);
+      await expect(
+        config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", effort: "low" }),
+      ).rejects.toThrow(/effort/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

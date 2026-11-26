@@ -3,6 +3,7 @@ import { AgentSetup, canSignIn, SignInDialog } from "./AgentSetup";
 import {
   API_KINDS,
   CLI_KINDS,
+  EFFORT_KINDS,
   type AcpAgentView,
   KIND_LABELS,
   connectionName,
@@ -266,6 +267,24 @@ function ConnectionRow({
           )}
         </span>
         {showDetail && health?.detail && <pre className="conn-detail small">{health.detail}</pre>}
+        {EFFORT_KINDS.includes(conn.kind) && (
+          <label className="conn-effort small">
+            <span className="muted">Thinking</span>
+            <select
+              value={conn.effort ?? ""}
+              onChange={(e) => void act("Saving…", () => api.updateConnection(conn.id, { effort: e.target.value || null }))}
+              aria-label={`How hard ${conn.label} thinks`}
+              title="More thinking: better answers on hard work, slower and more tokens. Default lets the model decide."
+            >
+              <option value="">Default</option>
+              <option value="low">Low · fastest, cheapest</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="xhigh">Extra high</option>
+              <option value="max">Max · hardest problems</option>
+            </select>
+          </label>
+        )}
         {note && <span className={`small ${note.ok ? "ok-text" : "err-text"}`}>{note.text}</span>}
         {editing && (
           <form

@@ -235,6 +235,8 @@ export class CodexAppServerProvider implements Provider {
         client.request("turn/start", {
           threadId,
           input: [{ type: "text", text: req.prompt, text_elements: [] }],
+          // Codex's levels stop at xhigh.
+          ...(this.conn.effort ? { effort: this.conn.effort === "max" ? "xhigh" : this.conn.effort } : {}),
         } as never),
       );
       turnId = turn.turn.id;
