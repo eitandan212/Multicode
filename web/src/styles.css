@@ -5344,3 +5344,9 @@ pre,
 .hook-matcher{ flex: 1; min-width: 0; font-family: var(--mono); }
 .hook-row .icon-btn{ margin-left: auto; }
 .hook-command{ width: 100%; font-family: var(--mono); }
+
+/* Sidebar cards: titles always end in "…" inside the card; tighter when there is one project. */
+.sb-card-title{ display: flex; align-items: center; min-width: 0; }
+.sb-card-title > .truncate{ display: block; flex: 1 1 auto; min-width: 0; }
+.sb-card-meta .sb-age{ margin-left: auto; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.sb-card-meta .sb-age + .sb-team{ margin-left: 8px; }

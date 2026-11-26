@@ -395,7 +395,8 @@ export function App() {
       const following = run && runs.find((r) => r.id === run.id && r.project === project);
       setQueue((q) => [
         ...q,
-        { id: crypto.randomUUID(), project, prompt, mode, sleep, afterRun: following?.id ?? busyRun?.id, review },
+        // A follow-up of the open thread; from a new thread it starts its own thread.
+        { id: crypto.randomUUID(), project, prompt, mode, sleep, afterRun: following?.id, review },
       ]);
       return;
     }
@@ -712,7 +713,7 @@ export function App() {
         <Icon name="list" size={16} />
         <div className="sleep-text">
           <strong>Queued next ({queued.length})</strong>{" "}
-          <span className="muted">Each one starts by itself when the crew finishes, in this thread.</span>
+          <span className="muted">Each one starts by itself when the crew finishes.</span>
           <ol className="sleep-queue">
             {queued.map((q) => (
               <li key={q.id} className="pop-in">

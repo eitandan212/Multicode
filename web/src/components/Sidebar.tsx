@@ -184,6 +184,11 @@ export function Sidebar(p: Props) {
     return <Icon name="users" size={13} />;
   };
 
+  // With one project, its name on every card is noise: the age moves to the status line.
+  const manyProjects = p.projects.length > 1 || new Set(p.runs.map((r) => r.project)).size > 1;
+  const age = (r: RunSummary) =>
+    r.status === "running" ? elapsed(now - r.startedAt) : ago(r.endedAt ?? r.startedAt, now);
+
   const card = (r: RunSummary) => (
     <div
       key={r.id}
@@ -194,15 +199,13 @@ export function Sidebar(p: Props) {
         onClick={() => p.onSelectRun(r)}
         title={plainPrompt(threadOf(r)?.first.prompt ?? r.prompt)}
       >
-        <span className="sb-card-top">
-          <ProjectBadge name={r.project} size={16} />
-          <span className="muted truncate">{r.project}</span>
-          <span className="muted sb-age">
-            {r.status === "running"
-              ? elapsed(now - r.startedAt)
-              : ago(r.endedAt ?? r.startedAt, now)}
+        {manyProjects && (
+          <span className="sb-card-top">
+            <ProjectBadge name={r.project} size={16} />
+            <span className="muted truncate">{r.project}</span>
+            <span className="muted sb-age">{age(r)}</span>
           </span>
-        </span>
+        )}
         <span className="sb-card-title">
           <span className="truncate">{plainPrompt(threadOf(r)?.first.prompt ?? r.prompt)}</span>
           {(threadOf(r)?.turns ?? 1) > 1 && (
@@ -227,6 +230,7 @@ export function Sidebar(p: Props) {
               {r.mode === "design" ? "Designs ready" : "Done"}
             </span>
           )}
+          {!manyProjects && <span className="muted sb-age">{age(r)}</span>}
           <span className="sb-team">{teamLogo(r)}</span>
         </span>
       </button>
