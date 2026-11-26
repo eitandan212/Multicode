@@ -590,12 +590,16 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         if (op.change === "write") await ws.write(op.path, op.content ?? "");
         else await ws.remove(op.path);
       }
+      // A file returned unchanged is an answer ("already right"), not a failure to write it.
+      answered.set(task.id, new Set(ops.map((op) => op.path)));
     } else if (before) await checkChanges(member, task, before, track.approved);
     } finally {
       inFlight.delete(task.id);
     }
   };
 
+  /** Files an API builder returned for each task (even when the content was already there). */
+  const answered = new Map<string, Set<string>>();
   /** Tasks building right now and the files each owns (parallel tasks never review each other's). */
   const inFlight = new Map<string, Set<string>>();
 
@@ -707,7 +711,7 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
           if (owned.length) {
             let touched = false;
             for (const f of owned)
-              if (hashText(await ws.tryRead(f)) !== before.get(f))
+              if (hashText(await ws.tryRead(f)) !== before.get(f) || answered.get(task.id)?.has(f))
                 touched = true;
             if (!touched)
               throw new Error(
@@ -789,6 +793,13 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     throw new Error(
       lastFailure ? `Every build task failed. ${lastFailure}` : "Every build task failed — check the agent errors above.",
     );
+  // Builders answered with files that were already exactly right: done, nothing to change.
+  if (!changed.size && [...answered.values()].some((set) => set.size))
+    return {
+      summary: `${plan.summary ? `${plan.summary}\n\n` : ""}Everything was already in place: nothing needed to change.`,
+      changedFiles: [],
+      checkpoint: { files: [], skipped: [] },
+    };
   if (!changed.size)
     throw new Error(
       "The builders finished without changing any files in the project.",

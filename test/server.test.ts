@@ -2575,3 +2575,44 @@ describe("Anthropic prompt caching (against a recorded fake API)", () => {
     }
   });
 });
+
+describe("a request for what is already there", () => {
+  it("finishes as done (nothing to change) instead of failing and retrying", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-same-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      let builds = 0;
+      const provider: Provider = {
+        editsFiles: false,
+        async generate(req, onDelta) {
+          const out = req.system.includes("ARCHITECT")
+            ? JSON.stringify({ summary: "One page.", tasks: [{ title: "Page", description: "x", files: ["index.html"] }] })
+            : (builds++, '<file path="index.html">\n<h1>same</h1>\n</file>');
+          onDelta(out);
+          return out;
+        },
+      };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"));
+      const ws = await Workspace.open(path.join(dir, "projects"), "site");
+      await ws.write("index.html", "<h1>same</h1>\n");
+      const events: RunEvent[] = [];
+      const r = await runs.start("site", "Make the page");
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          events.push(e);
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      expect(events.some((e) => e.type === "run.error")).toBe(false);
+      expect(builds).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
