@@ -8,7 +8,6 @@ import type {
 } from "../../../server/shared";
 import { Icon, Spinner } from "./Icon";
 import { Lockup } from "./Logo";
-import { ProviderLogo } from "./ProviderLogo";
 import { plainPrompt } from "./PromptText";
 
 interface Props {
@@ -166,23 +165,6 @@ export function Sidebar(p: Props) {
       !p.runs.some((r) => r.project === pr.name) && (!q || pr.name.includes(q)),
   );
 
-  const teamLogo = (r: RunSummary) => {
-    if (r.team?.kind === "solo") {
-      const solo = r.team;
-      const c = p.connections.find((x) => x.id === solo.connectionId);
-      if (c)
-        return (
-          <ProviderLogo
-            kind={c.kind}
-            acp={c.acp}
-            baseUrl={c.baseUrl}
-            model={solo.model || c.defaultModel}
-            size={13}
-          />
-        );
-    }
-    return <Icon name="users" size={13} />;
-  };
 
   // With one project, its name on every card is noise: the age moves to the status line.
   const manyProjects = p.projects.length > 1 || new Set(p.runs.map((r) => r.project)).size > 1;
@@ -231,7 +213,6 @@ export function Sidebar(p: Props) {
             </span>
           )}
           {!manyProjects && <span className="muted sb-age">{age(r)}</span>}
-          <span className="sb-team">{teamLogo(r)}</span>
         </span>
       </button>
       {r.status !== "running" && !r.pending && (
@@ -346,30 +327,6 @@ export function Sidebar(p: Props) {
         >
           <Icon name="settings" />
           <span>Settings</span>
-        </button>
-        <button
-          className="icon-btn"
-          onClick={() => p.onOpenSettings("crew")}
-          title="Crew & agents"
-          aria-label="Crew and agents"
-        >
-          <Icon name="users" />
-        </button>
-        <button
-          className="icon-btn"
-          onClick={() => p.onOpenSettings("extensions")}
-          title="Plugins & skills"
-          aria-label="Plugins and skills"
-        >
-          <Icon name="puzzle" />
-        </button>
-        <button
-          className="icon-btn"
-          onClick={() => p.onOpenSettings("safety")}
-          title="Usage, savings & safety"
-          aria-label="Usage, savings and safety"
-        >
-          <Icon name="shield" />
         </button>
       </div>
     </nav>

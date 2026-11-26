@@ -300,24 +300,12 @@ export function Composer(p: Props) {
             onEditCrew={p.onOpenCrew}
             manager={p.manager}
           />
-          <button
-            type="button"
-            className={`chip sleep-chip ${p.sleep ? "is-on" : ""}`}
-            aria-pressed={p.sleep}
-            onClick={() => p.onSleep(!p.sleep)}
-            title={
-              p.sleep
-                ? "Sleep mode is on: the crew works alone and approves its own actions. Click to turn off."
-                : "Sleep mode: give the crew work and go. It decides alone, never asks, and keeps the computer awake."
-            }
-          >
-            <Icon name="moon" size={14} />
-            <span className="sleep-label">Sleep</span>
-          </button>
           <MoreControls
             settings={p.settings}
             onSettings={p.onSettings}
             onOpenSafety={p.onOpenSafety}
+            sleep={p.sleep}
+            onSleep={p.onSleep}
           />
           {p.running && (
             <button
@@ -389,6 +377,8 @@ function MoreControls(p: {
   settings: Settings;
   onSettings: (patch: Partial<Settings>) => Promise<void>;
   onOpenSafety: () => void;
+  sleep: boolean;
+  onSleep: (on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const presence = usePresence(open, 160);
@@ -419,6 +409,18 @@ function MoreControls(p: {
           role="menu"
           inert={!open}
         >
+          <button
+            role="menuitemcheckbox"
+            aria-checked={p.sleep}
+            className={`menu-item more-item ${p.sleep ? "is-active" : ""}`}
+            onClick={() => p.onSleep(!p.sleep)}
+          >
+            <Icon name="moon" size={14} />
+            <span className="more-text">
+              <span>Sleep mode {p.sleep ? "on" : "off"}</span>
+              <span className="muted small">The crew works alone, never asks, keeps the computer awake</span>
+            </span>
+          </button>
           <div className="team-list-head">How the crew works</div>
           {SAFETY.map((m) => (
             <button
@@ -507,14 +509,17 @@ function MoreControls(p: {
       )}
       <button
         type="button"
-        className={`chip safety-chip ${open ? "is-open" : ""} ${s.safety !== "direct" ? "is-guarded" : ""}`}
+        className={`chip safety-chip ${open ? "is-open" : ""} ${s.safety !== "direct" ? "is-guarded" : ""} ${p.sleep ? "is-sleep" : ""}`}
         onClick={() => setOpen(!open)}
         aria-label={`How the crew works: ${SAFETY.find((m) => m.id === s.safety)?.label ?? ""}${s.economy ? ", Economy" : ""}, review rounds ${s.maxReviewRounds}`}
         aria-expanded={open}
         title="How the crew works: safety, review rounds, economy"
       >
-        <Icon name="shield" size={14} />
-        <span className="safety-label">{SAFETY.find((m) => m.id === s.safety)?.label}</span>
+        <Icon name={p.sleep ? "moon" : "shield"} size={14} />
+        <span className="safety-label">
+          {p.sleep ? "Sleep · " : ""}
+          {SAFETY.find((m) => m.id === s.safety)?.label}
+        </span>
         {s.economy && <span className="free-tag">Eco</span>}
       </button>
     </div>

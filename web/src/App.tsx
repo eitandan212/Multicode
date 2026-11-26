@@ -104,7 +104,7 @@ export function App() {
     const a = loadAppearance();
     let seen = false;
     try {
-      seen = sessionStorage.getItem("multicode:intro") === "1";
+      seen = localStorage.getItem("multicode:intro") === "1";
     } catch {
       /* no storage: play it */
     }
@@ -113,7 +113,7 @@ export function App() {
   const endIntro = useCallback(() => {
     setIntro(false);
     try {
-      sessionStorage.setItem("multicode:intro", "1");
+      localStorage.setItem("multicode:intro", "1");
     } catch {
       /* fine */
     }

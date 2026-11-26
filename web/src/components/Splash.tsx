@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { LogoMark } from "./Logo";
 
 const WORD = "MultiCode";
-const HOLD_MS = 1500;
+const HOLD_MS = 900;
 const EXIT_MS = 420;
 
 /**

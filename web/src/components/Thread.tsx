@@ -252,39 +252,15 @@ export function Thread({
         </div>
       )}
 
-      {run.context && (run.context.skills.length > 0 || run.context.plugins.length > 0 || run.context.economy || (run.context.safety && run.context.safety !== "direct")) && (
-        // One quiet line instead of a row of chips; the details open on demand.
-        <details className="ctx-line enter">
-          <summary>
-            {run.context.safety && run.context.safety !== "direct" && (
-              <span className="ctx-badge">
-                <Icon name="shield" size={12} /> {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
-              </span>
-            )}
-            {run.context.economy && <span className="ctx-badge">Economy</span>}
-            <span className="muted">
-              {[
-                run.context.plugins.length ? `${run.context.plugins.length} plugin${run.context.plugins.length === 1 ? "" : "s"}` : "",
-                run.context.skills.length ? `${run.context.skills.length} skill${run.context.skills.length === 1 ? "" : "s"}` : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+      {run.context && ((run.context.safety && run.context.safety !== "direct") || run.context.economy) && (
+        <div className="ctx-badges enter">
+          {run.context.safety && run.context.safety !== "direct" && (
+            <span className="ctx-badge">
+              <Icon name="shield" size={12} /> {run.context.safety === "sandbox" ? "Sandbox" : "Plan only"}
             </span>
-            <Icon name="chevron" size={12} className="ctx-caret" />
-          </summary>
-          <div className="context-row">
-            {run.context.plugins.map((p) => (
-              <span key={p} className="ctx-chip plugin" title="Plugin">
-                <Icon name="puzzle" size={12} /> {p}
-              </span>
-            ))}
-            {run.context.skills.map((s) => (
-              <span key={s} className="ctx-chip" title="Skill">
-                <Icon name="book" size={12} /> {s}
-              </span>
-            ))}
-          </div>
-        </details>
+          )}
+          {run.context.economy && <span className="ctx-badge">Economy</span>}
+        </div>
       )}
 
       {run.plan && (
@@ -339,7 +315,8 @@ export function Thread({
         </div>
       )}
 
-      {run.streams.length > 0 && (
+      {run.streams.length > 0 &&
+        (running ? (
         <div className="tool-lines">
           {run.streams.map((s) => (
             <ToolLine
@@ -351,7 +328,43 @@ export function Thread({
             />
           ))}
         </div>
-      )}
+        ) : (
+          // Finished: the agents' steps fold into one quiet line; open it to see each one.
+          <details className="steps-fold enter">
+            <summary>
+              <Icon name="chevron" size={12} className="ctx-caret" />
+              {run.streams.length} step{run.streams.length === 1 ? "" : "s"}
+              {run.context && run.context.plugins.length + run.context.skills.length > 0
+                ? ` · ${run.context.plugins.length + run.context.skills.length} tools and skills`
+                : ""}
+            </summary>
+            {run.context && (run.context.plugins.length > 0 || run.context.skills.length > 0) && (
+              <div className="context-row">
+                {run.context.plugins.map((p) => (
+                  <span key={p} className="ctx-chip plugin" title="Plugin">
+                    <Icon name="puzzle" size={12} /> {p}
+                  </span>
+                ))}
+                {run.context.skills.map((sk) => (
+                  <span key={sk} className="ctx-chip" title="Skill">
+                    <Icon name="book" size={12} /> {sk}
+                  </span>
+                ))}
+              </div>
+            )}
+        <div className="tool-lines">
+          {run.streams.map((s) => (
+            <ToolLine
+              key={s.id}
+              stream={s}
+              name={name(s.memberId)}
+              logo={logo(s.memberId)}
+              color={colorFor(crew, s.memberId)}
+            />
+          ))}
+        </div>
+          </details>
+        ))}
 
       {run.hookFailures.map((h, i) => (
         <details key={`hook-${i}`} className="check-line enter is-bad">

@@ -5362,3 +5362,27 @@ pre,
   .dispatch-head > div:not(.seg){ flex: 1 1 calc(100% - 40px); min-width: 0; }
   .dispatch-head .manager-select{ flex: 1 1 100%; max-width: none; margin-left: 0; }
 }
+
+/* Calmer thread: badges only when they matter; finished steps fold into one line. */
+.ctx-badges{ display: flex; gap: 6px; margin: 2px 0 4px; }
+.steps-fold{ margin: 2px 0; }
+.steps-fold > summary{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 99px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 140ms var(--ease-soft), color 140ms var(--ease-soft);
+}
+.steps-fold > summary::-webkit-details-marker{ display: none; }
+.steps-fold > summary:hover{ background: var(--hover); color: var(--text); }
+.steps-fold > summary .ctx-caret{ transition: transform 220ms var(--spring); }
+.steps-fold[open] > summary .ctx-caret{ transform: rotate(90deg); }
+.steps-fold[open] > .tool-lines,
+.steps-fold[open] > .context-row{ margin-top: 8px; animation: row-in 300ms var(--spring) both; }
+.safety-chip.is-sleep{ color: var(--brand); background: var(--accent-soft); }
+.sb-foot .sb-settings{ flex: 1; }
