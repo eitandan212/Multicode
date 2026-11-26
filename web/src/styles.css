@@ -5386,3 +5386,75 @@ pre,
 .steps-fold[open] > .context-row{ margin-top: 8px; animation: row-in 300ms var(--spring) both; }
 .safety-chip.is-sleep{ color: var(--brand); background: var(--accent-soft); }
 .sb-foot .sb-settings{ flex: 1; }
+
+/* Start screen: one clear question, then two short lists. Left-aligned in a centred column. */
+.empty-start{
+  justify-items: stretch;
+  gap: 0;
+  width: min(560px, 100%);
+  max-width: none;
+  text-align: left;
+}
+.empty-start > .project-badge{ border-radius: 12px; font-size: 15px; margin-bottom: 18px; }
+.start-title{
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 28px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.start-sub{ margin: 8px 0 28px; font-size: 14.5px; line-height: 1.55; max-width: 52ch; }
+.start-list{ display: grid; margin-bottom: 22px; }
+.start-list h2{
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.start-row{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  margin: 0 -10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease-soft);
+}
+.start-row + .start-row{ box-shadow: 0 -1px 0 var(--line); }
+.start-row:hover{ background: var(--hover); box-shadow: none; }
+.start-row:hover + .start-row{ box-shadow: none; }
+.start-row:focus-visible{ outline: 2px solid var(--brand); outline-offset: -2px; }
+.start-row svg{ flex: none; color: var(--muted); transition: color 140ms var(--ease-soft); }
+.start-row:hover svg{ color: var(--brand); }
+.start-row .truncate{ flex: 1; min-width: 0; }
+.start-row .small{ flex: none; font-variant-numeric: tabular-nums; }
+.empty-thread:has(.empty-start){ place-items: center; padding: 32px 16px; overflow-x: hidden; }
+.empty-thread .empty-start{ width: min(560px, 100%); min-width: 0; padding: 0; }
+.empty-thread .empty-start .start-sub{ margin: 8px 0 28px; }
+.empty-thread .empty-start .start-title{ overflow-wrap: anywhere; }
+.start-list, .start-row{ min-width: 0; }
+
+/* The result of a run: one quiet mark so the answer reads as the answer. */
+.done-line{ display: flex; gap: 10px; align-items: flex-start; }
+.done-line > .md{ flex: 1; min-width: 0; }
+.done-mark{
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+  animation: status-pop 420ms var(--spring) both;
+}

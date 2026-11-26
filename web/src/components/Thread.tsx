@@ -423,6 +423,10 @@ export function Thread({
 
       {run.status === "done" && !run.variants && (
         <div className="msg-agent enter is-done">
+          <div className="done-line">
+          <span className="done-mark" aria-hidden>
+            <Icon name="check" size={13} />
+          </span>
           <Markdown
             text={
               run.context?.safety === "readonly"
@@ -434,6 +438,7 @@ export function Thread({
                     : "Done. The crew finished and reviewed the work."
             }
           />
+          </div>
           {review.pending === "sandbox" && (
             <ApplyBar
               onApply={(force) => onApply(undefined, force)}

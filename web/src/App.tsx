@@ -40,7 +40,7 @@ import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { usePresence } from "./motion";
 import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
-import { ProjectEmojis, Sidebar } from "./components/Sidebar";
+import { ago, ProjectBadge, ProjectEmojis, Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
@@ -841,6 +841,19 @@ export function App() {
     </>
   );
 
+  // The start screen's "pick up where you left off": the newest turn of the project's last threads.
+  const recentThreads = (() => {
+    const seen = new Set<string>();
+    return runs
+      .filter((r) => r.project === project && r.status !== "running")
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .filter((r) => {
+        const key = r.threadId ?? r.id;
+        return seen.has(key) ? false : (seen.add(key), true);
+      })
+      .slice(0, 3);
+  })();
+
   // Earlier turns of the open thread, oldest first.
   const openSummary = run ? runs.find((r) => r.id === run.id) : undefined;
   const threadKey = openSummary ? (openSummary.threadId ?? openSummary.id) : undefined;
@@ -956,14 +969,32 @@ export function App() {
             </p>
           ) : (
             <div className="empty-start">
-              <p className="muted">Send a message to start the conversation.</p>
-              <div className="suggestions" aria-label="Ideas to start with">
+              <ProjectBadge name={project} size={40} />
+              <h1 className="start-title">What should the crew do in {project}?</h1>
+              <p className="start-sub muted">
+                Describe it in plain words. One model plans it, others build it side by side, and another reviews it.
+              </p>
+              {recentThreads.length > 0 && (
+                <section className="start-list" aria-label="Recent threads">
+                  <h2>Pick up where you left off</h2>
+                  {recentThreads.map((r) => (
+                    <button key={r.id} className="start-row" onClick={() => selectRun(r)}>
+                      <Icon name="compose" size={14} />
+                      <span className="truncate">{plainPrompt(r.prompt)}</span>
+                      <span className="muted small">{ago(r.endedAt ?? r.startedAt)}</span>
+                    </button>
+                  ))}
+                </section>
+              )}
+              <section className="start-list" aria-label="Ideas to start with">
+                <h2>Or start from an idea</h2>
                 {EXAMPLE_PROMPTS.map((ex) => (
-                  <button key={ex} className="suggestion" onClick={() => setDraft((d) => ({ text: ex, n: (d?.n ?? 0) + 1 }))}>
-                    {ex}
+                  <button key={ex} className="start-row" onClick={() => setDraft((d) => ({ text: ex, n: (d?.n ?? 0) + 1 }))}>
+                    <Icon name="spark" size={14} />
+                    <span className="truncate">{ex}</span>
                   </button>
                 ))}
-              </div>
+              </section>
             </div>
           )}
         </div>
