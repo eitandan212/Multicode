@@ -25,7 +25,6 @@ const NAV: {
     items: [
       { id: "general", label: "General", icon: "bell" },
       { id: "appearance", label: "Appearance", icon: "palette" },
-      { id: "keybindings", label: "Keyboard shortcuts", icon: "keyboard" },
     ],
   },
   {

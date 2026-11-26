@@ -83,6 +83,9 @@ export function GeneralDialog({ onClose }: { onClose: () => void }) {
       <Row label="Sound">
         <Toggle checked={p.sound} onChange={(v) => { set({ sound: v }); if (v) chime(); }} text="A soft chime when a thread finishes" />
       </Row>
+      <Row label="Shortcuts">
+        <ShortcutList />
+      </Row>
       <div className="form-actions">
         <button className="btn ghost" onClick={() => { setP(DEFAULT_PREFS); savePrefs(DEFAULT_PREFS); }}>
           Reset
@@ -104,10 +107,9 @@ const SHORTCUTS: [string, string[]][] = [
   ["Close a dialog or menu", ["Esc"]],
 ];
 
-export function KeybindingsDialog({ onClose }: { onClose: () => void }) {
+function ShortcutList() {
   const send = loadPrefs().sendKey;
   return (
-    <Shell title="Keyboard shortcuts" sub="Everything you can do without the mouse." onClose={onClose}>
       <ul className="kb-list">
         {SHORTCUTS.map(([label, keys], i) => {
           const k =
@@ -124,6 +126,13 @@ export function KeybindingsDialog({ onClose }: { onClose: () => void }) {
           );
         })}
       </ul>
+  );
+}
+
+export function KeybindingsDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <Shell title="Keyboard shortcuts" sub="Everything you can do without the mouse." onClose={onClose}>
+      <ShortcutList />
     </Shell>
   );
 }

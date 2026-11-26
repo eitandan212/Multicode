@@ -555,7 +555,7 @@ export function App() {
         label: "Keyboard shortcuts",
         icon: "keyboard",
         group: "View",
-        run: () => setDialog("keybindings"),
+        run: () => setDialog("general"),
       },
       {
         id: "projects",
@@ -823,7 +823,7 @@ export function App() {
         else if (id === "usage" || id === "connections" || id === "crew") setDialog(id);
         else if (id === "settings") setDialog("general");
         else if (id === "mcp") setDialog("sync");
-        else if (id === "help") setDialog("keybindings");
+        else if (id === "help") setDialog("general");
         else if (id === "ide") setView(view === "ide" ? "chat" : "ide");
         else if (id === "changes" || id === "memory") {
           setPanelTab(id);
