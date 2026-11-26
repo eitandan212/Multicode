@@ -6051,22 +6051,4 @@ html.pet-window[data-bg] body::before, html.pet-window[data-bg] body::after{ dis
 @keyframes pet-type { 50% { transform: translateY(-1.5px); } }
 @keyframes pet-huff { 0%, 70%, 100% { transform: scale(1); } 80% { transform: scale(1.04, 0.97); } }
 
-.pet-think{ position: absolute; top: -6px; right: -4px; display: flex; gap: 3px; padding: 5px 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 0 12px color-mix(in srgb, #38bdf8 45%, transparent); }
-.pet-think::after{ content: ""; position: absolute; left: 4px; bottom: -6px; width: 7px; height: 7px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); }
-.pet-think i{ width: 5px; height: 5px; border-radius: 50%; background: #38bdf8; animation: pet-dot 1.1s var(--ease-soft) infinite; }
-.pet-think i:nth-child(2){ animation-delay: 0.18s; } .pet-think i:nth-child(3){ animation-delay: 0.36s; }
-.pet-bang{ position: absolute; top: -8px; right: 2px; font: 900 22px/1 var(--font); color: #f59e0b; text-shadow: 0 0 10px rgb(245 158 11 / 0.7); animation: pet-bang 0.9s var(--spring) infinite alternate; }
-@keyframes pet-bang { from { transform: rotate(-8deg) scale(0.92); } to { transform: rotate(8deg) scale(1.08); } }
-.pet-zz{ position: absolute; top: -4px; right: 2px; width: 30px; height: 30px; color: #60a5fa; font-weight: 800; text-shadow: 0 0 8px rgb(96 165 250 / 0.6); }
-.pet-zz b{ position: absolute; right: 0; bottom: 0; font-size: 11px; opacity: 0; animation: pet-z-rise 3s var(--ease-soft) infinite; }
-.pet-zz b:nth-child(2){ animation-delay: 1s; font-size: 13px; } .pet-zz b:nth-child(3){ animation-delay: 2s; font-size: 16px; }
-@keyframes pet-z-rise { 0% { opacity: 0; transform: translate(0, 0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(10px, -22px); } }
-.pet-sparks i{ position: absolute; width: 7px; height: 7px; background: #facc15; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: pet-spark 1.2s var(--ease-soft) infinite; }
-.pet-sparks i:nth-child(1){ top: 4px; left: 2px; } .pet-sparks i:nth-child(2){ top: -4px; right: 10px; animation-delay: 0.3s; background: #38bdf8; }
-.pet-sparks i:nth-child(3){ top: 30px; right: -4px; animation-delay: 0.6s; background: #f472b6; } .pet-sparks i:nth-child(4){ top: 36px; left: -6px; animation-delay: 0.9s; }
-@keyframes pet-spark { 0%, 100% { transform: scale(0.3); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } }
-:root[data-motion="reduced"] .pet-img.is-cat, :root[data-motion="reduced"] .pet-think i, :root[data-motion="reduced"] .pet-bang,
-:root[data-motion="reduced"] .pet-zz b, :root[data-motion="reduced"] .pet-sparks i{ animation: none !important; }
-:root[data-motion="reduced"] .pet-zz b{ opacity: 1; }
-.pet-body.is-sleep .pet-zz{ top: 22px; right: 4px; }
-.pet-think{ top: 0; }
+:root[data-motion="reduced"] .pet-img.is-cat{ animation: none !important; }

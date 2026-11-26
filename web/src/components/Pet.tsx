@@ -196,16 +196,8 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
       )}
       <div className={`pet-body is-${mood}`} title="MultiCode" aria-hidden>
         <img key={mood} className={`pet-img ${kind === "cat" ? "is-cat" : ""}`} src={petImage(kind, mood)} alt="" draggable={false} />
-        {kind === "cat" ? (
-          <>
-            {mood === "thinking" && <span className="pet-think"><i /><i /><i /></span>}
-            {mood === "alert" && <span className="pet-bang">!</span>}
-            {mood === "sleep" && <span className="pet-zz"><b>z</b><b>z</b><b>Z</b></span>}
-            {mood === "happy" && <span className="pet-sparks"><i /><i /><i /><i /></span>}
-          </>
-        ) : (
-          MOOD_SIGN[mood] && <span className={`pet-sign is-${mood}`}>{MOOD_SIGN[mood]}</span>
-        )}
+        {/* The cat's pictures carry their own bubble, "!", Zz and sparkles; other pets get a small sign. */}
+        {kind !== "cat" && MOOD_SIGN[mood] && <span className={`pet-sign is-${mood}`}>{MOOD_SIGN[mood]}</span>}
         {mood === "busy" && kind !== "cat" && <span className="pet-dots"><i /><i /><i /></span>}
         {approvals.length > 0 && <span className="pet-badge">{approvals.length}</span>}
       </div>
