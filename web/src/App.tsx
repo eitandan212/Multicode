@@ -931,6 +931,7 @@ export function App() {
           : "Connect an AI to start"
       }
       draft={draft}
+      draftKey={run ? `chat:${run.id}` : `new:${project}`}
       lastCall={run?.lastCall}
       onSubmit={startRun}
       onSubmitParallel={(prompt, mode) => startRun(prompt, mode, false, true)}
@@ -944,7 +945,7 @@ export function App() {
         else if (id === "mcp") setDialog("sync");
         else if (id === "help") setDialog("general");
         else if (id === "ide") setView(view === "ide" ? "chat" : "ide");
-        else if (id === "changes" || id === "memory") {
+        else if (id === "changes" || id === "memory" || id === "run") {
           setPanelTab(id);
           togglePanel(true);
         }

@@ -58,6 +58,7 @@ async function request<T>(
 }
 
 import type { Todo } from "../../server/todos";
+import type { ProjectScript, ScriptState } from "../../server/scripts";
 import type { AccountUsage, AgentAccess, ConnectionHealth, GitStatus, SignInFlow } from "../../server/shared";
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
@@ -168,6 +169,16 @@ export const api = {
     request<unknown>("PUT", `/api/skills/custom/${encodeURIComponent(s.name.trim().toLowerCase().replace(/[\s_]+/g, "-"))}`, s),
   deleteCustomSkill: (name: string) => request<void>("DELETE", `/api/skills/custom/${encodeURIComponent(name)}`),
   installCustomSkill: (url: string) => request<unknown>("POST", "/api/skills/custom/install", { url }),
+  scripts: (project: string) =>
+    request<{ scripts: ProjectScript[]; suggested: boolean; running: string[] }>("GET", `/api/projects/${encodeURIComponent(project)}/scripts`),
+  saveScripts: (project: string, scripts: Partial<ProjectScript>[]) =>
+    request<{ scripts: ProjectScript[]; suggested: boolean; running: string[] }>("PUT", `/api/projects/${encodeURIComponent(project)}/scripts`, { scripts }),
+  runScript: (project: string, id: string) =>
+    request<ScriptState>("POST", `/api/projects/${encodeURIComponent(project)}/scripts/${encodeURIComponent(id)}/run`),
+  stopScript: (project: string, id: string) =>
+    request<void>("POST", `/api/projects/${encodeURIComponent(project)}/scripts/${encodeURIComponent(id)}/stop`),
+  scriptOutput: (project: string, id: string, from: number) =>
+    request<ScriptState>("GET", `/api/projects/${encodeURIComponent(project)}/scripts/${encodeURIComponent(id)}/output?from=${from}`),
   /** project: undefined = every to-do, null = general ones, a name = that project's. */
   todos: (project?: string | null) =>
     request<Todo[]>("GET", project === undefined ? "/api/todos" : `/api/todos?project=${encodeURIComponent(project ?? "")}`),
@@ -245,7 +256,7 @@ export const api = {
       "GET",
       "/api/approvals",
     ),
-  updateChat: (id: string, patch: { title?: string | null; pinned?: boolean; archived?: boolean }) =>
+  updateChat: (id: string, patch: { title?: string | null; pinned?: boolean; archived?: boolean; snoozedUntil?: number | null }) =>
     request<RunSummary>("PATCH", `/api/chats/${id}`, patch),
   deleteChat: (id: string) => request<void>("DELETE", `/api/chats/${id}`),
   runs: (project: string) =>

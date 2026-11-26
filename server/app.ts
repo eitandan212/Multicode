@@ -27,6 +27,7 @@ import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
 import { CustomSkills } from "./customSkills.js";
 import { Todos } from "./todos.js";
+import { cleanScripts, ScriptRunner, suggestScripts } from "./scripts.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { cloneUrl, gitBranches, gitCheckout, gitClone, gitCommit, gitInit, gitPull, gitPush, gitStatus, repoName } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
@@ -58,6 +59,8 @@ import {
   linkProject,
   listProjects,
   setProjectCheck,
+  projectScripts,
+  setProjectScripts,
   setProjectEmoji,
   unlinkProject,
   validateProjectName,
@@ -113,6 +116,7 @@ export function createApp(opts: AppOptions) {
   // Your own skills live in the data folder (custom-skills/<name>/SKILL.md).
   const customSkills = new CustomSkills(path.join(opts.stateDir ?? path.join(projectsDir, ".."), "custom-skills"));
   runs.customSkills = customSkills;
+  const scriptRunner = new ScriptRunner();
   const todos = new Todos(path.join(opts.stateDir ?? path.join(projectsDir, ".."), "todos.json"));
   const runDone = (id: string) => {
     try {
@@ -165,6 +169,9 @@ export function createApp(opts: AppOptions) {
     ["POST", /^\/(mcp\/import|projects\/open|acp\/agents\/[^/]+\/install|agents\/[^/]+\/install|skills\/custom\/install)$/],
     ["PUT", /^\/projects\/[^/]+\/check$/],
     ["PUT|DELETE", /^\/skills\/custom\/[^/]+$/],
+    // Scripts run commands on this computer: only the owner sets or starts them.
+    ["PUT", /^\/projects\/[^/]+\/scripts$/],
+    ["POST", /^\/projects\/[^/]+\/scripts\/[^/]+\/(run|stop)$/],
   ];
   app.use("/api", (req, res, next) => {
     if (!auth?.required) return next();
@@ -730,6 +737,56 @@ export function createApp(opts: AppOptions) {
     wrap(async (req, res) => {
       await setProjectCheck(projectsDir, param(req, "name"), req.body?.check ?? null);
       res.status(204).end();
+    }),
+  );
+  // Project scripts (Run tab): yours, or suggestions from package.json until you save some.
+  api.get(
+    "/projects/:name/scripts",
+    wrap(async (req, res) => {
+      const name = validateProjectName(param(req, "name"));
+      const ws = await Workspace.open(projectsDir, name);
+      const saved = await projectScripts(projectsDir, name);
+      const list = saved ?? (await suggestScripts(ws.root));
+      res.json({ scripts: list, suggested: !saved, running: scriptRunner.running(name) });
+    }),
+  );
+  api.put(
+    "/projects/:name/scripts",
+    wrap(async (req, res) => {
+      const name = validateProjectName(param(req, "name"));
+      await Workspace.open(projectsDir, name);
+      const scripts = cleanScripts(req.body?.scripts);
+      await setProjectScripts(projectsDir, name, scripts);
+      res.json({ scripts, suggested: false, running: scriptRunner.running(name) });
+    }),
+  );
+  const findScript = async (name: string, id: string) => {
+    const ws = await Workspace.open(projectsDir, name);
+    const list = (await projectScripts(projectsDir, name)) ?? (await suggestScripts(ws.root));
+    const script = list.find((s) => s.id === id);
+    if (!script) throw new HttpError(404, "No such script");
+    return { ws, script };
+  };
+  api.post(
+    "/projects/:name/scripts/:id/run",
+    wrap(async (req, res) => {
+      const name = validateProjectName(param(req, "name"));
+      const { ws, script } = await findScript(name, param(req, "id"));
+      res.json(scriptRunner.start(name, ws.root, script));
+    }),
+  );
+  api.post(
+    "/projects/:name/scripts/:id/stop",
+    wrap(async (req, res) => {
+      scriptRunner.stop(validateProjectName(param(req, "name")), param(req, "id"));
+      res.status(204).end();
+    }),
+  );
+  api.get(
+    "/projects/:name/scripts/:id/output",
+    wrap(async (req, res) => {
+      const from = Number(req.query.from ?? 0);
+      res.json(scriptRunner.state(validateProjectName(param(req, "name")), param(req, "id"), Number.isFinite(from) ? from : 0));
     }),
   );
   api.post(

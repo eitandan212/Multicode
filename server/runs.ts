@@ -17,6 +17,7 @@ import { matches, runHook } from "./hooks.js";
 import { installRequest, type CustomSkills } from "./customSkills.js";
 import {
   assignRoles,
+  cheapest,
   DESIGN_DIRECTIONS,
   hashText,
   runCrew,
@@ -45,6 +46,7 @@ import { inlineSkills, selectPacks, type ActivePack } from "./skills.js";
 import { recordRun } from "./graph.js";
 import { autoTeam, soloMember } from "./team.js";
 import {
+  API_KINDS,
   connectionName,
   HARNESS_NAMES,
   isFreeEndpoint,
@@ -94,6 +96,7 @@ const summaryOf = ({
   title,
   pinned,
   archived,
+  snoozedUntil,
 }: Run): RunSummary => ({
   id,
   project,
@@ -114,6 +117,7 @@ const summaryOf = ({
   ...(title ? { title } : {}),
   ...(pinned ? { pinned } : {}),
   ...(archived ? { archived } : {}),
+  ...(snoozedUntil ? { snoozedUntil } : {}),
 });
 
 /** "@path" names in a request, read so the architect sees them (at most 6 files, ~16k characters). */
@@ -442,7 +446,7 @@ export class RunManager {
   }
 
   /** Rename, pin or archive a chat (stored on its first run). */
-  async updateChat(id: string, patch: { title?: unknown; pinned?: unknown; archived?: unknown }): Promise<RunSummary> {
+  async updateChat(id: string, patch: { title?: unknown; pinned?: unknown; archived?: unknown; snoozedUntil?: unknown }): Promise<RunSummary> {
     const root = this.chat(id)[0]!;
     if (patch.title !== undefined) {
       if (patch.title !== null && typeof patch.title !== "string") throw new HttpError(400, "title must be text");
@@ -451,6 +455,11 @@ export class RunManager {
     }
     if (patch.pinned !== undefined) root.pinned = patch.pinned === true || undefined;
     if (patch.archived !== undefined) root.archived = patch.archived === true || undefined;
+    if (patch.snoozedUntil !== undefined) {
+      const t = patch.snoozedUntil;
+      if (t !== null && (typeof t !== "number" || !Number.isFinite(t))) throw new HttpError(400, "snoozedUntil must be a time");
+      root.snoozedUntil = t && t > Date.now() ? Math.min(t, Date.now() + 366 * 86_400_000) : undefined;
+    }
     await this.saveSummary(root);
     return summaryOf(root);
   }
@@ -859,12 +868,27 @@ export class RunManager {
         run.changedFiles = last.changedFiles.slice(0, 30);
       } else if (last.type === "run.error") run.reply = `Failed: ${last.error.slice(0, 300)}`;
       emit(last);
+      if (status === "done") queueMicrotask(() => nameChat());
       run.log?.end();
       run.log = undefined;
       this.cached.push(run.id);
       await this.saveSummary(run).catch((err: Error) =>
         console.error(`Could not save run ${run.id}:`, err.message),
       );
+    };
+    // A new chat gets a short name from the cheapest API model once it's done (as T3 Code
+    // names threads). Agents run through CLIs aren't started just for this.
+    const nameChat = () => {
+      if (threadId || run.title || run.status !== "done") return;
+      const namers = members.filter((m) => API_KINDS.includes(m.connection.kind));
+      if (!namers.length) return;
+      void chatTitle(cheapest(namers), run.prompt, run.reply ?? "", projectWs.root)
+        .then(async (t) => {
+          if (!t || run.title) return;
+          run.title = t;
+          await this.saveSummary(run);
+        })
+        .catch(() => {});
     };
 
     const mentioned = await readMentions(projectWs, run.prompt, isProtected);
@@ -1228,4 +1252,31 @@ export class RunManager {
       /* none saved */
     }
   }
+}
+
+/** Two to six words naming a chat, in the language it was written in; "" when it fails. */
+export async function chatTitle(member: ResolvedMember, prompt: string, reply: string, cwd: string): Promise<string> {
+  const out = await member.provider.generate(
+    {
+      system:
+        "Name this chat in 2 to 6 words, in the same language as the request. Plain words only: no quotes, no punctuation at the end, no emoji. Reply with the name and nothing else.",
+      prompt: `Request:\n${prompt.slice(0, 1500)}${reply ? `\n\nAnswer (start):\n${reply.slice(0, 400)}` : ""}`,
+      model: member.model,
+      cwd,
+      mode: "text",
+    },
+    () => {},
+    AbortSignal.timeout(30_000),
+  );
+  return cleanTitle(out);
+}
+
+export function cleanTitle(raw: string): string {
+  const line = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim().split("\n").find((l) => l.trim()) ?? "";
+  const t = line
+    .replace(/^(title|name)\s*:\s*/i, "")
+    .replace(/^["'`“”«»*#\s]+|["'`“”«»*.\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return t.length >= 2 && t.split(" ").length <= 10 ? t.slice(0, 60) : "";
 }

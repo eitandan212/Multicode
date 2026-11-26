@@ -42,12 +42,14 @@ interface Props {
   onSleep: (on: boolean) => void;
   /** The open thread's last call, for the context ring. */
   lastCall?: { memberId: string; tokens: number };
+  /** Where the unsent text is kept (one draft per chat, or per project for a new chat). */
+  draftKey?: string;
   /** A "/" command the app handles (new thread, open a panel or a setting). */
   onCommand?: (id: SlashId) => void;
 }
 
 export function Composer(p: Props) {
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(() => (p.draftKey ? (readDrafts()[p.draftKey] ?? "") : ""));
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState<RunMode>("build");
   const [error, setError] = useState("");
@@ -55,6 +57,48 @@ export function Composer(p: Props) {
   // Pictures pasted, dropped or picked: saved in the project and mentioned with @path.
   const [pics, setPics] = useState<{ path: string; url: string }[]>([]);
   const hasText = Boolean(prompt.trim()) || pics.length > 0;
+
+  // Unsent text stays with its chat: switching chats and coming back brings it back.
+  const draftKeyRef = useRef(p.draftKey);
+  useEffect(() => {
+    const prev = draftKeyRef.current;
+    draftKeyRef.current = p.draftKey;
+    if (prev === p.draftKey) return;
+    setPrompt(p.draftKey ? (readDrafts()[p.draftKey] ?? "") : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.draftKey]);
+  useEffect(() => {
+    if (!p.draftKey) return;
+    const t = window.setTimeout(() => writeDraft(p.draftKey!, prompt), 300);
+    return () => window.clearTimeout(t);
+  }, [prompt, p.draftKey]);
+
+  // The stash: put a message aside (Ctrl/⌘+S) and bring it back later, from any chat.
+  const [stash, setStash] = useState<Stashed[]>(readStash);
+  const stashNow = () => {
+    const text = prompt.trim();
+    if (!text) return;
+    const next = [{ text, at: Date.now() }, ...stash.filter((s) => s.text !== text)].slice(0, 10);
+    setStash(next);
+    writeStash(next);
+    setPrompt("");
+  };
+  const unstash = (i: number, restore: boolean) => {
+    const item = stash[i];
+    const next = stash.filter((_, j) => j !== i);
+    setStash(next);
+    writeStash(next);
+    if (restore && item) {
+      // What's in the box goes to the stash in its place.
+      if (prompt.trim()) {
+        const swapped = [{ text: prompt.trim(), at: Date.now() }, ...next].slice(0, 10);
+        setStash(swapped);
+        writeStash(swapped);
+      }
+      setPrompt(item.text);
+      box.current?.focus();
+    }
+  };
   const [uploading, setUploading] = useState(0);
   const filePick = useRef<HTMLInputElement>(null);
   const addPictures = async (files: Iterable<File>) => {
@@ -76,6 +120,7 @@ export function Composer(p: Props) {
     if ((!prompt.trim() && !pics.length) || !p.canRun || uploading) return;
     setSending(true);
     setError("");
+    const sentFrom = p.draftKey;
     try {
       const text = [prompt.trim() || "Look at this picture.", pics.map((x) => `@${x.path}`).join(" ")]
         .filter(Boolean)
@@ -83,6 +128,7 @@ export function Composer(p: Props) {
       await (parallel && p.onSubmitParallel ? p.onSubmitParallel(text, mode) : p.onSubmit(text, mode));
       setPrompt("");
       setPics([]);
+      if (sentFrom) writeDraft(sentFrom, "");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -238,6 +284,11 @@ export function Composer(p: Props) {
                 return;
               }
             }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+              e.preventDefault();
+              stashNow();
+              return;
+            }
             if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
             const mod = e.ctrlKey || e.metaKey;
             // Settings > General: Enter sends, or Ctrl/⌘+Enter sends (then Enter is a new line).
@@ -275,6 +326,7 @@ export function Composer(p: Props) {
             <Icon name="paperclip" size={15} />
           </button>
           <ModePicker mode={mode} onMode={setMode} />
+          {stash.length > 0 && <StashMenu items={stash} onPick={(i) => unstash(i, true)} onDrop={(i) => unstash(i, false)} />}
           <TeamPicker
             team={p.team}
             crew={p.crew}
@@ -581,6 +633,83 @@ function ModePicker({ mode, onMode }: { mode: RunMode; onMode: (m: RunMode) => v
         <span className="mode-label">{current.label}</span>
         <Icon name="chevronDown" size={12} />
       </button>
+    </div>
+  );
+}
+
+interface Stashed {
+  text: string;
+  at: number;
+}
+const DRAFTS_KEY = "multicode:drafts";
+const STASH_KEY = "multicode:stash";
+function readDrafts(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(DRAFTS_KEY) ?? "{}") as unknown;
+    return v && typeof v === "object" ? (v as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+function writeDraft(key: string, text: string): void {
+  try {
+    const all = readDrafts();
+    delete all[key];
+    if (text.trim()) all[key] = text.slice(0, 20000);
+    // The 40 most recent drafts are kept.
+    const keys = Object.keys(all);
+    for (const k of keys.slice(0, Math.max(0, keys.length - 40))) delete all[k];
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(all));
+  } catch {
+    /* storage unavailable */
+  }
+}
+function readStash(): Stashed[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(STASH_KEY) ?? "[]") as unknown;
+    return Array.isArray(v) ? (v as Stashed[]).filter((s) => typeof s?.text === "string").slice(0, 10) : [];
+  } catch {
+    return [];
+  }
+}
+function writeStash(list: Stashed[]): void {
+  try {
+    localStorage.setItem(STASH_KEY, JSON.stringify(list));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Messages put aside with Ctrl/⌘+S: pick one to bring it back. */
+function StashMenu({ items, onPick, onDrop }: { items: Stashed[]; onPick: (i: number) => void; onDrop: (i: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  return (
+    <div className="stash" ref={ref}>
+      <button type="button" className="chip stash-chip" onClick={() => setOpen(!open)} aria-expanded={open} title="Stashed messages (Ctrl/⌘+S stashes the box)">
+        <Icon name="archive" size={13} /> {items.length}
+      </button>
+      {open && (
+        <div className="menu-pop stash-pop" role="menu">
+          <span className="stash-head">Stashed messages</span>
+          {items.map((s, i) => (
+            <div key={s.at} className="stash-item">
+              <button type="button" role="menuitem" onClick={() => { onPick(i); setOpen(false); }}>
+                {s.text.slice(0, 140)}
+              </button>
+              <button type="button" className="icon-btn tiny" aria-label="Remove" onClick={() => onDrop(i)}>
+                <Icon name="x" size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

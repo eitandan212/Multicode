@@ -156,3 +156,43 @@ export function useCountUp(value: number, ms = 600): number {
   }, [value, ms]);
   return shown;
 }
+
+/**
+ * Click a picture in a chat (or one attached in the box) to see it large, in place
+ * (instead of a new window). Esc, a click or the × closes it.
+ */
+export function installLightbox(): void {
+  const SELECTOR = ".prompt-pics img, .composer-pic img, .markdown img, .msg img";
+  document.addEventListener("click", (e) => {
+    const img = (e.target as Element | null)?.closest?.(SELECTOR) as HTMLImageElement | null;
+    if (!img || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    const box = document.createElement("div");
+    box.className = "lightbox";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-label", "Picture");
+    const big = document.createElement("img");
+    big.src = img.currentSrc || img.src;
+    big.alt = img.alt;
+    const x = document.createElement("button");
+    x.className = "lightbox-x";
+    x.setAttribute("aria-label", "Close");
+    x.textContent = "×";
+    box.append(big, x);
+    const close = () => {
+      document.removeEventListener("keydown", onKey, true);
+      box.classList.add("is-closing");
+      window.setTimeout(() => box.remove(), 180);
+    };
+    const onKey = (k: KeyboardEvent) => {
+      if (k.key === "Escape") {
+        k.stopPropagation();
+        close();
+      }
+    };
+    box.addEventListener("click", close);
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(box);
+    x.focus();
+  });
+}

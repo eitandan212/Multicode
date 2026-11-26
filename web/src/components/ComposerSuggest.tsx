@@ -21,6 +21,7 @@ export type SlashId =
   | "connections"
   | "crew"
   | "changes"
+  | "run"
   | "memory"
   | "mcp"
   | "ide"
@@ -45,6 +46,7 @@ export const SLASH: { id: SlashId; hint: string; icon: IconName }[] = [
   { id: "connections", hint: "Connect models, agents and APIs", icon: "plug" },
   { id: "crew", hint: "Choose who plans, builds and reviews", icon: "users" },
   { id: "changes", hint: "Show what changed", icon: "file" },
+  { id: "run", hint: "Run your project's commands: dev server, tests, build", icon: "play" },
   { id: "memory", hint: "Open the memory graph", icon: "graph" },
   { id: "mcp", hint: "Connect tools: MCP servers, import from Claude Code, Codex, Cursor", icon: "plug" },
   { id: "ide", hint: "Switch between Chat and IDE view", icon: "terminal" },

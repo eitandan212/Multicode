@@ -4,7 +4,7 @@ import { App } from "./App";
 import { Pet } from "./components/Pet";
 import { AuthGate } from "./components/AuthGate";
 import { applyAppearance, loadAppearance } from "./appearance";
-import { installDialogExit, installSegPills } from "./motion";
+import { installDialogExit, installLightbox, installSegPills } from "./motion";
 import { installWindowChrome } from "./windowChrome";
 import "./styles.css";
 
@@ -13,6 +13,7 @@ applyAppearance(loadAppearance());
 installWindowChrome();
 installDialogExit();
 installSegPills();
+installLightbox();
 
 // The desktop pet's window loads the same page with ?pet=1 and shows only the pet.
 const petWindow = new URLSearchParams(location.search).get("pet") === "1";

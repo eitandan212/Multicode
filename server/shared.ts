@@ -564,6 +564,8 @@ export interface RunSummary {
   title?: string;
   pinned?: boolean;
   archived?: boolean;
+  /** Hidden until this time (ms), then back in the list. */
+  snoozedUntil?: number;
 }
 
 /** Default model strength when a connection names no model (the harness picks its own). */

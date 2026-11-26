@@ -6,6 +6,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
+import type { ProjectScript } from "./scripts.js";
 import { homedir } from "node:os";
 import path from "node:path";
 import { HttpError } from "./config.js";
@@ -212,7 +213,7 @@ export class Workspace {
 
 /** Per-project look (an emoji), kept in MultiCode's data and never in the project folder. */
 const META = ".project-meta.json";
-type ProjectMeta = Record<string, { emoji?: string; check?: string }>;
+type ProjectMeta = Record<string, { emoji?: string; check?: string; scripts?: ProjectScript[] }>;
 
 async function readMeta(projectsDir: string): Promise<ProjectMeta> {
   try {
@@ -258,6 +259,19 @@ export async function setProjectCheck(projectsDir: string, name: string, command
   const meta = await readMeta(projectsDir);
   if (value) meta[name] = { ...meta[name], check: value };
   else if (meta[name]) delete meta[name].check;
+  await mkdir(projectsDir, { recursive: true });
+  await writeFile(path.join(projectsDir, META), JSON.stringify(meta, null, 2));
+}
+
+/** A project's own run scripts (Run tab). */
+export async function projectScripts(projectsDir: string, name: string): Promise<ProjectScript[] | undefined> {
+  return (await readMeta(projectsDir))[name]?.scripts;
+}
+
+export async function setProjectScripts(projectsDir: string, name: string, scripts: ProjectScript[]): Promise<void> {
+  validateProjectName(name);
+  const meta = await readMeta(projectsDir);
+  meta[name] = { ...meta[name], scripts };
   await mkdir(projectsDir, { recursive: true });
   await writeFile(path.join(projectsDir, META), JSON.stringify(meta, null, 2));
 }

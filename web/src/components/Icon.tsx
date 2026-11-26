@@ -31,6 +31,7 @@ const PATHS = {
   terminal: "M5 8l4 4-4 4M12 17h7",
   arrowUp: "M12 19V5M6 11l6-6 6 6",
   stop: "M7 7h10v10H7z",
+  play: "M8 5.5v13l10.5-6.5z",
   check: "M5 12l5 5 9-10",
   x: "M6 6l12 12M18 6L6 18",
   chevron: "M9 6l6 6-6 6",

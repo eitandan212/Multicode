@@ -13,8 +13,9 @@ import { MemoryGraph } from "./MemoryGraph";
 import { AGENT_PRESETS } from "../../../server/agents";
 import { ProviderLogo } from "./ProviderLogo";
 import { Icon, Spinner } from "./Icon";
+import { RunPanel } from "./RunPanel";
 
-export type PanelTab = "preview" | "files" | "changes" | "memory";
+export type PanelTab = "preview" | "files" | "changes" | "run" | "memory";
 
 interface Props {
   project: string;
@@ -171,6 +172,15 @@ export function SidePanel(p: Props) {
           </button>
           <button
             role="tab"
+            aria-selected={tab === "run"}
+            className={tab === "run" ? "is-active" : ""}
+            onClick={() => setTab("run")}
+            title="Run your project's commands (dev server, tests…)"
+          >
+            <Icon name="play" size={13} /> Run
+          </button>
+          <button
+            role="tab"
             aria-selected={tab === "memory"}
             className={tab === "memory" ? "is-active" : ""}
             onClick={() => setTab("memory")}
@@ -215,6 +225,8 @@ export function SidePanel(p: Props) {
             <DiffView files={p.diff} />
           </>
         )}
+
+        {tab === "run" && <RunPanel project={p.project} />}
 
         {tab === "memory" && <MemoryGraph project={p.project} refreshKey={p.refreshKey} />}
 

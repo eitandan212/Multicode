@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Todo } from "../../../server/todos";
 import { TodoList } from "./TodoList";
 import { UpdateButton } from "./UpdateButton";
@@ -43,6 +44,32 @@ export function elapsed(ms: number): string {
 }
 
 /** "now", "4m", "2h", "3d": the age of a thread, as T3 Code shows it. */
+/** When a snoozed chat comes back: later today, tomorrow morning, after the weekend, next week. */
+const at9 = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(9, 0, 0, 0);
+  return d.getTime();
+};
+const SNOOZES: [string, () => number][] = [
+  ["1 hour", () => Date.now() + 3_600_000],
+  ["3 hours", () => Date.now() + 3 * 3_600_000],
+  ["Tomorrow", () => at9(1)],
+  ["Next week", () => at9(((8 - new Date().getDay()) % 7) || 7)],
+];
+
+/** "in 2h", "tomorrow 09:00", "Mon 09:00". */
+function until(at: number, now: number): string {
+  const ms = at - now;
+  if (ms < 3_600_000) return `in ${Math.max(1, Math.round(ms / 60_000))}m`;
+  if (ms < 12 * 3_600_000) return `in ${Math.round(ms / 3_600_000)}h`;
+  const d = new Date(at);
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return d.toDateString() === tomorrow.toDateString() ? `tomorrow ${time}` : `${d.toLocaleDateString([], { weekday: "short" })} ${time}`;
+}
+
 export function ago(at: number, now = Date.now()): string {
   const s = Math.max(0, (now - at) / 1000);
   if (s < 60) return "now";
@@ -120,6 +147,21 @@ interface Chat {
 export function Sidebar(p: Props) {
   const [query, setQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [showSnoozed, setShowSnoozed] = useState(false);
+  // A preview card beside a chat after a short hover (as T3 Code's thread hover card).
+  const [peek, setPeek] = useState<{ chat: Chat; top: number; left: number } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  const startPeek = (chat: Chat, el: HTMLElement) => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => {
+      const r = el.getBoundingClientRect();
+      setPeek({ chat, top: Math.min(r.top, window.innerHeight - 220), left: r.right + 10 });
+    }, 550);
+  };
+  const endPeek = () => {
+    window.clearTimeout(peekTimer.current);
+    setPeek(null);
+  };
   const [collapsed, setCollapsed] = useState<Set<string>>(() => readSet(COLLAPSED_KEY));
   const [more, setMore] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<string | null>(null);
@@ -180,8 +222,11 @@ export function Sidebar(p: Props) {
   const matches = (c: Chat) => !q || c.title.toLowerCase().includes(q) || c.latest.prompt.toLowerCase().includes(q) || c.first.project.toLowerCase().includes(q);
   // A chat that works or waits for you never hides in the archive.
   const busy = (c: Chat) => c.latest.status === "running" || Boolean(c.latest.pending);
-  const visible = chats.filter((c) => matches(c) && (!c.first.archived || busy(c)));
+  // Snoozed chats wait in their own group until their time comes (or they need you).
+  const snoozed = (c: Chat) => Boolean(c.first.snoozedUntil && c.first.snoozedUntil > now) && !busy(c);
+  const visible = chats.filter((c) => matches(c) && (!c.first.archived || busy(c)) && !snoozed(c));
   const archived = chats.filter((c) => matches(c) && c.first.archived && !busy(c));
+  const sleeping = chats.filter((c) => matches(c) && !c.first.archived && snoozed(c)).sort((a, b) => a.first.snoozedUntil! - b.first.snoozedUntil!);
 
   // Projects, the most recently active first; each with its own chats (pinned on top).
   const groups = useMemo(() => {
@@ -210,7 +255,7 @@ export function Sidebar(p: Props) {
       return n;
     });
 
-  const update = async (c: Chat, patch: { title?: string | null; pinned?: boolean; archived?: boolean }) => {
+  const update = async (c: Chat, patch: { title?: string | null; pinned?: boolean; archived?: boolean; snoozedUntil?: number | null }) => {
     setMenu(null);
     await api.updateChat(c.first.id, patch).catch(() => {});
     p.onChatsChanged();
@@ -258,7 +303,16 @@ export function Sidebar(p: Props) {
             />
           </form>
         ) : (
-          <button className="sb-row-main" onClick={() => p.onSelectRun(r)} title={c.title}>
+          <button
+            className="sb-row-main"
+            onClick={() => {
+              endPeek();
+              p.onSelectRun(r);
+            }}
+            onMouseEnter={(e) => menu === null && startPeek(c, e.currentTarget)}
+            onMouseLeave={endPeek}
+            onFocus={endPeek}
+          >
             {c.first.pinned && <Icon name="pin" size={11} className="sb-pin" />}
             <span className="truncate">{c.title}</span>
             {c.turns > 1 && <span className="sb-turns">{c.turns}</span>}
@@ -286,6 +340,20 @@ export function Sidebar(p: Props) {
             <button role="menuitem" onClick={() => void update(c, { pinned: !c.first.pinned })}>
               <Icon name="pin" size={13} /> {c.first.pinned ? "Unpin" : "Pin to top"}
             </button>
+            {snoozed(c) ? (
+              <button role="menuitem" onClick={() => void update(c, { snoozedUntil: null })}>
+                <Icon name="bell" size={13} /> Wake up now
+              </button>
+            ) : (
+              <div className="sb-snooze" role="group" aria-label="Snooze">
+                <span><Icon name="moon" size={13} /> Snooze</span>
+                {SNOOZES.map(([label, at]) => (
+                  <button key={label} role="menuitem" disabled={busy(c)} onClick={() => void update(c, { snoozedUntil: at() })}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <button role="menuitem" onClick={() => void update(c, { archived: !c.first.archived })} disabled={busy(c)}>
               <Icon name="archive" size={13} /> {c.first.archived ? "Move out of archive" : "Archive (hide)"}
             </button>
@@ -360,6 +428,26 @@ export function Sidebar(p: Props) {
         {groups.length === 0 && <p className="sb-empty">{q ? "No matches" : "No chats yet"}</p>}
       </div>
 
+      {sleeping.length > 0 && (
+        <div className="sb-groups">
+          <button className="sb-group" onClick={() => setShowSnoozed(!showSnoozed)} aria-expanded={showSnoozed}>
+            <Icon name="moon" size={13} />
+            <span>Snoozed</span>
+            <span className="sb-count">{sleeping.length}</span>
+            <Icon name={showSnoozed ? "chevronDown" : "chevron"} size={14} />
+          </button>
+          {showSnoozed && (
+            <div className="sb-settled">
+              {sleeping.map((c) => (
+                <div key={c.key} className="sb-snoozed-row">
+                  {row(c)}
+                  <span className="sb-wake">back {until(c.first.snoozedUntil!, now)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {archived.length > 0 && (
         <div className="sb-groups">
           <button className="sb-group" onClick={() => setShowArchived(!showArchived)} aria-expanded={showArchived}>
@@ -372,6 +460,7 @@ export function Sidebar(p: Props) {
         </div>
       )}
 
+      {peek && createPortal(<ChatPeek chat={peek.chat} top={peek.top} left={peek.left} now={now} />, document.body)}
       <TodoList project={p.project} onSend={p.onSendTodo} />
       <UsageMeter onOpen={() => p.onOpenSettings("usage")} />
       <UpdateButton />
@@ -386,5 +475,28 @@ export function Sidebar(p: Props) {
         </button>
       </div>
     </nav>
+  );
+}
+
+/** The hover card: what was asked, how it ended, which files changed. */
+function ChatPeek({ chat, top, left, now }: { chat: Chat; top: number; left: number; now: number }) {
+  const r = chat.latest;
+  const state =
+    r.status === "running" ? "Working…" : r.pending ? "Waiting for your review" : r.status === "error" ? "Failed" : r.status === "cancelled" ? "Stopped" : "Done";
+  return (
+    <div className="sb-peek" style={{ top, left }} role="tooltip">
+      <div className="sb-peek-head">
+        <strong className="truncate">{chat.title}</strong>
+        <span className={`sb-peek-state is-${r.status}${r.pending ? " is-pending" : ""}`}>{state}</span>
+      </div>
+      <p className="sb-peek-ask">{plainPrompt(r.prompt).slice(0, 220)}</p>
+      {r.reply && <p className="sb-peek-reply">{r.reply.slice(0, 260)}</p>}
+      <div className="sb-peek-foot">
+        <span>{chat.first.project}</span>
+        {chat.turns > 1 && <span>{chat.turns} messages</span>}
+        {r.changedFiles?.length ? <span>{r.changedFiles.length} file{r.changedFiles.length === 1 ? "" : "s"} changed</span> : null}
+        <span>{ago(r.endedAt ?? r.startedAt, now)}</span>
+      </div>
+    </div>
   );
 }
