@@ -2753,3 +2753,73 @@ describe("work on a GitHub repository", () => {
     }
   });
 });
+
+describe("auto-compact", () => {
+  it("shrinks big file contents first and keeps the instructions and the task", async () => {
+    const { compactPrompt, isContextOverflow } = await import("../server/crew/compact.js");
+    const big = "x".repeat(50_000);
+    const prompt = `RULES: be careful\n<file path="a.js">\n${big}\n</file>\n<file path="b.js">\nsmall\n</file>\nYOUR TASK: fix it`;
+    const out = compactPrompt(prompt, 10_000);
+    expect(out.length).toBeLessThanOrEqual(10_500);
+    expect(out).toContain("RULES: be careful");
+    expect(out).toContain("YOUR TASK: fix it");
+    expect(out).toContain("small");
+    expect(out).toContain("trimmed so the request fits");
+    expect(isContextOverflow("400 prompt is too long: 250000 tokens > 200000 maximum")).toBe(true);
+    expect(isContextOverflow("This model's maximum context length is 128000 tokens")).toBe(true);
+    expect(isContextOverflow("401 invalid x-api-key")).toBe(false);
+  });
+
+  it("retries a request that was too long, compacted, and the run succeeds", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-compact-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const LIMIT = 30_000;
+      const sizes: number[] = [];
+      const base = fakeProvider({ review: [] });
+      const provider: Provider = {
+        ...base,
+        async generate(req, onDelta) {
+          sizes.push(req.prompt.length);
+          if (req.prompt.length > LIMIT) throw new Error("400 prompt is too long: 90000 tokens > 30000 maximum");
+          return base.generate(req, onDelta);
+        },
+      };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"));
+      const ws = await Workspace.open(path.join(dir, "projects"), "site");
+      await ws.write("index.html", `<p>${"lorem ipsum ".repeat(4000)}</p>\n`);
+      await ws.write("app.js", `// ${"x".repeat(30_000)}\n`);
+      const events: RunEvent[] = [];
+      const r = await runs.start("site", "Improve it");
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          events.push(e);
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      expect(events.some((e) => e.type === "compacted")).toBe(true);
+      expect(events.some((e) => e.type === "run.error")).toBe(false);
+      expect(Math.max(...sizes)).toBeGreaterThan(LIMIT);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a long thread's beginning, compacted, and its last turns in full", async () => {
+    const { compactThread } = await import("../server/runs.js");
+    const turns = Array.from({ length: 10 }, (_, i) => ({
+      id: `r${i}`, project: "p", prompt: `request ${i}`, status: "done" as const, startedAt: i, reply: `answer ${i}`,
+    }));
+    const out = compactThread(turns, (r) => `Request: ${r.prompt}\nAnswer: ${r.reply}`);
+    expect(out).toHaveLength(4);
+    expect(out[0]).toContain("Earlier in this thread (compacted)");
+    expect(out[0]).toContain("request 0 → answer 0");
+    expect(out[3]).toBe("Request: request 9\nAnswer: answer 9");
+  });
+});

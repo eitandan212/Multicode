@@ -41,6 +41,8 @@ export interface RunView {
   checks: { round: number; command: string; ok: boolean; output: string; ms: number }[];
   /** Hooks that failed (your commands on events). */
   hookFailures: { event: string; command: string; output: string }[];
+  /** Requests that were too long for a model and were compacted automatically. */
+  compactions: { memberId: string; from: number; to: number }[];
   changed: string[];
   status: "running" | "done" | "error";
   summary?: string;
@@ -94,6 +96,7 @@ export function emptyRun(id: string, prompt = ""): RunView {
     reviews: [],
     checks: [],
     hookFailures: [],
+    compactions: [],
     changed: [],
     status: "running",
     usage: { input: 0, output: 0, cached: 0, costUsd: 0, freeTokens: 0 },
@@ -273,6 +276,8 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
         ...s,
         reviews: [...s.reviews, { round: e.round, review: e.review }],
       };
+    case "compacted":
+      return { ...s, compactions: [...s.compactions, { memberId: e.memberId, from: e.from, to: e.to }] };
     case "hook":
       return { ...s, hookFailures: [...s.hookFailures, { event: e.event, command: e.command, output: e.output }] };
     case "check":

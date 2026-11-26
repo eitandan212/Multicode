@@ -169,6 +169,32 @@ export function withoutSecrets(diff: string, isProtected: (p: string) => boolean
     .join("");
 }
 
+/**
+ * A thread's memory for the next turn: the last three turns in full, and every earlier turn
+ * compacted into one short line each (its request, the start of its answer, its files), so a long
+ * thread never overflows the model and nothing from its start is forgotten. Costs no model call.
+ */
+export function compactThread(turns: RunSummary[], full: (r: RunSummary, answer: number) => string): string[] {
+  const recent = turns.slice(-3).map((r) => full(r, 900));
+  const older = turns.slice(0, -3);
+  if (!older.length) return recent;
+  let budget = 3500;
+  const lines: string[] = [];
+  // Newest of the older turns first, so the budget keeps what's closest; shown oldest first.
+  for (const r of [...older].reverse()) {
+    const answer = (r.reply ?? r.status).replace(/\s+/g, " ");
+    const line = `- ${r.prompt.replace(/\s+/g, " ").slice(0, 160)} → ${answer.slice(0, 160)}${r.changedFiles?.length ? ` (files: ${r.changedFiles.slice(0, 5).join(", ")})` : ""}`;
+    if (line.length > budget) break;
+    budget -= line.length;
+    lines.unshift(line);
+  }
+  const dropped = older.length - lines.length;
+  return [
+    `Earlier in this thread (compacted${dropped ? `; ${dropped} oldest turn${dropped === 1 ? "" : "s"} left out` : ""}):\n${lines.join("\n")}`,
+    ...recent,
+  ];
+}
+
 /** How a /review is answered: findings, not a plan. */
 export const REVIEW_BRIEF = `Review the changes in the diff below as a senior engineer. Change nothing and plan no tasks: answer with {"reply": "..."} only.
 In the reply (Markdown): findings ranked most severe first, each with the file and line, what is wrong, and the fix. Look for bugs, security problems, missed edge cases, broken behaviour and clear performance problems. Skip style nitpicks. End with a one-line verdict. If there are no real problems, say so plainly.`;
@@ -636,11 +662,12 @@ export class RunManager {
         .filter(Boolean)
         .join("\n");
     const history = threadId
-      ? this.list(project)
-          .filter((r) => (r.threadId ?? r.id) === threadId && r.status !== "running")
-          .sort((a, b) => a.startedAt - b.startedAt)
-          .slice(-4)
-          .map((r) => turn(r, 900))
+      ? compactThread(
+          this.list(project)
+            .filter((r) => (r.threadId ?? r.id) === threadId && r.status !== "running")
+            .sort((a, b) => a.startedAt - b.startedAt),
+          turn,
+        )
       : this.list(project)
           .filter((r) => r.status === "done" && !r.pending)
           .slice(0, 4)

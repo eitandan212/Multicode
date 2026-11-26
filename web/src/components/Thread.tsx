@@ -240,6 +240,15 @@ export function Thread({
           </span>
         </div>
       ))}
+      {run.compactions.map((c, i) => (
+        <div key={`compact-${i}`} className="notice enter">
+          <Icon name="sync" size={14} />
+          <span>
+            The request was too long for <b>{name(c.memberId)}</b>, so it was compacted automatically (
+            {Math.round(c.from / 1000)}k → {Math.round(c.to / 1000)}k characters) and sent again.
+          </span>
+        </div>
+      ))}
       {run.protectedHits.length > 0 && (
         <div className="notice warn enter">
           <Icon name="shield" size={14} />

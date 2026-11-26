@@ -487,6 +487,8 @@ export type RunEvent =
   | { type: "review"; review: Review; round: number }
   | { type: "check"; command: string; ok: boolean; output: string; ms: number; round: number }
   | { type: "hook"; event: HookEvent; command: string; ok: boolean; output: string }
+  /** A request was too long for the model: it was compacted (characters before/after) and sent again. */
+  | { type: "compacted"; streamId: string; memberId: string; from: number; to: number }
   | { type: "run.diff"; files: FileDiff[] }
   | {
       type: "usage";

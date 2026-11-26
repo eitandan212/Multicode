@@ -15,6 +15,7 @@ import {
   type Provider,
 } from "../providers/types.js";
 import { runCheck, type CheckResult } from "../check.js";
+import { compactPrompt, isContextOverflow } from "./compact.js";
 import {
   AGENT_KINDS,
   type CrewMember,
@@ -256,11 +257,26 @@ function agentKit(o: KitOptions) {
           }
         : undefined;
     const free = P.costTier(member) === "free";
-    try {
-      const text = await member.provider.generate(
+    // Auto-compact: a request longer than the model's context is shrunk and sent again (twice at most).
+    let sent = prompt;
+    const generate = async (): Promise<string> => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await once();
+        } catch (err) {
+          const msg = (err as Error).message;
+          if (attempt >= 2 || signal.aborted || !isContextOverflow(msg) || sent.length < 4000) throw err;
+          const before = sent.length;
+          sent = compactPrompt(sent, Math.floor(before / 2));
+          emit({ type: "compacted", streamId, memberId: member.id, from: before, to: sent.length });
+        }
+      }
+    };
+    const once = () =>
+      member.provider.generate(
         {
           system: o.autonomous ? system + P.AWAY : system,
-          prompt,
+          prompt: sent,
           model: member.model,
           cwd: ws.root,
           mode,
@@ -287,6 +303,8 @@ function agentKit(o: KitOptions) {
         },
         local.signal,
       );
+    try {
+      const text = await generate();
       emit({ type: "agent.end", streamId, ok: true });
       return text;
     } catch (err) {
