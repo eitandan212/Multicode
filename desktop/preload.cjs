@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("multicodeDesktop", {
   openPath: (p) => ipcRenderer.invoke("multicode:open-path", String(p)),
   setPet: (on) => ipcRenderer.send("multicode:set-pet", on === true),
   openRun: (runId) => ipcRenderer.send("multicode:open-run", String(runId)),
+  showApp: () => ipcRenderer.send("multicode:show-app"),
+  movePet: (dx, dy) => ipcRenderer.send("multicode:pet-move", Number(dx), Number(dy)),
   onOpenRun: (fn) => {
     const listener = (_e, id) => fn(String(id));
     ipcRenderer.on("multicode:open-run", listener);

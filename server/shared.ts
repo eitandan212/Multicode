@@ -703,3 +703,17 @@ export function contextWindow(kind: ProviderKind, model = ""): number {
   if (/qwen.*(coder|max)|kimi|glm-4\.[56]|deepseek-v3/.test(m)) return 128_000;
   return 128_000;
 }
+
+/** What a running chat is doing right now (for the pet). */
+export interface RunActivity {
+  runId: string;
+  project: string;
+  chat: string;
+  startedAt: number;
+  phase: "planning" | "building" | "checking" | "reviewing" | "fixing";
+  step?: { who: string; what: string };
+  said?: string;
+  done: number;
+  total: number;
+}
+

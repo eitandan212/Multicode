@@ -5679,7 +5679,7 @@ button.git-branch:hover{ background: color-mix(in srgb, var(--brand) 22%, transp
 .pet > *{ pointer-events: auto; }
 html.pet-window, html.pet-window body, html.pet-window #root{ background: transparent !important; overflow: hidden; }
 .pet.is-standalone{ right: 12px; bottom: 12px; }
-.pet.is-standalone .pet-body{ -webkit-app-region: drag; cursor: grab; }
+.pet.is-standalone .pet-body{ -webkit-app-region: no-drag; cursor: pointer; touch-action: none; }
 .pet.is-standalone .pet-bubble{ -webkit-app-region: no-drag; }
 .pet-bubble{
   display: grid;
@@ -6052,3 +6052,22 @@ html.pet-window[data-bg] body::before, html.pet-window[data-bg] body::after{ dis
 @keyframes pet-huff { 0%, 70%, 100% { transform: scale(1); } 80% { transform: scale(1.04, 0.97); } }
 
 :root[data-motion="reduced"] .pet-img.is-cat{ animation: none !important; }
+
+/* Bigger pet; on its own window it's bigger still, and its bubble tells what the crew is doing. */
+.pet-body:has(.pet-img.is-cat){ width: 108px; height: 108px; }
+.pet-img.is-cat{ width: 108px; height: 108px; }
+.pet.is-standalone .pet-body:has(.pet-img.is-cat){ width: 136px; height: 136px; }
+.pet.is-standalone .pet-img.is-cat{ width: 136px; height: 136px; }
+.pet-body:not(:has(.is-cat)){ width: 80px; height: 80px; }
+.pet-body:not(:has(.is-cat)) .pet-img{ width: 80px; height: 80px; }
+.pet.is-standalone .pet-body:active .pet-img{ transform: scale(0.96); }
+.pet-bubble{ max-width: 300px; }
+.pet-step{ font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.pet-step b{ color: var(--text); font-weight: 600; }
+.pet-said{
+  font: 11.5px/1.45 var(--mono); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere;
+  padding: 6px 8px; border-radius: 8px; background: color-mix(in srgb, var(--text) 5%, transparent);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pet-progress{ display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.pet-progress > span{ display: block; height: 100%; background: var(--brand); transition: width 400ms var(--ease); }

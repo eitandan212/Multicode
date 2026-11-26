@@ -140,29 +140,46 @@ function createWindow() {
   win.on("closed", () => nativeTheme.off("updated", syncTitleBar));
 
   win.once("ready-to-show", () => win?.show());
+  // The pet appears when MultiCode goes out of sight, and steps aside when it's back.
+  for (const ev of ["minimize", "restore", "show", "hide"]) win.on(ev, () => refreshPet());
   win.on("closed", () => {
     win = null;
+    refreshPet();
   });
   void win.loadURL(started.url);
 }
 
 // ---- The pet: a small always-on-top window in the corner of the screen ----
+// It keeps you company only while MultiCode itself is out of sight (minimized or hidden):
+// with the app open on screen, the app shows everything and the pet steps aside.
 let pet = null;
-function setPet(on) {
-  if (!on) {
+let petWanted = false;
+const PET_W = 360;
+const PET_H = 340;
+function mainOnScreen() {
+  return Boolean(win && !win.isDestroyed() && win.isVisible() && !win.isMinimized());
+}
+function refreshPet() {
+  if (!petWanted) {
     if (pet && !pet.isDestroyed()) pet.close();
     pet = null;
     return;
   }
-  if (pet && !pet.isDestroyed()) return;
+  if (!pet || pet.isDestroyed()) createPet();
+  if (mainOnScreen()) pet.hide();
+  else if (!pet.isVisible() && pet.webContents.getURL()) pet.showInactive();
+}
+function setPet(on) {
+  petWanted = on;
+  refreshPet();
+}
+function createPet() {
   const area = screen.getPrimaryDisplay().workArea;
-  const W = 320;
-  const H = 290;
   pet = new BrowserWindow({
-    width: W,
-    height: H,
-    x: area.x + area.width - W - 16,
-    y: area.y + area.height - H - 16,
+    width: PET_W,
+    height: PET_H,
+    x: area.x + area.width - PET_W - 12,
+    y: area.y + area.height - PET_H - 12,
     frame: false,
     transparent: true,
     resizable: false,
@@ -183,11 +200,20 @@ function setPet(on) {
   pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   pet.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   pet.webContents.on("will-navigate", (event) => event.preventDefault());
-  pet.once("ready-to-show", () => pet?.showInactive());
+  pet.once("ready-to-show", () => {
+    if (pet && !mainOnScreen()) pet.showInactive();
+  });
   pet.on("closed", () => {
     pet = null;
   });
   void pet.loadURL(`${started.url.replace(/\/$/, "")}/?pet=1`);
+}
+/** MultiCode to the front (from the pet). */
+function showApp() {
+  if (!win) createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
 }
 
 const fromApp = (event) =>
@@ -200,11 +226,22 @@ ipcMain.on("multicode:set-pet", (event, on) => {
 // The pet's "Open": bring MultiCode to the front on that chat.
 ipcMain.on("multicode:open-run", (event, runId) => {
   if (!fromApp(event) || typeof runId !== "string" || !/^[0-9a-f-]{36}$/.test(runId)) return;
-  if (!win) createWindow();
-  if (win.isMinimized()) win.restore();
-  win.show();
-  win.focus();
+  showApp();
   win.webContents.send("multicode:open-run", runId);
+});
+const fromPet = (event) => pet && !pet.isDestroyed() && event.sender === pet.webContents;
+// A click on the pet opens MultiCode.
+ipcMain.on("multicode:show-app", (event) => {
+  if (fromPet(event)) showApp();
+});
+// Dragging the pet moves its window (a drag region would swallow the click).
+ipcMain.on("multicode:pet-move", (event, dx, dy) => {
+  if (!fromPet(event) || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
+  const [x, y] = pet.getPosition();
+  const area = screen.getDisplayNearestPoint({ x, y }).workArea;
+  const nx = Math.round(Math.min(Math.max(x + dx, area.x - PET_W + 80), area.x + area.width - 80));
+  const ny = Math.round(Math.min(Math.max(y + dy, area.y - PET_H + 80), area.y + area.height - 80));
+  pet.setPosition(nx, ny);
 });
 
 // The page tells us the theme it shows ("system", "light" or "dark").

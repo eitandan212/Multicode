@@ -17,6 +17,10 @@ declare global {
       setPet?: (on: boolean) => void;
       /** Bring MultiCode to the front on a chat (from the pet). */
       openRun?: (runId: string) => void;
+      /** The pet's click: MultiCode to the front. */
+      showApp?: () => void;
+      /** The pet's drag: move its window by this much. */
+      movePet?: (dx: number, dy: number) => void;
       onOpenRun?: (fn: (runId: string) => void) => () => void;
       /** Shows a file or folder in Explorer / Finder. */
       openPath?: (p: string) => Promise<boolean>;

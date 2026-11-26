@@ -3,6 +3,7 @@ import type { RunSummary } from "../../../server/shared";
 import { api } from "../api";
 import { plainPrompt } from "./PromptText";
 import { todosChanged, useTodos } from "./TodoList";
+import type { RunActivity } from "../../../server/shared";
 import { loadPrefs, PREFS_KEY, type PetKind, type Prefs } from "../prefs";
 
 type Approval = Awaited<ReturnType<typeof api.approvals>>[number];
@@ -12,6 +13,13 @@ type Mood = "idle" | "thinking" | "busy" | "alert" | "happy" | "sad" | "sleep";
 function petImage(kind: PetKind, mood: Mood): string {
   return kind === "cat" ? `/pets/cat-${mood === "sad" ? "angry" : mood}.png` : `/pets/${kind}.png`;
 }
+const PHASE_LABEL: Record<RunActivity["phase"], string> = {
+  planning: "Thinking it through",
+  building: "Building",
+  checking: "Running the checks",
+  reviewing: "Reviewing",
+  fixing: "Fixing",
+};
 const MOOD_SIGN: Record<Mood, string> = { idle: "", thinking: "…", busy: "", alert: "!", happy: "✓", sad: "×", sleep: "z" };
 /** After this long with nothing going on, the pet curls up and sleeps. */
 const SLEEP_AFTER = 3 * 60_000;
@@ -42,6 +50,7 @@ function usePetKind(): PetKind {
 export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) => void; standalone?: boolean }) {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [activity, setActivity] = useState<RunActivity[]>([]);
   const [update, setUpdate] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
@@ -63,9 +72,10 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
   useEffect(() => {
     let live = true;
     const tick = async () => {
-      const [a, r] = await Promise.all([api.approvals().catch(() => []), api.allRuns().catch(() => null)]);
+      const [a, r, act] = await Promise.all([api.approvals().catch(() => []), api.allRuns().catch(() => null), api.activity().catch(() => [])]);
       if (!live) return;
       setApprovals(a);
+      setActivity(act);
       if (r) setRuns(r);
       setNow(Date.now());
     };
@@ -156,8 +166,31 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
     );
   } else if (working.length) {
     mood = Math.max(...working.map((r) => r.startedAt)) > now - THINK_FOR ? "thinking" : "busy";
-    if (hover)
-      bubble = (
+    const act = activity[0];
+    if (act?.phase === "planning") mood = "thinking";
+    // On its own window the pet always says what the crew is doing; in the app, on hover.
+    if (standalone || hover)
+      bubble = act ? (
+        <>
+          <span className="pet-kicker">
+            {PHASE_LABEL[act.phase]}
+            {act.total > 0 ? ` · ${act.done}/${act.total} tasks` : ""}
+            {activity.length > 1 ? ` · +${activity.length - 1} more` : ""}
+          </span>
+          <span className="pet-text">{act.chat}</span>
+          {act.step && (
+            <span className="pet-step">
+              <b>{act.step.who}</b> {act.step.what}
+            </span>
+          )}
+          {act.said && <span className="pet-said">{act.said}</span>}
+          {act.total > 0 && (
+            <span className="pet-progress" aria-hidden>
+              <span style={{ width: `${(act.done / act.total) * 100}%` }} />
+            </span>
+          )}
+        </>
+      ) : (
         <>
           <span className="pet-kicker">Working{working.length > 1 ? ` on ${working.length} tasks` : ""}</span>
           <span className="pet-text">{working[0]!.title || plainPrompt(working[0]!.prompt)}</span>
@@ -182,6 +215,35 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
     bubble = <span className="pet-text">All quiet. Ctrl+K finds anything; / opens commands.</span>;
   }
 
+  // On its own window: a click opens MultiCode; a drag moves the pet.
+  function startDrag(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    const desk = window.multicodeDesktop;
+    let lastX = e.screenX;
+    let lastY = e.screenY;
+    let moved = 0;
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const dx = ev.screenX - lastX;
+      const dy = ev.screenY - lastY;
+      if (!dx && !dy) return;
+      moved += Math.abs(dx) + Math.abs(dy);
+      lastX = ev.screenX;
+      lastY = ev.screenY;
+      if (moved > 4) desk?.movePet?.(dx, dy);
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      if (moved <= 4) desk?.showApp?.();
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  }
+
   // Asleep after a quiet while; anything happening, or a hover, wakes it.
   const lastActive = useRef(Date.now());
   if (mood !== "idle" || hover || bubble) lastActive.current = now;
@@ -194,7 +256,14 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
           {bubble}
         </div>
       )}
-      <div className={`pet-body is-${mood}`} title="MultiCode" aria-hidden>
+      <div
+        className={`pet-body is-${mood}`}
+        title={standalone ? "Open MultiCode (drag to move)" : "MultiCode"}
+        role={standalone ? "button" : undefined}
+        aria-label={standalone ? "Open MultiCode" : undefined}
+        aria-hidden={standalone ? undefined : true}
+        onPointerDown={standalone ? startDrag : undefined}
+      >
         <img key={mood} className={`pet-img ${kind === "cat" ? "is-cat" : ""}`} src={petImage(kind, mood)} alt="" draggable={false} />
         {/* The cat's pictures carry their own bubble, "!", Zz and sparkles; other pets get a small sign. */}
         {kind !== "cat" && MOOD_SIGN[mood] && <span className={`pet-sign is-${mood}`}>{MOOD_SIGN[mood]}</span>}

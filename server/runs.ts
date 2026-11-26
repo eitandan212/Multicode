@@ -45,6 +45,7 @@ import {
 import { inlineSkills, selectPacks, type ActivePack } from "./skills.js";
 import { recordRun } from "./graph.js";
 import { autoTeam, soloMember } from "./team.js";
+import type { RunActivity } from "./shared.js";
 import {
   API_KINDS,
   connectionName,
@@ -436,6 +437,54 @@ export class RunManager {
         return r.approvals!.pending().map((a) => ({ runId: r.id, project: r.project, chat, ...a }));
       })
       .sort((a, b) => a.at - b.at);
+  }
+
+  /**
+   * What each running chat is doing right now, for the pet: its phase, the step under way (who,
+   * what) and the last words of that step's output, and how many tasks are done.
+   */
+  activity(): RunActivity[] {
+    const names = new Map<string, string>([...this.effectiveCrew().map((m) => [m.id, m.name] as [string, string]), ["manager", "Manager"]]);
+    const label = (id: string) => names.get(id) ?? (id.startsWith("auto-") ? (this.config.connection(id.slice(5))?.label ?? "Agent") : "Agent");
+    return [...this.runs.values()]
+      .filter((r) => r.status === "running" && r.events)
+      .map((r) => {
+        const first = this.runs.get(r.threadId ?? r.id) ?? r;
+        let phase: RunActivity["phase"] = "planning";
+        let step: { streamId: string; memberId: string; title: string } | undefined;
+        let text = "";
+        const tasks = new Map<string, string>();
+        for (const e of r.events!) {
+          if (e.type === "phase") phase = e.phase;
+          else if (e.type === "agent.start") {
+            step = e;
+            text = "";
+          } else if (e.type === "agent.delta" && e.streamId === step?.streamId) text = (text + e.text).slice(-1200);
+          else if (e.type === "plan") for (const t of e.plan.tasks) tasks.set(t.id, "pending");
+          else if (e.type === "tasks.added") for (const t of e.tasks) tasks.set(t.id, "pending");
+          else if (e.type === "task.status") tasks.set(e.taskId, e.status);
+        }
+        // The last few lines the agent wrote, without tool markers or JSON braces.
+        const said = text
+          .split("\n")
+          .map((l) => l.replace(/^▸\s*/, "").trim())
+          .filter((l) => l && !/^[{}[\]",]+$/.test(l))
+          .slice(-3)
+          .join("\n")
+          .slice(-280);
+        return {
+          runId: r.id,
+          project: r.project,
+          chat: first.title || r.prompt.slice(0, 80),
+          startedAt: r.startedAt,
+          phase,
+          ...(step ? { step: { who: label(step.memberId), what: step.title } } : {}),
+          ...(said ? { said } : {}),
+          done: [...tasks.values()].filter((v) => v === "done" || v === "failed").length,
+          total: tasks.size,
+        };
+      })
+      .sort((a, b) => b.startedAt - a.startedAt);
   }
 
   /** The runs of one chat (its first run and every follow-up), oldest first. */

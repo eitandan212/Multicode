@@ -59,6 +59,7 @@ async function request<T>(
 
 import type { Todo } from "../../server/todos";
 import type { ProjectScript, ScriptState } from "../../server/scripts";
+import type { RunActivity } from "../../server/shared";
 import type { AccountUsage, AgentAccess, ConnectionHealth, GitStatus, SignInFlow } from "../../server/shared";
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
@@ -169,6 +170,7 @@ export const api = {
     request<unknown>("PUT", `/api/skills/custom/${encodeURIComponent(s.name.trim().toLowerCase().replace(/[\s_]+/g, "-"))}`, s),
   deleteCustomSkill: (name: string) => request<void>("DELETE", `/api/skills/custom/${encodeURIComponent(name)}`),
   installCustomSkill: (url: string) => request<unknown>("POST", "/api/skills/custom/install", { url }),
+  activity: () => request<RunActivity[]>("GET", "/api/activity"),
   scripts: (project: string) =>
     request<{ scripts: ProjectScript[]; suggested: boolean; running: string[] }>("GET", `/api/projects/${encodeURIComponent(project)}/scripts`),
   saveScripts: (project: string, scripts: Partial<ProjectScript>[]) =>
