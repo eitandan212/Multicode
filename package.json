@@ -1,6 +1,6 @@
 {
   "name": "multicode",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "description": "Connect your AI subscriptions and API keys — and let them build together as a crew.",
   "type": "module",
   "license": "MIT",
@@ -89,7 +89,9 @@
       "!node_modules/**/*.d.cts",
       "!node_modules/effect/dist/http-api/internal/httpApiScalar.js",
       "!node_modules/effect/dist/http-api/internal/httpApiSwagger.js",
-      "!node_modules/**/*.md"
+      "!node_modules/**/*.md",
+      "!node_modules/zod/src/**",
+      "!node_modules/@modelcontextprotocol/sdk/dist/cjs/**"
     ],
     "asar": true,
     "afterPack": "desktop/afterPack.cjs",

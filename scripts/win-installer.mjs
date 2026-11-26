@@ -11,9 +11,11 @@ const src = path.join(root, "release", "win-unpacked");
 const out = path.join(root, "release", `MultiCode-Setup-${version}.exe`);
 if (!existsSync(path.join(src, "MultiCode.exe"))) throw new Error("release/win-unpacked is missing; run electron-builder --win dir first");
 
-// Electron ships DirectX's shader compiler (26 MB) for WebGPU only. MultiCode doesn't use WebGPU,
-// and leaving it out keeps the installer under GitHub's 100 MB file limit.
-for (const f of ["dxcompiler.dll", "dxil.dll"]) rmSync(path.join(src, f), { force: true });
+// Left out to keep the installer under GitHub's 100 MB file limit, all for features MultiCode
+// doesn't use: DirectX's shader compiler (WebGPU) and SwiftShader, the software renderer for
+// WebGL/WebGPU on computers without a usable GPU. Pages still draw (Chromium's own software path).
+for (const f of ["dxcompiler.dll", "dxil.dll", "vk_swiftshader.dll", "vk_swiftshader_icd.json", "vulkan-1.dll"])
+  rmSync(path.join(src, f), { force: true });
 
 const makensis = process.env.MAKENSIS ?? "makensis";
 try {
