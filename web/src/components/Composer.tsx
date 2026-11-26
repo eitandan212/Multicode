@@ -54,6 +54,7 @@ export function Composer(p: Props) {
 
   // Pictures pasted, dropped or picked: saved in the project and mentioned with @path.
   const [pics, setPics] = useState<{ path: string; url: string }[]>([]);
+  const hasText = Boolean(prompt.trim()) || pics.length > 0;
   const [uploading, setUploading] = useState(0);
   const filePick = useRef<HTMLInputElement>(null);
   const addPictures = async (files: Iterable<File>) => {
@@ -163,15 +164,17 @@ export function Composer(p: Props) {
           void submit();
         }}
       >
-        {p.running && p.progress && p.progress.total > 0 && (
+        {p.running && (
           <span
-            className="composer-progress"
-            aria-label={`${p.progress.done} of ${p.progress.total} tasks done`}
+            className={`composer-progress ${p.progress && p.progress.total > 0 && p.progress.done > 0 ? "" : "is-waiting"}`}
+            aria-label={p.progress?.total ? `${p.progress.done} of ${p.progress.total} tasks done` : "Working"}
           >
             <span
-              style={{
-                width: `${(p.progress.done / p.progress.total) * 100}%`,
-              }}
+              style={
+                p.progress && p.progress.total > 0 && p.progress.done > 0
+                  ? { width: `${(p.progress.done / p.progress.total) * 100}%` }
+                  : undefined
+              }
             />
           </span>
         )}
@@ -288,29 +291,33 @@ export function Composer(p: Props) {
             sleep={p.sleep}
             onSleep={p.onSleep}
           />
-          {p.running && p.onSubmitParallel && (
+          {p.running && hasText && p.onSubmitParallel && (
             <button
               type="button"
-              className="send parallel"
+              className="icon-btn composer-ghost"
               onClick={() => void submit(true)}
-              disabled={!p.canRun || (!prompt.trim() && !pics.length) || sending || uploading > 0}
+              disabled={!p.canRun || sending || uploading > 0}
               aria-label="Start now in parallel"
               title="Start now, beside the running task, in its own copy (you apply it when it's done)"
             >
               <Icon name="users" size={15} />
             </button>
           )}
-          {p.running && (
-            <button
-              className="send"
-              disabled={!p.canRun || (!prompt.trim() && !pics.length) || sending || uploading > 0}
-              aria-label="Queue"
-              title="Queue: runs after the crew finishes (Enter)"
-            >
-              <Icon name="plus" size={16} />
-            </button>
-          )}
-          {p.running ? (
+          {p.running && hasText ? (
+            <>
+              <button type="button" className="icon-btn composer-ghost" onClick={p.onStop} aria-label="Stop the crew" title="Stop">
+                <Icon name="stop" size={12} />
+              </button>
+              <button
+                className="send"
+                disabled={!p.canRun || sending || uploading > 0}
+                aria-label="Queue"
+                title="Queue: runs after the crew finishes (Enter)"
+              >
+                <Icon name="arrowUp" size={16} />
+              </button>
+            </>
+          ) : p.running ? (
             <button
               type="button"
               className="send stop"
@@ -318,7 +325,7 @@ export function Composer(p: Props) {
               aria-label="Stop the crew"
               title="Stop"
             >
-              <Icon name="stop" size={13} />
+              <Icon name="stop" size={12} />
             </button>
           ) : (
             <button

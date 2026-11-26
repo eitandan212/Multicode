@@ -923,7 +923,7 @@ export function App() {
         running
           ? state.settings.safety === "sandbox"
             ? "Start another task: it runs in parallel in its own sandbox."
-            : "Add a follow-up: it starts by itself when the crew finishes."
+            : "Add a follow-up…"
           : canRun
           ? run
             ? "Reply in this thread. The crew remembers the conversation."

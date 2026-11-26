@@ -5921,3 +5921,44 @@ html.pet-window[data-bg] body::before, html.pet-window[data-bg] body::after{ dis
 .ap-range{ display: flex; align-items: center; gap: 10px; width: 100%; font-size: 12.5px; color: var(--muted); }
 .ap-range input{ flex: 1; accent-color: var(--brand); }
 .status-preview{ display: inline-flex; align-items: center; gap: 10px; margin-left: 10px; color: var(--muted); font-size: 12px; }
+
+/* ---- Composer while the crew works: calm, one main button ---- */
+.send.stop,
+.send.stop:hover{
+  position: relative;
+  background: var(--text);
+  color: var(--bg-solid);
+}
+.send.stop::after{
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  border-top-color: var(--brand);
+  animation: stop-spin 1.1s linear infinite;
+}
+@keyframes stop-spin { to { transform: rotate(360deg); } }
+.composer-ghost{ width: 30px; height: 30px; color: var(--muted); }
+.composer-ghost:hover{ color: var(--text); }
+.composer.is-running{ border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); }
+.composer-progress{
+  left: 18px;
+  right: 18px;
+  top: -1px;
+  height: 2px;
+  background: transparent;
+}
+.composer-progress > span{
+  background: var(--brand);
+  border-radius: 2px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 60%, transparent);
+}
+.composer-progress.is-waiting > span{
+  width: 30%;
+  animation: progress-glide 1.6s var(--ease-soft) infinite;
+}
+@keyframes progress-glide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+:root[data-motion="reduced"] .send.stop::after,
+:root[data-motion="reduced"] .composer-progress.is-waiting > span{ animation: none; }
+@media (prefers-reduced-motion: reduce) { .send.stop::after, .composer-progress.is-waiting > span{ animation: none; } }
