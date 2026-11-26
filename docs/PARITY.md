@@ -40,5 +40,5 @@ goes further, ◐ = partly, — = not available (with the reason).
 | Sign in with subscriptions | ✅ | ✅ | ✅ Claude, ChatGPT (Codex), Antigravity in one click |
 | Any API / local model | — | ◐ | ➕ Anthropic, OpenAI, Gemini, any OpenAI-compatible, Ollama, ACP agents |
 | Automatic updates | ✅ | ✅ | ✅ verified (SHA-256) one-click update |
-| Hooks (run scripts on events) | ✅ | ◐ | ◐ a check command per project (e.g. `npm test`) runs after each build; a failure becomes a fix. Each harness's own hooks still run inside it |
-| Cloud tasks / remote runs | — | ✅ | — MultiCode runs on your computer |
+| Hooks (run scripts on events) | ✅ | ◐ | ✅ UserPromptSubmit (can block, adds context), PostToolUse (glob), Notification, Stop; plus a check command per project (e.g. `npm test`) whose failure becomes a fix |
+| Parallel background tasks | ◐ | ✅ cloud tasks | ✅ in sandbox mode up to 4 tasks run side by side, each in its own copy; you apply each one (on your computer, not in a cloud) |

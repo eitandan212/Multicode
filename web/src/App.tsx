@@ -383,8 +383,14 @@ export function App() {
   };
   const startRun = async (prompt: string, mode: RunMode = "build", review = false) => {
     if (!project) return;
-    // While the crew is busy in this project, the message waits its turn.
+    // While the crew is busy in this project, the message waits its turn; in a sandbox (or
+    // MultiDesign) it starts right away as a parallel task in its own copy.
     const busyRun = runs.find((r) => r.project === project && r.status === "running");
+    const parallel = Boolean(state?.settings.safety === "sandbox" || mode === "design") && !review;
+    if (busyRun && parallel) {
+      await launch(project, prompt, mode, sleep, undefined, false);
+      return;
+    }
     if (busyRun || queue.some((q) => q.project === project)) {
       const following = run && runs.find((r) => r.id === run.id && r.project === project);
       setQueue((q) => [
@@ -797,7 +803,9 @@ export function App() {
       }
       placeholder={
         running
-          ? "Add a follow-up: it starts by itself when the crew finishes."
+          ? state.settings.safety === "sandbox"
+            ? "Start another task: it runs in parallel in its own sandbox."
+            : "Add a follow-up: it starts by itself when the crew finishes."
           : canRun
           ? run
             ? "Reply in this thread. The crew remembers the conversation."

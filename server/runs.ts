@@ -57,6 +57,8 @@ import { projectCheck, Workspace } from "./workspace.js";
 type Listener = (e: RunEvent) => void;
 
 interface Run extends RunSummary {
+  /** Works in its own sandbox copy (so other sandboxed runs may run beside it). */
+  sandboxed?: boolean;
   /** Loaded lazily for finished runs; always present while running. */
   events: RunEvent[] | null;
   listeners: Set<Listener>;
@@ -569,15 +571,6 @@ export class RunManager {
     if (prompt.length > 20_000) throw new HttpError(400, "prompt is too long");
     if (mode !== "build" && mode !== "design")
       throw new HttpError(400, "mode must be build or design");
-    if (
-      [...this.runs.values()].some(
-        (r) => r.project === project && (r.status === "running" || r.pending),
-      )
-    )
-      throw new HttpError(
-        409,
-        "this project has a crew at work or changes waiting for your review",
-      );
 
     // Auto always lets the dispatcher pick the best builder for each task.
     const settings = {
@@ -587,6 +580,16 @@ export class RunManager {
       ...(opts.review ? { safety: "readonly" as const } : {}),
     };
     const sandboxed = mode === "design" || settings.safety === "sandbox";
+    // Parallel tasks (like Codex's): runs in their own sandbox copies work side by side, and each
+    // waits for you to apply it. A run that edits the project directly needs it to itself.
+    const others = [...this.runs.values()].filter((r) => r.project === project && (r.status === "running" || r.pending));
+    if (others.length && (!sandboxed || others.some((r) => r.status === "running" && !r.sandboxed)))
+      throw new HttpError(
+        409,
+        "this project has a crew at work or changes waiting for your review",
+      );
+    if (sandboxed && others.filter((r) => r.status === "running").length >= 4)
+      throw new HttpError(409, "four tasks are already running in this project; wait for one to finish");
     if (sandboxed && !this.sync)
       throw new HttpError(400, "sandboxes need a data folder");
     const projectWs = await Workspace.open(this.projectsDir, project);
@@ -672,6 +675,7 @@ export class RunManager {
       team,
       ...(sleep ? { sleep: true } : {}),
       ...(threadId ? { threadId, parentId } : {}),
+      ...(sandboxed ? { sandboxed: true } : {}),
       events: [],
       listeners: new Set(),
       controller: new AbortController(),

@@ -2480,3 +2480,57 @@ if(e.hook_event_name==="UserPromptSubmit"){ if(/forbidden/.test(e.prompt)){conso
     }
   });
 });
+
+describe("parallel tasks (sandboxes, like Codex)", () => {
+  it("runs sandboxed tasks side by side, keeps direct runs out meanwhile, and applies both", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-par-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false }, safety: "sandbox" });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      let active = 0;
+      let peak = 0;
+      const provider: Provider = {
+        editsFiles: false,
+        async generate(req, onDelta) {
+          active++;
+          peak = Math.max(peak, active);
+          await new Promise((r) => setTimeout(r, 300));
+          active--;
+          const which = req.prompt.includes("Page A") ? "a" : "b";
+          const out = req.system.includes("ARCHITECT")
+            ? JSON.stringify({ summary: "One file.", tasks: [{ title: `Page ${which.toUpperCase()}`, description: "x", files: [`${which}.html`] }] })
+            : `<file path="${which}.html">\n<h1>${which}</h1>\n</file>`;
+          onDelta(out);
+          return out;
+        },
+      };
+      const sync = { harness: new HarnessSync(path.join(dir, "sync"), new ProjectMemory(path.join(dir, "memory"))), memory: new ProjectMemory(path.join(dir, "memory")), dataDir: dir, previewOrigin: "http://localhost:1" };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"), sync);
+      const wait = (id: string) =>
+        new Promise<void>((resolve) => {
+          const off = runs.subscribe(id, (e) => {
+            if (e.type === "run.done" || e.type === "run.error") {
+              off();
+              resolve();
+            }
+          });
+        });
+      const a = await runs.start("site", "Page A please");
+      const b = await runs.start("site", "Page B please");
+      await config.setSettings({ safety: "direct" });
+      await expect(runs.start("site", "direct edit")).rejects.toThrow(/crew at work/);
+      await Promise.all([wait(a.id), wait(b.id)]);
+      expect(peak).toBeGreaterThanOrEqual(2);
+      expect(runs.get(a.id)?.pending).toBe("sandbox");
+      expect(runs.get(b.id)?.pending).toBe("sandbox");
+      await runs.apply(a.id);
+      await runs.apply(b.id);
+      const ws = await Workspace.open(path.join(dir, "projects"), "site");
+      expect((await ws.list()).filter((f) => f.endsWith(".html")).sort()).toEqual(["a.html", "b.html"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
