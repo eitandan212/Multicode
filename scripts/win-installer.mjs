@@ -28,6 +28,17 @@ console.log(`Installer: ${path.relative(root, out)} (${(statSync(out).size / 104
 const sha256 = createHash("sha256").update(readFileSync(out)).digest("hex");
 writeFileSync(
   path.join(root, "release", "latest.json"),
-  JSON.stringify({ version, file: path.basename(out), sha256, size: statSync(out).size }, null, 2) + "\n",
+  JSON.stringify(
+    {
+      version,
+      file: path.basename(out),
+      sha256,
+      size: statSync(out).size,
+      // Set by the release workflow: the installer lives on GitHub Releases, not in the repository.
+      ...(process.env.RELEASE_URL_BASE ? { url: `${process.env.RELEASE_URL_BASE}/v${version}/${path.basename(out)}` } : {}),
+    },
+    null,
+    2,
+  ) + "\n",
 );
 console.log(`latest.json: ${version} ${sha256}`);
