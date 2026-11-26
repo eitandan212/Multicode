@@ -5326,3 +5326,21 @@ pre,
   color: inherit;
   font: 12.5px var(--mono);
 }
+
+/* Hooks */
+.hook-list{ list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hook-list li{ display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--hover); }
+.hook-row{ display: flex; gap: 6px; align-items: center; }
+.hook-row select, .hook-matcher, .hook-command{
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+.hook-matcher{ flex: 1; min-width: 0; font-family: var(--mono); }
+.hook-row .icon-btn{ margin-left: auto; }
+.hook-command{ width: 100%; font-family: var(--mono); }

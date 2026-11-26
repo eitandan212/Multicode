@@ -2410,3 +2410,73 @@ describe("check command (like a hook on edits)", () => {
     }
   });
 });
+
+describe("hooks (as in Claude Code)", () => {
+  it("blocks or adds context before a request, and runs on file changes and at the end", async () => {
+    const { matches } = await import("../server/hooks.js");
+    expect(matches("**/*.js", "app.js")).toBe(true);
+    expect(matches("**/*.js", "src/a/b.js")).toBe(true);
+    expect(matches("*.html", "src/index.html")).toBe(false);
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-hooks-"));
+    try {
+      const log = path.join(dir, "hook.log");
+      const script = path.join(dir, "hook.cjs");
+      await writeFile(
+        script,
+        `let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const e=JSON.parse(d);require("fs").appendFileSync(${JSON.stringify(log)}, e.hook_event_name+":"+(e.file_path||e.status||e.prompt||"")+"\\n");
+if(e.hook_event_name==="UserPromptSubmit"){ if(/forbidden/.test(e.prompt)){console.error("no forbidden work");process.exit(2)} console.log("Team rule: use tabs."); }});`,
+      );
+      const failing = path.join(dir, "fail.cjs");
+      await writeFile(failing, `console.error("lint failed");process.exit(1)`);
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({
+        approvals: "all",
+        maxReviewRounds: 0,
+        freeFallback: { enabled: false },
+        hooks: [
+          { event: "UserPromptSubmit", command: `node "${script}"` },
+          { event: "PostToolUse", command: `node "${script}"`, matcher: "**/*.js" },
+          { event: "PostToolUse", command: `node "${failing}"`, matcher: "**/*.html" },
+          { event: "Stop", command: `node "${script}"` },
+        ],
+      });
+      await expect(config.setSettings({ hooks: [{ event: "Sometime", command: "x" }] })).rejects.toThrow(/event/);
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const archPrompts: string[] = [];
+      const base = fakeProvider({ review: [] });
+      const provider: Provider = {
+        ...base,
+        async generate(req, onDelta) {
+          if (req.system.includes("ARCHITECT")) archPrompts.push(req.prompt);
+          return base.generate(req, onDelta);
+        },
+      };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"));
+      await expect(runs.start("site", "do the forbidden thing")).rejects.toThrow(/no forbidden work/);
+      const events: RunEvent[] = [];
+      const r = await runs.start("site", "Build it");
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          events.push(e);
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      await new Promise((res) => setTimeout(res, 1500));
+      expect(archPrompts[0]).toContain("Team rule: use tabs.");
+      const lines = (await readFile(log, "utf8")).trim().split("\n");
+      expect(lines).toContain("UserPromptSubmit:do the forbidden thing");
+      expect(lines).toContain("PostToolUse:app.js");
+      expect(lines).not.toContain("PostToolUse:index.html");
+      expect(lines.at(-1)).toBe("Stop:done");
+      const failed = (await runs.events(r.id)).filter((e) => e.type === "hook");
+      expect(failed).toHaveLength(1);
+      expect(JSON.stringify(failed[0])).toContain("lint failed");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

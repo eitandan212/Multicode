@@ -353,6 +353,16 @@ export function Thread({
         </div>
       )}
 
+      {run.hookFailures.map((h, i) => (
+        <details key={`hook-${i}`} className="check-line enter is-bad">
+          <summary>
+            <Icon name="x" size={13} />
+            <span className="muted small">{h.event} hook failed</span>
+            <code>{h.command}</code>
+          </summary>
+          {h.output && <pre className="check-output">{h.output}</pre>}
+        </details>
+      ))}
       {run.checks.map((c, i) => (
         <details key={`check-${i}`} className={`check-line enter ${c.ok ? "is-ok" : "is-bad"}`}>
           <summary>

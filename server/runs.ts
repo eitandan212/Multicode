@@ -13,6 +13,7 @@ import { HttpError } from "./config.js";
 import { rm, stat } from "node:fs/promises";
 import type { ImageInput } from "./providers/types.js";
 import { gitDiff } from "./git.js";
+import { matches, runHook } from "./hooks.js";
 import {
   assignRoles,
   DESIGN_DIRECTIONS,
@@ -651,6 +652,16 @@ export class RunManager {
           console.error(`Sync failed for ${project}:`, err.message),
         );
 
+    // UserPromptSubmit hooks: exit 2 blocks the request; what they print is added as context.
+    const hooks = settings.hooks ?? [];
+    let hookContext = "";
+    for (const h of hooks.filter((x) => x.event === "UserPromptSubmit")) {
+      const r = await runHook(h, projectWs.root, { project, prompt: prompt.trim(), cwd: projectWs.root });
+      if (r.code === 2) throw new HttpError(400, `A hook stopped this request: ${r.stderr || r.stdout || h.command}`);
+      if (r.code === 0 && r.stdout) hookContext += `${r.stdout.slice(0, 4000)}\n`;
+    }
+    hookContext = hookContext.trim();
+
     const run: Run = {
       id: randomUUID(),
       project,
@@ -679,6 +690,34 @@ export class RunManager {
       if (run.events && run.events.length < MAX_EVENTS) run.events.push(e);
       run.log?.write(JSON.stringify(e) + "\n");
       for (const l of run.listeners) l(e);
+      fireHooks(e);
+    };
+    // PostToolUse, Notification and Stop hooks run in order, never holding up the crew; a failing
+    // hook shows in the thread.
+    let hookChain = Promise.resolve();
+    const fireHooks = (e: RunEvent) => {
+      const event =
+        e.type === "file.changed" ? "PostToolUse" : e.type === "approval.request" ? "Notification" : e.type === "run.done" || e.type === "run.error" ? "Stop" : undefined;
+      if (!event) return;
+      const payload =
+        e.type === "file.changed"
+          ? { tool_name: "Write", file_path: e.path, change: e.change }
+          : e.type === "approval.request"
+            ? { message: e.title, kind: e.kind }
+            : e.type === "run.done"
+              ? { status: "done", summary: e.summary, changed_files: e.changedFiles }
+              : { status: run.controller?.signal.aborted ? "cancelled" : "error", error: (e as { error?: string }).error };
+      for (const h of hooks.filter((x) => x.event === event && (event !== "PostToolUse" || matches(x.matcher, (e as { path: string }).path)))) {
+        hookChain = hookChain.then(async () => {
+          const r = await runHook(h, projectWs.root, { project, run_id: run.id, cwd: projectWs.root, ...payload });
+          if (r.code !== 0) {
+            const note: RunEvent = { type: "hook", event, command: h.command, ok: false, output: (r.stderr || r.stdout).slice(-2000) };
+            if (run.events && run.events.length < MAX_EVENTS) run.events.push(note);
+            run.log?.write(JSON.stringify(note) + "\n");
+            for (const l of run.listeners) l(note);
+          }
+        });
+      }
     };
     emit({
       type: "run.started",
@@ -730,6 +769,7 @@ export class RunManager {
     };
 
     const mentioned = await readMentions(projectWs, run.prompt, isProtected);
+    if (hookContext) mentioned.text = `${mentioned.text ? `${mentioned.text}\n\n` : ""}Context from your hooks:\n${hookContext}`;
     const checkCommand = await projectCheck(this.projectsDir, project);
     if (reviewDiff)
       mentioned.text = `${REVIEW_BRIEF}\n\n<diff>\n${withoutSecrets(reviewDiff, isProtected)}\n</diff>${mentioned.text ? `\n\n${mentioned.text}` : ""}`;

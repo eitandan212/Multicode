@@ -1,6 +1,6 @@
 // Settings sections T3 Code has and MultiCode was missing: General, Keyboard shortcuts, Projects, About.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { ProjectInfo } from "../../../server/shared";
+import type { Hook, HookEvent, ProjectInfo, Settings } from "../../../server/shared";
 import { api } from "../api";
 import { chime, DEFAULT_PREFS, loadPrefs, notify, savePrefs, type Prefs } from "../prefs";
 import { Row, Seg, Toggle } from "./AppearanceDialog";
@@ -296,6 +296,80 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
         </a>
         <p className="muted small">Builds on open-source work from T3 Code (MIT) and the Claude Agent SDK.</p>
       </Row>
+    </Shell>
+  );
+}
+
+const HOOK_HELP: Record<HookEvent, string> = {
+  UserPromptSubmit: "Before a request starts. Exit code 2 stops it; what it prints is added for the crew.",
+  PostToolUse: "After the crew changes a file (e.g. a formatter). Matcher: a glob like **/*.ts.",
+  Notification: "When an action waits for your approval.",
+  Stop: "When a run ends (done, failed or stopped).",
+};
+
+/** Hooks, as in Claude Code: your commands on events, with the event as JSON on stdin. */
+export function HooksDialog({ settings, onClose, onSaved }: { settings: Settings; onClose: () => void; onSaved: () => void }) {
+  const [hooks, setHooks] = useState<Hook[]>(settings.hooks ?? []);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const set = (i: number, patch: Partial<Hook>) => setHooks(hooks.map((h, k) => (k === i ? { ...h, ...patch } : h)));
+  const save = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      await api.saveSettings({ hooks: hooks.filter((h) => h.command.trim()) });
+      setNote({ ok: true, text: "Saved." });
+      onSaved();
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Shell title="Hooks" sub="Your commands run on events, like Claude Code hooks. They get the event as JSON on stdin." onClose={onClose}>
+      {hooks.length === 0 && <p className="muted">No hooks yet. Run a formatter after edits, block risky requests, or ping yourself when a run ends.</p>}
+      <ul className="hook-list">
+        {hooks.map((h, i) => (
+          <li key={i} className="pop-in">
+            <div className="hook-row">
+              <select value={h.event} onChange={(e) => set(i, { event: e.target.value as HookEvent })} aria-label="Event">
+                {(Object.keys(HOOK_HELP) as HookEvent[]).map((ev) => (
+                  <option key={ev} value={ev}>
+                    {ev}
+                  </option>
+                ))}
+              </select>
+              {h.event === "PostToolUse" && (
+                <input className="hook-matcher" value={h.matcher ?? ""} onChange={(e) => set(i, { matcher: e.target.value || undefined })} placeholder="**/*" aria-label="Files" spellCheck={false} />
+              )}
+              <button className="icon-btn" aria-label="Remove hook" onClick={() => setHooks(hooks.filter((_, k) => k !== i))}>
+                <Icon name="x" size={14} />
+              </button>
+            </div>
+            <input
+              className="hook-command"
+              value={h.command}
+              onChange={(e) => set(i, { command: e.target.value })}
+              placeholder={h.event === "PostToolUse" ? "npx prettier --write ." : "your command"}
+              aria-label="Command"
+              spellCheck={false}
+              maxLength={1000}
+            />
+            <span className="muted small">{HOOK_HELP[h.event]}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="form-actions">
+        <button className="btn ghost" disabled={hooks.length >= 20} onClick={() => setHooks([...hooks, { event: "PostToolUse", command: "" }])}>
+          <Icon name="plus" size={14} /> Add hook
+        </button>
+        <button className="btn primary" onClick={() => void save()} disabled={busy}>
+          {busy ? <Spinner /> : null} Save
+        </button>
+      </div>
+      {note && <p className={`small ${note.ok ? "muted pop-in" : "err-text"}`}>{note.text}</p>}
+      <p className="muted small">Hooks run on this computer with your permissions, in the project folder. Only add commands you trust.</p>
     </Shell>
   );
 }

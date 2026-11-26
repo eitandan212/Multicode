@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import { parseHooks } from "./hooks.js";
 import {
   API_KINDS,
   EFFORT_KINDS,
@@ -376,6 +377,7 @@ export class ConfigStore {
         throw new HttpError(400, "maxReviewRounds must be an integer 0-5");
       next.maxReviewRounds = rounds;
     }
+    if (input.hooks !== undefined) next.hooks = parseHooks(input.hooks);
     if (input.safety !== undefined) {
       if (!["direct", "sandbox", "readonly"].includes(String(input.safety)))
         throw new HttpError(400, "safety must be direct, sandbox or readonly");

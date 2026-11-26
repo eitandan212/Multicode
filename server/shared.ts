@@ -275,6 +275,16 @@ export interface Settings {
    * connection, else the free OpenCode model. pick: this connection. off: the planner dispatches.
    */
   manager: ManagerSetting;
+  /** Your commands that run on events (as Claude Code hooks). */
+  hooks?: Hook[];
+}
+
+export type HookEvent = "UserPromptSubmit" | "PostToolUse" | "Notification" | "Stop";
+export interface Hook {
+  event: HookEvent;
+  command: string;
+  /** PostToolUse only: a glob on the changed file's path. */
+  matcher?: string;
 }
 
 /** The manager a run would get right now (null in state when there is none). */
@@ -473,6 +483,7 @@ export type RunEvent =
     }
   | { type: "review"; review: Review; round: number }
   | { type: "check"; command: string; ok: boolean; output: string; ms: number; round: number }
+  | { type: "hook"; event: HookEvent; command: string; ok: boolean; output: string }
   | { type: "run.diff"; files: FileDiff[] }
   | {
       type: "usage";

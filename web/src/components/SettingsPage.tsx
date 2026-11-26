@@ -5,6 +5,7 @@ import { Icon, type IconName } from "./Icon";
 export type SettingsSection =
   | "general"
   | "keybindings"
+  | "hooks"
   | "projects"
   | "about"
   | "appearance"
@@ -41,6 +42,7 @@ const NAV: {
     items: [
       { id: "extensions", label: "Plugins & skills", icon: "puzzle" },
       { id: "sync", label: "Tools (MCP) & sync", icon: "sync" },
+      { id: "hooks", label: "Hooks", icon: "terminal" },
     ],
   },
   {
