@@ -5,6 +5,7 @@ import { Icon, type IconName } from "./Icon";
 
 export type SlashId =
   | "new"
+  | "review"
   | "plan"
   | "direct"
   | "sandbox"
@@ -26,6 +27,7 @@ export type SlashId =
 
 export const SLASH: { id: SlashId; hint: string; icon: IconName }[] = [
   { id: "new", hint: "Start a new thread", icon: "compose" },
+  { id: "review", hint: "Review uncommitted changes for bugs (changes nothing)", icon: "eye" },
   { id: "plan", hint: "Plan only: the crew changes nothing", icon: "list" },
   { id: "direct", hint: "Work directly in the project (with undo)", icon: "pencil" },
   { id: "sandbox", hint: "Work in a sandbox; you apply the result", icon: "shield" },

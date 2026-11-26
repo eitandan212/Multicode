@@ -86,6 +86,12 @@ export function App() {
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [projectsDir, setProjectsDir] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState("");
+  useEffect(() => {
+    if (!reviewError) return;
+    const t = window.setTimeout(() => setReviewError(""), 6000);
+    return () => window.clearTimeout(t);
+  }, [reviewError]);
   useEffect(() => {
     void api.about().then((a) => setProjectsDir(a.projectsDir)).catch(() => {});
   }, []);
@@ -257,7 +263,7 @@ export function App() {
   // Messages typed while the crew works wait their turn (as in Claude Code); each follows up the
   // thread that was working when you wrote it.
   const [queue, setQueue] = useState<
-    { id: string; project: string; prompt: string; mode: RunMode; sleep: boolean; afterRun?: string }[]
+    { id: string; project: string; prompt: string; mode: RunMode; sleep: boolean; afterRun?: string; review?: boolean }[]
   >([]);
   const [queueError, setQueueError] = useState("");
   const starting = useRef(false);
@@ -321,7 +327,7 @@ export function App() {
       : undefined;
     starting.current = true;
     setQueue((q) => q.filter((x) => x.id !== next.id));
-    launch(next.project, next.prompt, next.mode, next.sleep, parent?.id)
+    launch(next.project, next.prompt, next.mode, next.sleep, parent?.id, next.review)
       .then(() => setQueueError(""))
       .catch((e: Error) => {
         setQueue((q) => [next, ...q]);
@@ -368,13 +374,14 @@ export function App() {
     if (!narrow()) store.set("sidebar", open ? "1" : "0");
   };
 
-  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean, parentId?: string) => {
-    const summary = await api.startRun(proj, prompt, mode, team, asleep, parentId);
+  const launch = async (proj: string, prompt: string, mode: RunMode, asleep: boolean, parentId?: string, review = false) => {
+    const summary = await api.startRun(proj, prompt, mode, team, asleep, parentId, review);
+    setReviewError("");
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
   };
-  const startRun = async (prompt: string, mode: RunMode = "build") => {
+  const startRun = async (prompt: string, mode: RunMode = "build", review = false) => {
     if (!project) return;
     // While the crew is busy in this project, the message waits its turn.
     const busyRun = runs.find((r) => r.project === project && r.status === "running");
@@ -382,7 +389,7 @@ export function App() {
       const following = run && runs.find((r) => r.id === run.id && r.project === project);
       setQueue((q) => [
         ...q,
-        { id: crypto.randomUUID(), project, prompt, mode, sleep, afterRun: following?.id ?? busyRun?.id },
+        { id: crypto.randomUUID(), project, prompt, mode, sleep, afterRun: following?.id ?? busyRun?.id, review },
       ]);
       return;
     }
@@ -390,7 +397,7 @@ export function App() {
     const open = run ? runs.find((r) => r.id === run.id) : undefined;
     const parentId =
       open && open.project === project && open.status !== "running" && !open.pending ? open.id : undefined;
-    await launch(project, prompt, mode, sleep, parentId);
+    await launch(project, prompt, mode, sleep, parentId, review);
   };
 
   const focusComposer = () =>
@@ -642,6 +649,14 @@ export function App() {
   const queued = queue.filter((q) => q.project === project);
   const composer = project && (
     <>
+    {reviewError && (
+      <div className="sleep-banner is-off pop-in" role="alert">
+        <Icon name="eye" size={16} />
+        <div className="sleep-text">
+          <span className="err-text">{reviewError}</span>
+        </div>
+      </div>
+    )}
     {!sleep && !queueError && queued.length > 0 && (
       <div className="sleep-banner queue-banner" role="status">
         <Icon name="list" size={16} />
@@ -749,6 +764,8 @@ export function App() {
       onSubmit={startRun}
       onCommand={(id) => {
         if (id === "new") newThread();
+        else if (id === "review")
+          void startRun("Review my uncommitted changes", "build", true).catch((e: Error) => setReviewError(e.message));
         else if (id === "usage" || id === "connections" || id === "crew") setDialog(id);
         else if (id === "settings") setDialog("general");
         else if (id === "mcp") setDialog("sync");

@@ -12,6 +12,7 @@ import type { ConfigStore, Connection } from "./config.js";
 import { HttpError } from "./config.js";
 import { rm, stat } from "node:fs/promises";
 import type { ImageInput } from "./providers/types.js";
+import { gitDiff } from "./git.js";
 import {
   assignRoles,
   DESIGN_DIRECTIONS,
@@ -133,7 +134,7 @@ export async function readMentions(
       continue;
     }
     // Secrets never go to a model, even when named (and even with protection turned off).
-    if (budget <= 0 || isProtected(name) || /(^|\/)(\.env(\..*)?|id_[a-z0-9]+|.*\.(pem|key|p12|pfx))$/i.test(name)) continue;
+    if (budget <= 0 || isProtected(name) || SECRET_FILE.test(name)) continue;
     const text = await ws.tryRead(name).catch(() => undefined);
     if (text === undefined) continue;
     const body = text.length > Math.min(6000, budget) ? `${text.slice(0, Math.min(6000, budget))}\n…(trimmed)` : text;
@@ -151,6 +152,23 @@ export const IMAGE_TYPES: Record<string, ImageInput["mediaType"]> = {
   ".gif": "image/gif",
 };
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+const SECRET_FILE = /(^|\/)(\.env(\..*)?|id_[a-z0-9]+|.*\.(pem|key|p12|pfx))$/i;
+
+/** A diff without the sections of protected or secret files (they never go to a model). */
+export function withoutSecrets(diff: string, isProtected: (p: string) => boolean): string {
+  return diff
+    .split(/(?=^diff --git |^--- \/dev\/null\n\+\+\+ b\/)/m)
+    .filter((part) => {
+      const file = /^diff --git a\/(.+?) b\//.exec(part)?.[1] ?? /^\+\+\+ b\/(.+?)( \(new file\))?$/m.exec(part)?.[1];
+      return !file || (!isProtected(file) && !SECRET_FILE.test(file));
+    })
+    .join("");
+}
+
+/** How a /review is answered: findings, not a plan. */
+export const REVIEW_BRIEF = `Review the changes in the diff below as a senior engineer. Change nothing and plan no tasks: answer with {"reply": "..."} only.
+In the reply (Markdown): findings ranked most severe first, each with the file and line, what is wrong, and the fix. Look for bugs, security problems, missed edge cases, broken behaviour and clear performance problems. Skip style nitpicks. End with a one-line verdict. If there are no real problems, say so plainly.`;
 
 export interface UndoResult {
   restored: string[];
@@ -542,6 +560,8 @@ export class RunManager {
     sleep = false,
     /** A follow-up: the run whose conversation this continues. */
     parentId?: string,
+    /** review: the crew reviews what changed since the last commit and changes nothing. */
+    opts: { review?: boolean } = {},
   ): Promise<RunSummary> {
     if (typeof prompt !== "string" || !prompt.trim())
       throw new HttpError(400, "prompt is required");
@@ -563,11 +583,16 @@ export class RunManager {
       ...this.config.settings,
       ...(team.kind === "auto" ? { dispatch: "smart" as const } : {}),
       ...(sleep ? { approvals: "all" as const } : {}),
+      ...(opts.review ? { safety: "readonly" as const } : {}),
     };
     const sandboxed = mode === "design" || settings.safety === "sandbox";
     if (sandboxed && !this.sync)
       throw new HttpError(400, "sandboxes need a data folder");
     const projectWs = await Workspace.open(this.projectsDir, project);
+    const reviewDiff = opts.review ? await gitDiff(projectWs.root) : undefined;
+    if (opts.review && reviewDiff === undefined)
+      throw new HttpError(400, "Review needs Git: turn it on in the Changes tab, commit, then make changes to review.");
+    if (opts.review && !reviewDiff?.trim()) throw new HttpError(400, "Nothing to review: there are no uncommitted changes.");
     const members: ResolvedMember[] = this.teamMembers(team).flatMap((m) => {
       const connection = this.config.connection(m.connectionId);
       return connection
@@ -705,6 +730,8 @@ export class RunManager {
     };
 
     const mentioned = await readMentions(projectWs, run.prompt, isProtected);
+    if (reviewDiff)
+      mentioned.text = `${REVIEW_BRIEF}\n\n<diff>\n${withoutSecrets(reviewDiff, isProtected)}\n</diff>${mentioned.text ? `\n\n${mentioned.text}` : ""}`;
     const common = {
       prompt: run.prompt,
       history,

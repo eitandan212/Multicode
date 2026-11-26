@@ -2263,3 +2263,59 @@ describe("import MCP servers from other tools", () => {
     }
   });
 });
+
+describe("/review", () => {
+  it("reviews uncommitted changes without secrets and changes nothing", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-review-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const prompts: string[] = [];
+      const base = fakeProvider({ review: [] });
+      const provider: Provider = {
+        ...base,
+        async generate(req, onDelta) {
+          prompts.push(req.prompt);
+          return base.generate(req, onDelta);
+        },
+      };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"));
+      const ws = await Workspace.open(path.join(dir, "projects"), "site");
+      const { execFileSync } = await import("node:child_process");
+      const sh = (...a: string[]) => execFileSync("git", a, { cwd: ws.root });
+      await expect(runs.start("site", "Review", "build", { kind: "crew" }, false, undefined, { review: true })).rejects.toThrow(/Git/);
+      sh("init");
+      sh("config", "user.email", "t@example.com");
+      sh("config", "user.name", "T");
+      await ws.write("app.js", "let a = 1;\n");
+      await ws.write(".env", "KEY=old\n");
+      sh("add", "-A");
+      sh("commit", "-m", "init");
+      await expect(runs.start("site", "Review", "build", { kind: "crew" }, false, undefined, { review: true })).rejects.toThrow(/Nothing to review/);
+      await ws.write("app.js", "let a = 2;\n");
+      await ws.write(".env", "KEY=topsecret\n");
+      await ws.write("new.js", "export const b = 3;\n");
+      const r = await runs.start("site", "Review my changes", "build", { kind: "crew" }, false, undefined, { review: true });
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      const arch = prompts[0]!;
+      expect(arch).toContain("Review the changes in the diff");
+      expect(arch).toContain("+let a = 2;");
+      expect(arch).toContain("new.js");
+      expect(arch).not.toContain("topsecret");
+      expect(prompts).toHaveLength(1);
+      expect(await ws.read("app.js")).toBe("let a = 2;\n");
+      expect(runs.get(r.id)?.status).toBe("done");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

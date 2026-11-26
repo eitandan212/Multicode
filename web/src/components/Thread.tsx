@@ -391,7 +391,7 @@ export function Thread({
           <Markdown
             text={
               run.context?.safety === "readonly"
-                ? "Here's the plan. Nothing was changed (plan-only mode)."
+                ? run.summary?.trim() || "Here's the plan. Nothing was changed (plan-only mode)."
                 : run.changed.length === 0
                   ? run.summary?.trim() || "Done. No files changed."
                   : review.pending === "sandbox"

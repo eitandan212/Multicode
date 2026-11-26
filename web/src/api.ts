@@ -196,6 +196,7 @@ export const api = {
     team?: TeamChoice,
     sleep = false,
     parentId?: string,
+    review = false,
   ) =>
     request<RunSummary>("POST", `/api/projects/${project}/runs`, {
       prompt,
@@ -203,6 +204,7 @@ export const api = {
       team,
       ...(sleep ? { sleep: true } : {}),
       ...(parentId ? { parentId } : {}),
+      ...(review ? { review: true } : {}),
     }),
   apply: (id: string, variant?: string, force = false) =>
     request<{ applied: string[]; conflicts: string[] }>(

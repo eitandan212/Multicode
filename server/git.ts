@@ -146,3 +146,28 @@ export async function gitPush(root: string): Promise<GitStatus> {
   }
   return gitStatus(root);
 }
+
+/**
+ * What changed since the last commit, as a diff (new files in full), for a review. Undefined when
+ * the folder isn't a repository; "" when nothing changed.
+ */
+export async function gitDiff(root: string, max = 40_000): Promise<string | undefined> {
+  const s = await gitStatus(root);
+  if (!s.repo) return undefined;
+  const spec = await pathspec(root);
+  const hasHead = (await git(root, ["rev-parse", "--verify", "HEAD"])).code === 0;
+  const tracked = hasHead ? (await git(root, ["diff", "HEAD", "--no-color", "-U3", ...spec], 30_000)).stdout : "";
+  let out = tracked;
+  const untracked = (await git(root, ["ls-files", "--others", "--exclude-standard", ...spec])).stdout
+    .split("\n")
+    .filter(Boolean);
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  for (const f of untracked) {
+    if (out.length >= max) break;
+    const text = await readFile(path.join(root, f), "utf8").catch(() => undefined);
+    if (text === undefined || text.includes("\u0000")) continue;
+    out += `\n--- /dev/null\n+++ b/${f} (new file)\n${text.slice(0, 8000).split("\n").map((l) => `+${l}`).join("\n")}\n`;
+  }
+  return out.length > max ? `${out.slice(0, max)}\n…(diff trimmed)` : out;
+}
