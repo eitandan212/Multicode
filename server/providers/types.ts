@@ -19,6 +19,11 @@ export interface GenerateRequest {
   mode: "text" | "edit";
   /** Shared MCP servers (CLI agents only; files-based harnesses get them through sync). */
   mcpServers?: McpServer[];
+  /**
+   * Shared MCP servers to keep off for this call (answering and planning need no browser or
+   * desktop tools). Agents that read them from their own config files get them switched off.
+   */
+  quietMcp?: McpServer[];
   /** Extra environment for agent processes (e.g. MCP server secrets). */
   env?: Record<string, string>;
   /** Pictures for the model to look at (API models with vision; agents open the files themselves). */

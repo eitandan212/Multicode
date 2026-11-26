@@ -211,6 +211,7 @@ function agentKit(o: KitOptions) {
     images?: ImageInput[],
   ) => {
     const streamId = randomUUID();
+    const withTools = mode === "edit" || /review/i.test(title);
     emit({ type: "agent.start", streamId, memberId: member.id, title });
     const local = new AbortController();
     const onRunAbort = () => local.abort();
@@ -280,7 +281,9 @@ function agentKit(o: KitOptions) {
           model: member.model,
           cwd: ws.root,
           mode,
-          mcpServers: o.mcpServers,
+          // Tools only where they help: building, and reviewing (it may check the result in a
+          // browser). Answering, planning and choosing a team need none.
+          ...(withTools ? { mcpServers: o.mcpServers } : o.mcpServers?.length ? { quietMcp: o.mcpServers } : {}),
           env: o.env,
           ...(images?.length ? { images } : {}),
           ...(approve ? { approve } : {}),
@@ -434,41 +437,6 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     }
   };
 
-  // A bare greeting or thanks needs no model at all.
-
-  // 0. Auto: the manager staffs the request from every connection.
-  if (o.manager && o.managerPicksTeam) {
-    const pool = [
-      ...new Map(
-        [roles.architect, roles.reviewer, ...roles.builders].map((m) => [
-          m.id,
-          m,
-        ]),
-      ).values(),
-    ];
-    if (pool.length >= 2) {
-      emit({ type: "phase", phase: "planning", round: 0 });
-      const pick = (await ask(
-        "Choosing the team",
-        P.managerTeamSystem(economy),
-        P.managerTeamPrompt(o.prompt, pool),
-      )) as
-        | { architect?: unknown; reviewer?: unknown; builders?: unknown }
-        | undefined;
-      const byId = (id: unknown) => pool.find((m) => m.id === id);
-      const builders = Array.isArray(pick?.builders)
-        ? pick.builders.map(byId).filter((m): m is ResolvedMember => Boolean(m))
-        : [];
-      const architect = byId(pick?.architect);
-      if (architect && builders.length)
-        roles = {
-          architect,
-          reviewer: byId(pick?.reviewer) ?? architect,
-          builders: [...new Set(builders)],
-        };
-    }
-  }
-
   // 1. Plan (always: even a single model thinks the work through before it builds)
   emit({ type: "phase", phase: "planning", round: 0 });
   const archCtx = await digest(0);
@@ -495,6 +463,39 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
     ),
   );
   const plan: Plan = parsePlan(planText, o.prompt);
+  // 2. Auto: once there is work to do, the manager staffs it from every connection. A reply or
+  // questions need no team (that call would cost more than the answer).
+  if (o.manager && o.managerPicksTeam && plan.tasks.length) {
+    const pool = [
+      ...new Map(
+        [roles.architect, roles.reviewer, ...roles.builders].map((m) => [
+          m.id,
+          m,
+        ]),
+      ).values(),
+    ];
+    if (pool.length >= 2) {
+      const pick = (await ask(
+        "Choosing the team",
+        P.managerTeamSystem(economy),
+        P.managerTeamPrompt(`${o.prompt}\n\nThe plan:\n${plan.tasks.map((t, n) => `${n + 1}. ${t.title}`).join("\n")}`, pool),
+      )) as
+        | { architect?: unknown; reviewer?: unknown; builders?: unknown }
+        | undefined;
+      const byId = (id: unknown) => pool.find((m) => m.id === id);
+      const builders = Array.isArray(pick?.builders)
+        ? pick.builders.map(byId).filter((m): m is ResolvedMember => Boolean(m))
+        : [];
+      const architect = byId(pick?.architect);
+      if (architect && builders.length)
+        roles = {
+          architect,
+          reviewer: byId(pick?.reviewer) ?? architect,
+          builders: [...new Set(builders)],
+        };
+    }
+  }
+
   if (smart && o.manager && plan.tasks.length) {
     const answer = (await ask(
       "Assigning the tasks",

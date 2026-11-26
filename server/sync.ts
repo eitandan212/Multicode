@@ -151,7 +151,7 @@ function geminiEntry(s: McpServer) {
     env: envFor(s, envRef.gemini),
   };
 }
-function opencodeEntry(s: McpServer) {
+export function opencodeEntry(s: McpServer) {
   if (s.type === "http") return { type: "remote", url: s.url, enabled: true };
   return {
     type: "local",

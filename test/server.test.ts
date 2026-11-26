@@ -161,6 +161,12 @@ describe("cli adapters", () => {
       CLI_SPECS["opencode-cli"].env!(req).OPENCODE_CONFIG_CONTENT!,
     );
     expect(ocEnv.permission.bash).toBe("deny");
+    // Answering or planning: the MCP servers synced into opencode.json stay off for that call.
+    const quiet = JSON.parse(
+      CLI_SPECS["opencode-cli"].env!({ ...req, mode: "text", quietMcp: [{ name: "playwright", type: "stdio", command: "npx", args: ["@playwright/mcp"] }] }).OPENCODE_CONFIG_CONTENT!,
+    );
+    expect(quiet.mcp.playwright).toMatchObject({ type: "local", enabled: false });
+    expect(ocEnv.mcp).toBeUndefined();
     expect(buildCliArgs("codex-cli", { ...req, mode: "text" }, "x")).toContain(
       "read-only",
     );
@@ -705,6 +711,34 @@ describe("no build when there is nothing to build", () => {
     expect(r.changedFiles).toEqual([]);
   });
 
+  it("a greeting with Auto and a manager: one call, no team choice, no tools", async () => {
+    const reqs: GenerateRequest[] = [];
+    const p: Provider = {
+      editsFiles: false,
+      async generate(req: GenerateRequest) {
+        reqs.push(req);
+        return '{"reply":"Hi!","tasks":[]}';
+      },
+    };
+    const mcp = [{ name: "playwright", type: "stdio" as const, command: "npx", args: ["@playwright/mcp"] }];
+    const r = await runCrew({
+      prompt: "hello",
+      history: [],
+      workspace: await Workspace.open(dir, "talk-auto"),
+      roles: assignRoles([member("a", "architect", p), member("b", "builder", p)]),
+      settings: { maxReviewRounds: 2, dispatch: "smart" },
+      emit: () => {},
+      signal: new AbortController().signal,
+      manager: member("manager", "architect", p),
+      managerPicksTeam: true,
+      mcpServers: mcp,
+    });
+    expect(r.summary).toBe("Hi!");
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0]!.mcpServers).toBeUndefined();
+    expect(reqs[0]!.quietMcp?.map((s) => s.name)).toEqual(["playwright"]);
+  });
+
   it("asks questions before building something it would have to guess, and builds nothing", async () => {
     const plan = parsePlan('{"questions":[{"question":"Which platform?","options":["Web","iPhone"]},"Who is it for?"],"tasks":[]}', "make me an app");
     expect(plan.tasks).toEqual([]);
@@ -947,11 +981,19 @@ describe("manager model", () => {
         manager: member("manager", "architect", managerProvider(answers, seen)),
         managerPicksTeam: true,
       });
+      // The architect plans first; only work to do brings the manager in to staff it.
       expect(seen[0]).toBe("team");
       const planner = events.find(
         (e) => e.type === "agent.start" && e.title === "Planning the work",
       );
-      expect(planner).toMatchObject({ memberId: architect });
+      expect(planner).toMatchObject({ memberId: "a" });
+      const builders = new Set(
+        events.flatMap((e) =>
+          e.type === "agent.start" && e.title !== "Planning the work" && !/review|choosing|assigning/i.test(e.title) ? [e.memberId] : [],
+        ),
+      );
+      // A sensible pick builds with its builders (b, a); a nonsense one leaves the crew as it was.
+      if (architect === "c") expect([...builders].every((m) => m === "b" || m === "a")).toBe(true);
       expect(result.changedFiles.length).toBeGreaterThan(0);
     }
   });

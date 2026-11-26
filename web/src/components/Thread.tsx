@@ -81,6 +81,8 @@ export function Thread({
   onSend,
 }: ThreadProps) {
   const running = run.status === "running";
+  // Tools and skills reach the builders and reviewers; an answer or questions use none.
+  const usedTools = run.tasks.length > 0;
   const [now, setNow] = useState(Date.now());
   const end = useRef<HTMLDivElement>(null);
 
@@ -346,11 +348,11 @@ export function Thread({
             <summary>
               <Icon name="chevron" size={12} className="ctx-caret" />
               {run.streams.length} step{run.streams.length === 1 ? "" : "s"}
-              {run.context && run.context.plugins.length + run.context.skills.length > 0
+              {usedTools && run.context && run.context.plugins.length + run.context.skills.length > 0
                 ? ` · ${run.context.plugins.length + run.context.skills.length} tools and skills`
                 : ""}
             </summary>
-            {run.context && (run.context.plugins.length > 0 || run.context.skills.length > 0) && (
+            {usedTools && run.context && (run.context.plugins.length > 0 || run.context.skills.length > 0) && (
               <div className="context-row">
                 {run.context.plugins.map((p) => (
                   <span key={p} className="ctx-chip plugin" title="Plugin">
@@ -685,7 +687,7 @@ function ToolLine({
       )}
       {open && (
         <pre ref={body} className="tool-body">
-          {stream.text || (stream.status === "live" ? "Thinking…" : "")}
+          {(stream.status === "live" ? stream.text : readableOutput(stream.text)) || (stream.status === "live" ? "Thinking…" : "")}
           {stream.error && (
             <span className="err-text">{`\n${stream.error}`}</span>
           )}
@@ -693,6 +695,56 @@ function ToolLine({
       )}
     </div>
   );
+}
+
+/**
+ * A step's answer in words: the crew's planning, team and review answers are JSON for MultiCode
+ * to read; people see what they say (the copy button still gives the raw output).
+ */
+export function readableOutput(text: string): string {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return text;
+  let o: Record<string, unknown>;
+  try {
+    o = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    // Several objects in a row: the last one is the answer.
+    const m = text.slice(start, end + 1).match(/\{[\s\S]*\}(?![\s\S]*\{)/);
+    try {
+      o = JSON.parse(m?.[0] ?? "") as Record<string, unknown>;
+    } catch {
+      return text;
+    }
+  }
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const list = (v: unknown) => (Array.isArray(v) ? v : []);
+  const lines: string[] = [];
+  if (str(o.reply)) lines.push(str(o.reply));
+  const qs = list(o.questions);
+  if (qs.length)
+    lines.push(
+      qs
+        .map((q, i) => {
+          const x = (typeof q === "string" ? { question: q } : (q ?? {})) as { question?: unknown; options?: unknown };
+          const opts = list(x.options).filter((v) => typeof v === "string");
+          return `${i + 1}. ${str(x.question)}${opts.length ? ` (${opts.join(" / ")})` : ""}`;
+        })
+        .join("\n"),
+    );
+  if (str(o.summary)) lines.push(str(o.summary));
+  const tasks = list(o.tasks);
+  if (tasks.length)
+    lines.push(tasks.map((t, i) => `${i + 1}. ${str((t as { title?: unknown })?.title) || "Task"}`).join("\n"));
+  if (typeof o.approved === "boolean") {
+    const issues = list(o.issues).map((v) => (typeof v === "string" ? v : str((v as { description?: unknown })?.description) || str((v as { issue?: unknown })?.issue)));
+    lines.push(o.approved ? "Approved." : "Needs changes:");
+    if (issues.filter(Boolean).length) lines.push(issues.filter(Boolean).map((v) => `• ${v}`).join("\n"));
+  }
+  if (str(o.why)) lines.push(str(o.why));
+  const assignments = list(o.assignments);
+  if (assignments.length) lines.push(`${assignments.length} task${assignments.length === 1 ? "" : "s"} assigned.`);
+  return lines.length ? lines.join("\n\n") : text;
 }
 
 const SHOWN_FILES = 3;

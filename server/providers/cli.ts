@@ -4,7 +4,7 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Connection } from "../config.js";
 import type { ProviderKind } from "../shared.js";
-import { codexMcpArgs } from "../sync.js";
+import { codexMcpArgs, opencodeEntry } from "../sync.js";
 import {
   ProviderError,
   type DeltaHandler,
@@ -122,9 +122,14 @@ export const CLI_SPECS: Record<CliKind, CliSpec> = {
             prompt,
           ],
     // Inline config: shell and web tools removed entirely, so the agent can only read and edit files.
-    env: () => ({
+    // MCP servers synced into the project's opencode.json stay off when the call only answers or
+    // plans: they'd start for nothing and their tool lists cost tens of thousands of tokens.
+    env: (req) => ({
       OPENCODE_CONFIG_CONTENT: JSON.stringify({
         permission: { bash: "deny", webfetch: "deny" },
+        ...(req.quietMcp?.length
+          ? { mcp: Object.fromEntries(req.quietMcp.map((s) => [s.name, { ...opencodeEntry(s), enabled: false }])) }
+          : {}),
       }),
     }),
     listModels: ["models"],
@@ -514,7 +519,10 @@ export class CliProvider implements Provider {
           const parsed = parse(line);
           if (parsed.text) {
             if (out.length < MAX_CAPTURE) out += parsed.text + "\n";
-            if (!parsed.text.startsWith("▸ ")) answer += parsed.text + "\n";
+            if (!parsed.text.startsWith("▸ ")) {
+              answer += parsed.text + "\n";
+              if (spec.output === "opencode-json") finalResult = parsed.text;
+            }
             onDelta(parsed.text + "\n");
           }
           if (parsed.result !== undefined) finalResult = parsed.result;
