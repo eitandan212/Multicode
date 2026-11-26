@@ -5806,3 +5806,27 @@ html.pet-window, html.pet-window body, html.pet-window #root{ background: transp
 .start-tip svg{ color: var(--amber); }
 /* Menus and dialogs open above the pet. */
 .pet:not(.is-standalone){ z-index: 15; }
+
+/* The crew's questions before it builds. */
+.questions{ gap: 14px; }
+.questions-lead{ display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.questions-lead svg{ color: var(--brand); }
+.question{ display: grid; gap: 8px; }
+.question > p{ margin: 0; }
+.question-options{ display: flex; flex-wrap: wrap; gap: 6px; }
+.question-option{
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease-soft), background-color 140ms var(--ease-soft), transform 200ms var(--spring);
+}
+.question-option:hover:not(:disabled){ border-color: var(--brand); }
+.question-option:active{ transform: scale(0.96); }
+.question-option.is-picked{ background: var(--accent-soft); border-color: var(--brand); color: var(--brand); }
+.question-own{ height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: inherit; font: inherit; font-size: 13.5px; }

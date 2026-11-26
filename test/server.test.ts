@@ -9,7 +9,6 @@ import { captureBaseline, diffChanges } from "../server/crew/diff.js";
 import {
   assignRoles,
   runCrew,
-  smallTalkReply,
   scheduleTasks,
   type ResolvedMember,
 } from "../server/crew/orchestrator.js";
@@ -685,15 +684,23 @@ describe("no build when there is nothing to build", () => {
       signal: new AbortController().signal,
     });
 
-  it("answers a greeting or thanks without calling any model", async () => {
-    for (const hi of ["hello", "Hi!", "שלום", "תודה רבה", "thanks."]) {
-      const { p, calls } = counting("{}");
-      const r = await run(hi, p);
-      expect(calls).toEqual([]);
-      expect(r.summary).toMatch(/\S/);
-      expect(r.changedFiles).toEqual([]);
-    }
-    expect(smallTalkReply("hello, build me a todo app")).toBeUndefined();
+  it("lets the model answer a greeting itself (no canned replies), with one call and no builders", async () => {
+    const { p, calls } = counting('{"reply":"היי! מה בונים היום?","tasks":[]}');
+    const r = await run("שלום", p);
+    expect(calls).toEqual(["architect"]);
+    expect(r.summary).toBe("היי! מה בונים היום?");
+    expect(r.changedFiles).toEqual([]);
+  });
+
+  it("asks questions before building something it would have to guess, and builds nothing", async () => {
+    const plan = parsePlan('{"questions":[{"question":"Which platform?","options":["Web","iPhone"]},"Who is it for?"],"tasks":[]}', "make me an app");
+    expect(plan.tasks).toEqual([]);
+    expect(plan.questions).toEqual([{ question: "Which platform?", options: ["Web", "iPhone"] }, { question: "Who is it for?" }]);
+    const { p, calls } = counting('{"questions":[{"question":"What should the app do?","options":["Track habits","Split bills"]}],"tasks":[]}');
+    const r = await run("make me an app", p);
+    expect(calls).toEqual(["architect"]);
+    expect(r.summary).toContain("What should the app do?");
+    expect(r.changedFiles).toEqual([]);
   });
 
   it("lets the architect answer a question with one call and no builders", async () => {

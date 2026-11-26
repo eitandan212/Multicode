@@ -71,8 +71,29 @@ const asString = (v: unknown, fallback = ""): string =>
 
 export function parsePlan(text: string, request: string): Plan {
   const raw = extractJson(text) as
-    | { summary?: unknown; tasks?: unknown; reply?: unknown }
+    | { summary?: unknown; tasks?: unknown; reply?: unknown; questions?: unknown }
     | undefined;
+  // The architect needs answers first: nothing is built on a guess.
+  const questions = Array.isArray(raw?.questions)
+    ? raw.questions
+        .slice(0, 5)
+        .map((q) => {
+          const o = (typeof q === "string" ? { question: q } : (q ?? {})) as { question?: unknown; options?: unknown };
+          const question = asString(o.question).trim().slice(0, 300);
+          const options = Array.isArray(o.options)
+            ? o.options.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim().slice(0, 120)).slice(0, 6)
+            : [];
+          return question ? { question, ...(options.length ? { options } : {}) } : undefined;
+        })
+        .filter((q): q is { question: string; options?: string[] } => Boolean(q))
+    : [];
+  if (questions.length && (!Array.isArray(raw?.tasks) || raw.tasks.length === 0))
+    return {
+      summary: "",
+      tasks: [],
+      questions,
+      reply: [asString(raw?.reply).trim(), ...questions.map((q, i) => `${i + 1}. ${q.question}`)].filter(Boolean).join("\n"),
+    };
   // Nothing to build: the architect answered the message itself.
   const reply = asString(raw?.reply).trim();
   if (reply && (!Array.isArray(raw?.tasks) || raw.tasks.length === 0))

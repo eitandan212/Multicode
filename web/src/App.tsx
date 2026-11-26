@@ -971,6 +971,7 @@ export function App() {
         }}>
           <Thread
             earlier={earlierTurns}
+            onSend={(text) => void startRun(text)}
             project={project ?? undefined}
             onAnswer={async (id, allow, always) => {
               await api.approve(run.id, id, allow, always);

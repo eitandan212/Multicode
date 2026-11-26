@@ -49,6 +49,8 @@ interface ThreadProps {
   onDiscard: () => Promise<void>;
   /** Put a prompt back in the composer to edit and send again. */
   onReuse?: (prompt: string) => void;
+  /** Send a message in this thread (answers to the crew's questions). */
+  onSend?: (text: string) => void;
   /** Your answer to an action waiting for approval. */
   onAnswer?: (id: string, allow: boolean, always?: boolean) => Promise<void>;
 }
@@ -76,6 +78,7 @@ export function Thread({
   onDiscard,
   onReuse,
   onAnswer,
+  onSend,
 }: ThreadProps) {
   const running = run.status === "running";
   const [now, setNow] = useState(Date.now());
@@ -430,7 +433,10 @@ export function Thread({
         />
       )}
 
-      {run.status === "done" && !run.variants && (
+      {run.status === "done" && run.questions && run.questions.length > 0 ? (
+        <Questions questions={run.questions} onSend={onSend} />
+      ) : null}
+      {run.status === "done" && !run.variants && !run.questions?.length && (
         <div className="msg-agent enter is-done">
           <div className="done-line">
           <span className="done-mark" aria-hidden>
@@ -994,5 +1000,50 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
     >
       <Icon name={done ? "check" : "file"} size={13} />
     </button>
+  );
+}
+
+
+/** The crew's questions before it builds: tap a suggested answer or write your own, then send. */
+function Questions({ questions, onSend }: { questions: { question: string; options?: string[] }[]; onSend?: (text: string) => void }) {
+  const [picked, setPicked] = useState<Record<number, string>>({});
+  const [sent, setSent] = useState(false);
+  const all = questions.every((_, i) => picked[i]?.trim());
+  const send = () => {
+    setSent(true);
+    onSend?.(questions.map((q, i) => (questions.length > 1 ? `${q.question}\n→ ${picked[i]}` : picked[i]!)).join("\n\n"));
+  };
+  return (
+    <div className="msg-agent enter questions">
+      <p className="questions-lead">
+        <Icon name="spark" size={14} /> Before I build, a few questions:
+      </p>
+      {questions.map((q, i) => (
+        <div key={i} className="question">
+          <p>{q.question}</p>
+          {q.options && (
+            <div className="question-options">
+              {q.options.map((o) => (
+                <button key={o} type="button" className={`question-option ${picked[i] === o ? "is-picked" : ""}`} onClick={() => setPicked({ ...picked, [i]: o })} disabled={sent}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          )}
+          <input
+            className="question-own"
+            placeholder="Or write your own answer"
+            value={q.options?.includes(picked[i] ?? "") ? "" : (picked[i] ?? "")}
+            onChange={(e) => setPicked({ ...picked, [i]: e.target.value })}
+            disabled={sent}
+          />
+        </div>
+      ))}
+      {onSend && (
+        <button className="btn primary align-start" disabled={!all || sent} onClick={send}>
+          <Icon name="arrowUp" size={13} /> {sent ? "Sent" : "Send answers"}
+        </button>
+      )}
+    </div>
   );
 }
