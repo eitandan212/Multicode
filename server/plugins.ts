@@ -18,6 +18,8 @@ export interface PluginContext {
   dataDir: string;
   /** Origin the preview is served from, e.g. http://localhost:4317. */
   previewOrigin: string;
+  /** The in-app browser's MCP address (desktop app); agents drive it instead of a headless one. */
+  inAppBrowser?: string;
   options: { browserAnyWebsite?: boolean };
 }
 
@@ -54,7 +56,7 @@ export const PLUGINS: PluginDef[] = [
     risk: "medium",
     defaultOn: true,
     source: "@playwright/mcp@0.0.86 (Microsoft)",
-    server: (c) => ({
+    server: (c) => c.inAppBrowser ? { name: "browser", type: "http", url: c.inAppBrowser } : ({
       name: "browser",
       type: "stdio",
       command: "npx",
@@ -75,7 +77,7 @@ export const PLUGINS: PluginDef[] = [
       ],
     }),
     instructions: (c) =>
-      `Browser: after you change the UI, open ${c.previewOrigin}/preview/${c.project}/ with the browser tools, check the console for errors and click through the main flow before you call the work done.`,
+      `Browser: after you change the UI, open ${c.previewOrigin}/preview/${c.project}/ with the browser tools, check the console for errors and click through the main flow before you call the work done.${c.inAppBrowser ? " The browser is the one inside MultiCode: the user watches it live, so keep to what the task needs." : ""}`,
   },
   {
     id: "devtools",

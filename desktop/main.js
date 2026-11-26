@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkForUpdate, installUpdate } from "./updater.js";
+import { setupAiBrowser } from "./aiBrowser.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ICON = path.join(here, "..", "build", process.platform === "win32" ? "icon.ico" : "icon.png");
@@ -73,6 +74,11 @@ async function launch() {
     secretKeyFromKeychain();
     const { startServer } = await import("../dist/server/start.js");
     started = await startServer({ port: 4317 });
+    // The in-app browser the crew can drive (its MCP server lives in the MultiCode server).
+    const { registerBrowserDriver, browserMcpUrl, previewPass, PREVIEW_PASS_COOKIE } = await import("../dist/server/inAppBrowser.js");
+    setupAiBrowser(() => win, registerBrowserDriver, { origin: started.url.replace(/\/$/, ""), cookie: PREVIEW_PASS_COOKIE, pass: previewPass() });
+    // Diagnostics (and tests): the browser's MCP address, from the main process only.
+    globalThis.multicodeBrowserMcpUrl = () => browserMcpUrl(started.url);
   } catch (err) {
     dialog.showErrorBox("MultiCode couldn't start", String(err?.stack ?? err));
     app.quit();

@@ -27,6 +27,7 @@ import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
 import { CustomSkills } from "./customSkills.js";
 import { Todos } from "./todos.js";
+import { handleBrowserMcp, PREVIEW_PASS_COOKIE, validPreviewPass } from "./inAppBrowser.js";
 import { cleanScripts, ScriptRunner, suggestScripts } from "./scripts.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { cloneUrl, gitBranches, gitCheckout, gitClone, gitCommit, gitInit, gitPull, gitPush, gitStatus, repoName } from "./git.js";
@@ -135,6 +136,15 @@ export function createApp(opts: AppOptions) {
     next();
   });
 
+  // The in-app browser's MCP server, for agents (they carry its key; see inAppBrowser.ts).
+  app.all("/mcp/browser", express.json({ limit: "1mb" }), (req, res) => {
+    handleBrowserMcp(req, res, {
+      anyWebsite: Boolean(config.extensions.browserAnyWebsite),
+      origin: `http://${req.headers.host ?? "localhost"}`,
+    }).catch((err: Error) => {
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+    });
+  });
   app.use("/api", express.json({ limit: "2mb" }));
   // CSRF guard: a custom header forces a CORS preflight, which we never approve.
   app.use("/api", (req, res, next) => {
@@ -147,6 +157,8 @@ export function createApp(opts: AppOptions) {
   const auth = opts.auth;
   const cookieToken = (req: Request): string | undefined =>
     /(?:^|;\s*)mc_session=([\w-]{20,200})/.exec(req.headers.cookie ?? "")?.[1];
+  const cookieValue = (req: Request, name: string): string | undefined =>
+    new RegExp(`(?:^|;\\s*)${name}=([\\w-]{20,200})`).exec(req.headers.cookie ?? "")?.[1];
   const setSession = (res: Response, token: string) =>
     res.setHeader("Set-Cookie", `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${30 * 86400}`);
   const OPEN = /^\/auth\/(status|login|setup|google\/(start|callback|poll))$/;
@@ -159,7 +171,10 @@ export function createApp(opts: AppOptions) {
     next();
   };
   app.use("/api", (req, res, next) => (OPEN.test(req.path) ? next() : guard(req, res, next)));
-  app.use(["/preview", "/preview-sandbox"], guard);
+  // Previews: a signed-in session, or the built-in browser's preview pass (previews only).
+  app.use(["/preview", "/preview-sandbox"], (req, res, next) =>
+    validPreviewPass(cookieValue(req, PREVIEW_PASS_COOKIE)) ? next() : guard(req, res, next),
+  );
   const userOf = (req: Request) => (req as Request & { user?: User }).user;
   // What changes how this computer runs commands or keeps keys is the owner's to change:
   // connections, settings and hooks, the crew, MCP servers, installs, opened folders, checks, skills.

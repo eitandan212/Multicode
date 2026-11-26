@@ -44,6 +44,7 @@ import {
 } from "./plugins.js";
 import { inlineSkills, selectPacks, type ActivePack } from "./skills.js";
 import { recordRun } from "./graph.js";
+import { browserMcpUrl } from "./inAppBrowser.js";
 import { autoTeam, soloMember } from "./team.js";
 import type { RunActivity } from "./shared.js";
 import {
@@ -259,6 +260,7 @@ export class RunManager {
           project,
           dataDir: this.sync.dataDir,
           previewOrigin: this.sync.previewOrigin,
+          inAppBrowser: browserMcpUrl(this.sync.previewOrigin),
           options: { browserAnyWebsite: ext.browserAnyWebsite },
         })
       : { servers: [] as McpServer[], instructions: [] as string[] };

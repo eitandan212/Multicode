@@ -7,6 +7,16 @@ interface WindowControlsOverlay {
   addEventListener(type: "geometrychange", listener: () => void): void;
 }
 
+export interface BrowserViewState {
+  url: string;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  /** The crew acted in it a moment ago. */
+  driving: boolean;
+}
+
 declare global {
   interface Window {
     multicodeDesktop?: {
@@ -17,6 +27,14 @@ declare global {
       setPet?: (on: boolean) => void;
       /** Bring MultiCode to the front on a chat (from the pet). */
       openRun?: (runId: string) => void;
+      /** The in-app browser the crew can drive (desktop app). */
+      browser?: {
+        setBounds: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+        go: (action: "back" | "forward" | "reload" | "stop" | { url: string }) => void;
+        get: () => Promise<BrowserViewState | null>;
+        onState: (fn: (s: BrowserViewState) => void) => () => void;
+        onReveal: (fn: () => void) => () => void;
+      };
       /** The pet's click: MultiCode to the front. */
       showApp?: () => void;
       /** The pet's drag: move its window by this much. */

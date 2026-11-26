@@ -6071,3 +6071,30 @@ html.pet-window[data-bg] body::before, html.pet-window[data-bg] body::after{ dis
 }
 .pet-progress{ display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .pet-progress > span{ display: block; height: 100%; background: var(--brand); transition: width 400ms var(--ease); }
+
+/* ---- In-app browser (Browser tab) ---- */
+.aib{ display: flex; flex-direction: column; gap: 8px; padding-top: 8px; min-height: 0; flex: 1; }
+.aib-bar{ display: flex; align-items: center; gap: 2px; }
+.aib-bar .icon-btn:disabled{ opacity: 0.35; }
+.aib-url{
+  flex: 1; min-width: 0; height: 30px; margin-left: 4px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px;
+}
+.aib-url:focus{ outline: none; border-color: color-mix(in srgb, var(--brand) 60%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent); }
+.aib-driving{ display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent); animation: fade-in 200ms var(--ease) both; }
+.aib-dot{ width: 7px; height: 7px; border-radius: 50%; background: var(--brand); animation: pet-dot 1s var(--ease-soft) infinite; }
+.aib-view{ position: relative; flex: 1; min-height: 360px; height: 62vh; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-solid); overflow: hidden; }
+.aib-view.is-loading::after{ content: ""; position: absolute; left: 0; top: 0; height: 2px; width: 30%; background: var(--brand); animation: progress-glide 1.2s var(--ease-soft) infinite; }
+.aib-empty{ position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+.aib-empty p{ margin: 0; max-width: 320px; line-height: 1.45; }
+.spin-once{ animation: spin-once 500ms var(--ease) both; }
+@keyframes spin-once { from { transform: rotate(-360deg); } }
+
+/* Side panel tabs: six fit; when narrow they scroll sideways instead of being cut off. */
+.ws-card > .seg{ overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+.ws-card > .seg::-webkit-scrollbar{ display: none; }
+.ws-card > .seg > [role="tab"]{ flex: none; padding-inline: 9px; }
+@container (max-width: 560px) { .ws-card > .seg > [role="tab"] .muted{ display: none; } }
+/* Long chat names truncate; the list never scrolls sideways. */
+.sb-list{ overflow-x: hidden; }
+.sb-row, .sb-row-main{ min-width: 0; }

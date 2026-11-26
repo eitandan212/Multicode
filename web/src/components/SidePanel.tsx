@@ -14,8 +14,9 @@ import { AGENT_PRESETS } from "../../../server/agents";
 import { ProviderLogo } from "./ProviderLogo";
 import { Icon, Spinner } from "./Icon";
 import { RunPanel } from "./RunPanel";
+import { BrowserPanel } from "./BrowserPanel";
 
-export type PanelTab = "preview" | "files" | "changes" | "run" | "memory";
+export type PanelTab = "preview" | "browser" | "files" | "changes" | "run" | "memory";
 
 interface Props {
   project: string;
@@ -45,6 +46,8 @@ export function SidePanel(p: Props) {
     null,
   );
   const [fileError, setFileError] = useState("");
+  // The preview's own refresh (the files didn't change, but you want to see it fresh).
+  const [previewNonce, setPreviewNonce] = useState(0);
   const changedSet = useMemo(() => new Set(p.changed), [p.changed]);
 
   // The preview only reloads once the file list for this refresh has arrived, so it never
@@ -152,6 +155,15 @@ export function SidePanel(p: Props) {
           </button>
           <button
             role="tab"
+            aria-selected={tab === "browser"}
+            className={tab === "browser" ? "is-active" : ""}
+            onClick={() => setTab("browser")}
+            title="A browser inside MultiCode that the crew can drive"
+          >
+            <Icon name="monitor" size={14} /> Browser
+          </button>
+          <button
+            role="tab"
             aria-selected={tab === "files"}
             className={tab === "files" ? "is-active" : ""}
             onClick={() => setTab("files")}
@@ -189,8 +201,18 @@ export function SidePanel(p: Props) {
             <Icon name="graph" size={14} /> Memory
           </button>
           {tab === "preview" && hasIndex && (
-            <a
+            <button
               className="icon-btn push-right"
+              title="Refresh the preview"
+              aria-label="Refresh the preview"
+              onClick={() => setPreviewNonce((n) => n + 1)}
+            >
+              <Icon name="refresh" size={14} className={previewNonce ? "spin-once" : undefined} key={previewNonce} />
+            </button>
+          )}
+          {tab === "preview" && hasIndex && (
+            <a
+              className="icon-btn"
               href={previewUrl}
               target="_blank"
               rel="noreferrer"
@@ -205,7 +227,7 @@ export function SidePanel(p: Props) {
         {tab === "preview" &&
           (hasIndex ? (
             <iframe
-              key={p.refreshKey}
+              key={`${p.refreshKey}-${previewNonce}`}
               className="preview"
               title="Project preview"
               src={previewUrl}
@@ -227,6 +249,8 @@ export function SidePanel(p: Props) {
         )}
 
         {tab === "run" && <RunPanel project={p.project} />}
+
+        {tab === "browser" && <BrowserPanel previewUrl={new URL(previewUrl, location.href).href} />}
 
         {tab === "memory" && <MemoryGraph project={p.project} refreshKey={p.refreshKey} />}
 

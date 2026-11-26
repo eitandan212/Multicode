@@ -496,6 +496,13 @@ export function App() {
   const openRunRef = useRef(openRunById);
   openRunRef.current = openRunById;
   useEffect(() => window.multicodeDesktop?.onOpenRun?.((id) => openRunRef.current(id)), []);
+  // The crew started using the in-app browser: show it so you can watch.
+  const revealRef = useRef(() => {});
+  revealRef.current = () => {
+    setPanelTab("browser");
+    togglePanel(true);
+  };
+  useEffect(() => window.multicodeDesktop?.browser?.onReveal((() => revealRef.current())), []);
 
   const focusComposer = () =>
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus());
