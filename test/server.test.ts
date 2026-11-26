@@ -2534,3 +2534,44 @@ describe("parallel tasks (sandboxes, like Codex)", () => {
     }
   });
 });
+
+describe("Anthropic prompt caching (against a recorded fake API)", () => {
+  it("marks the system prompt cacheable, sends effort, and reports cached tokens", async () => {
+    const http = await import("node:http");
+    const { AnthropicProvider } = await import("../server/providers/api.js");
+    const bodies: Record<string, unknown>[] = [];
+    const server = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        bodies.push(JSON.parse(raw));
+        const warm = bodies.length > 1;
+        const usage = { input_tokens: 12, output_tokens: 3, cache_creation_input_tokens: warm ? 0 : 2000, cache_read_input_tokens: warm ? 2000 : 0 };
+        const ev = (type: string, data: unknown) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write(ev("message_start", { type: "message_start", message: { id: "m1", type: "message", role: "assistant", model: "claude-opus-5-5", content: [], stop_reason: null, stop_sequence: null, usage } }));
+        res.write(ev("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } }));
+        res.write(ev("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "ok" } }));
+        res.write(ev("content_block_stop", { type: "content_block_stop", index: 0 }));
+        res.write(ev("message_delta", { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 3 } }));
+        res.end(ev("message_stop", { type: "message_stop" }));
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const p = new AnthropicProvider({ id: "a", kind: "anthropic", label: "A", apiKey: "sk-ant-x", baseUrl: `http://127.0.0.1:${port}`, defaultModel: "claude-opus-5-5", effort: "high" });
+      const usages: { input: number; cached?: number }[] = [];
+      for (let i = 0; i < 2; i++)
+        await p.generate({ system: "You are the ARCHITECT. ".repeat(50), prompt: `request ${i}`, cwd: ".", mode: "text", onUsage: (u) => usages.push(u) }, () => {}, AbortSignal.timeout(10_000));
+      const sys = bodies[0]!.system as { type: string; text: string; cache_control?: unknown }[];
+      expect(sys[0]!.cache_control).toEqual({ type: "ephemeral" });
+      expect(bodies[0]!.output_config).toEqual({ effort: "high" });
+      expect(JSON.stringify(bodies[0]!.system)).toBe(JSON.stringify(bodies[1]!.system));
+      expect(usages[0]).toMatchObject({ input: 2012, cached: 0 });
+      expect(usages[1]).toMatchObject({ input: 12, cached: 2000 });
+    } finally {
+      server.close();
+    }
+  });
+});
