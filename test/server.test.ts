@@ -2319,3 +2319,27 @@ describe("/review", () => {
     }
   });
 });
+
+describe("custom / commands", () => {
+  it("reads Claude Code and Codex command files, project first, with descriptions", async () => {
+    const { listCommands } = await import("../server/commands.js");
+    const home = await mkdtemp(path.join(tmpdir(), "mc-cmd-"));
+    const proj = await mkdtemp(path.join(tmpdir(), "mc-cmdp-"));
+    try {
+      await mkdir(path.join(proj, ".claude", "commands", "git"), { recursive: true });
+      await writeFile(path.join(proj, ".claude", "commands", "fix.md"), "---\ndescription: Fix an issue\n---\nFix issue $ARGUMENTS and add a test.");
+      await writeFile(path.join(proj, ".claude", "commands", "git", "pr.md"), "# Open a PR\nWrite a PR description.");
+      await mkdir(path.join(home, ".claude", "commands"), { recursive: true });
+      await writeFile(path.join(home, ".claude", "commands", "fix.md"), "global version");
+      await mkdir(path.join(home, ".codex", "prompts"), { recursive: true });
+      await writeFile(path.join(home, ".codex", "prompts", "explain.md"), "Explain $ARGUMENTS simply.");
+      const cmds = await listCommands(proj, home);
+      expect(cmds.map((c) => `${c.source}:${c.name}`)).toEqual(["project:fix", "project:git:pr", "Codex:explain"]);
+      expect(cmds[0]).toMatchObject({ description: "Fix an issue", body: "Fix issue $ARGUMENTS and add a test." });
+      expect(cmds[1]!.description).toBe("Open a PR");
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      await rm(proj, { recursive: true, force: true });
+    }
+  });
+});

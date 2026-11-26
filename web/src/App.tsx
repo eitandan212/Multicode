@@ -400,6 +400,31 @@ export function App() {
     await launch(project, prompt, mode, sleep, parentId, review);
   };
 
+  // Saves the open thread (every turn: your message, the answer, changed files) as Markdown.
+  const exportThread = () => {
+    const open = run ? runs.find((r) => r.id === run.id) : undefined;
+    if (!open) return;
+    const key = open.threadId ?? open.id;
+    const turns = runs.filter((r) => (r.threadId ?? r.id) === key).sort((a, b) => a.startedAt - b.startedAt);
+    const md = [
+      `# ${plainPrompt(turns[0]!.prompt)}\n\n_${open.project} · ${new Date(turns[0]!.startedAt).toLocaleString()}_`,
+      ...turns.map((t) =>
+        [
+          `## You\n\n${t.prompt}`,
+          `## Crew\n\n${t.reply ?? (t.status === "error" ? "Failed." : t.status === "cancelled" ? "Stopped." : "Done.")}`,
+          t.changedFiles?.length ? `Files changed: ${t.changedFiles.map((f) => `\`${f}\``).join(", ")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      ),
+    ].join("\n\n---\n\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+    a.download = `${plainPrompt(turns[0]!.prompt).replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 50) || "thread"}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
   const focusComposer = () =>
     requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus());
   const newThread = () => {
@@ -445,6 +470,25 @@ export function App() {
         group: "Actions",
         run: () => dispatch({ kind: "reset", run: null }),
       },
+      {
+        id: "review",
+        label: "Review my changes",
+        hint: "the crew reviews uncommitted changes for bugs and changes nothing",
+        icon: "eye",
+        group: "Actions",
+        run: () => void startRun("Review my uncommitted changes", "build", true).catch((e: Error) => setReviewError(e.message)),
+      },
+      ...(run
+        ? [
+            {
+              id: "export",
+              label: "Export thread as Markdown",
+              icon: "download" as const,
+              group: "Actions",
+              run: exportThread,
+            },
+          ]
+        : []),
       {
         id: "toggle-ide",
         label: view === "ide" ? "Switch to Chat view" : "Switch to IDE view",
@@ -764,6 +808,7 @@ export function App() {
       onSubmit={startRun}
       onCommand={(id) => {
         if (id === "new") newThread();
+        else if (id === "export") exportThread();
         else if (id === "review")
           void startRun("Review my uncommitted changes", "build", true).catch((e: Error) => setReviewError(e.message));
         else if (id === "usage" || id === "connections" || id === "crew") setDialog(id);

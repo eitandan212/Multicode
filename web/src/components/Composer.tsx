@@ -88,7 +88,7 @@ export function Composer(p: Props) {
   // "/" commands and "@" file mentions.
   const [trigger, setTrigger] = useState<Trigger>(null);
   const [active, setActive] = useState(0);
-  const items = useSuggest(p.project, trigger);
+  const { items, custom } = useSuggest(p.project, trigger);
   const track = (el: HTMLTextAreaElement) => {
     const t = triggerAt(el.value, el.selectionStart ?? el.value.length);
     setTrigger(t);
@@ -108,6 +108,20 @@ export function Composer(p: Props) {
   const pick = (i: number) => {
     const it = items[i];
     if (!it || !trigger) return;
+    if (trigger.kind === "slash" && it.key.startsWith("custom:")) {
+      // Your own command: its text goes in the box; the caret lands where $ARGUMENTS was.
+      const body = custom.find((c) => `custom:${c.name}` === it.key)?.body ?? "";
+      const at = body.indexOf("$ARGUMENTS");
+      setPrompt(body.replace(/\$ARGUMENTS/g, ""));
+      setTrigger(null);
+      requestAnimationFrame(() => {
+        const el = box.current;
+        const pos = at >= 0 ? at : body.length;
+        el?.focus();
+        el?.setSelectionRange(pos, pos);
+      });
+      return;
+    }
     if (trigger.kind === "slash") return runCommand(it.key as SlashId);
     const el = box.current;
     const caret = el?.selectionStart ?? prompt.length;

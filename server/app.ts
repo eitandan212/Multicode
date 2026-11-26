@@ -22,6 +22,7 @@ import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
+import { listCommands } from "./commands.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { gitCommit, gitInit, gitPush, gitStatus } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
@@ -329,6 +330,14 @@ export function createApp(opts: AppOptions) {
   api.put(
     "/sync",
     wrap(async (req, res) => res.json(await config.setSync(req.body ?? {}))),
+  );
+  // Your own "/" commands from Claude Code (.claude/commands) and Codex (~/.codex/prompts).
+  api.get(
+    "/projects/:name/commands",
+    wrap(async (req, res) => {
+      const ws = await Workspace.open(projectsDir, validateProjectName(param(req, "name")));
+      res.json(await listCommands(ws.root));
+    }),
   );
   // MCP servers already set up in Claude Code, Codex, Cursor, Gemini CLI, Claude Desktop, Windsurf.
   api.get(

@@ -125,6 +125,8 @@ export const api = {
   saveExtensions: (body: Record<string, unknown>) =>
     request<ExtensionsView>("PUT", "/api/extensions", body),
   sync: () => request<SyncConfigView>("GET", "/api/sync"),
+  commands: (project: string) =>
+    request<{ name: string; description: string; body: string; source: string }[]>("GET", `/api/projects/${project}/commands`),
   discoverMcp: () => request<FoundMcpServer[]>("GET", "/api/mcp/discover"),
   importMcp: (servers: { source: string; name: string }[]) =>
     request<SyncConfigView>("POST", "/api/mcp/import", { servers }),

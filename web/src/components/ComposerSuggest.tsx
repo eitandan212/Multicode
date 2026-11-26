@@ -6,6 +6,7 @@ import { Icon, type IconName } from "./Icon";
 export type SlashId =
   | "new"
   | "review"
+  | "export"
   | "plan"
   | "direct"
   | "sandbox"
@@ -28,6 +29,7 @@ export type SlashId =
 export const SLASH: { id: SlashId; hint: string; icon: IconName }[] = [
   { id: "new", hint: "Start a new thread", icon: "compose" },
   { id: "review", hint: "Review uncommitted changes for bugs (changes nothing)", icon: "eye" },
+  { id: "export", hint: "Save this thread as a Markdown file", icon: "download" },
   { id: "plan", hint: "Plan only: the crew changes nothing", icon: "list" },
   { id: "direct", hint: "Work directly in the project (with undo)", icon: "pencil" },
   { id: "sandbox", hint: "Work in a sandbox; you apply the result", icon: "shield" },
@@ -53,7 +55,7 @@ export type Trigger = { kind: "slash"; query: string } | { kind: "file"; query: 
 /** What the text before the caret asks for: "/cmd" alone on the box, or "@path" at the caret. */
 export function triggerAt(text: string, caret: number): Trigger {
   const before = text.slice(0, caret);
-  const slash = /^\/([\w-]*)$/.exec(before);
+  const slash = /^\/([\w:-]*)$/.exec(before);
   if (slash && caret === text.length) return { kind: "slash", query: slash[1]!.toLowerCase() };
   const at = /(^|\s)@([^\s@]*)$/.exec(before);
   if (at) return { kind: "file", query: at[2]!.toLowerCase(), start: caret - at[2]!.length - 1 };
@@ -75,9 +77,19 @@ export function rankFiles(files: string[], q: string, max = 8): string[] {
 
 export type Item = { key: string; label: string; hint: string; icon: IconName };
 
+export type CustomCommand = Awaited<ReturnType<typeof api.commands>>[number];
+
 export function useSuggest(project: string, trigger: Trigger) {
   const [files, setFiles] = useState<string[] | null>(null);
   const loadedFor = useRef("");
+  // Your own commands (Claude Code .claude/commands, Codex prompts), read when "/" is typed.
+  const [custom, setCustom] = useState<CustomCommand[]>([]);
+  const commandsFor = useRef("");
+  useEffect(() => {
+    if (trigger?.kind !== "slash" || commandsFor.current === project) return;
+    commandsFor.current = project;
+    void api.commands(project).then(setCustom).catch(() => setCustom([]));
+  }, [trigger?.kind, project]);
   useEffect(() => {
     if (trigger?.kind !== "file" || loadedFor.current === project) return;
     loadedFor.current = project;
@@ -85,10 +97,12 @@ export function useSuggest(project: string, trigger: Trigger) {
   }, [trigger?.kind, project]);
   useEffect(() => {
     loadedFor.current = "";
+    commandsFor.current = "";
     setFiles(null);
+    setCustom([]);
   }, [project]);
 
-  return useMemo<Item[]>(() => {
+  const items = useMemo<Item[]>(() => {
     if (!trigger) return [];
     if (trigger.kind === "slash")
       // Name matches first (exact, then prefix), description matches after them.
@@ -98,14 +112,20 @@ export function useSuggest(project: string, trigger: Trigger) {
       }))
         .filter((x) => x.rank < 3)
         .sort((a, b) => a.rank - b.rank)
-        .map(({ c }) => ({ key: c.id, label: `/${c.id}`, hint: c.hint, icon: c.icon }));
+        .map(({ c }): Item => ({ key: c.id, label: `/${c.id}`, hint: c.hint, icon: c.icon }))
+        .concat(
+          custom
+            .filter((c) => c.name.includes(trigger.query) || c.description.toLowerCase().includes(trigger.query))
+            .map((c) => ({ key: `custom:${c.name}`, label: `/${c.name}`, hint: `${c.description} · ${c.source}`, icon: "book" as const })),
+        );
     return rankFiles(files ?? [], trigger.query).map((f) => ({
       key: f,
       label: f.slice(f.lastIndexOf("/") + 1),
       hint: f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : "",
       icon: "file",
     }));
-  }, [trigger, files]);
+  }, [trigger, files, custom]);
+  return { items, custom };
 }
 
 export function SuggestMenu(p: { items: Item[]; active: number; onPick: (i: number) => void; title: string }) {
