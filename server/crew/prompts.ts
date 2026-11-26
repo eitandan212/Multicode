@@ -125,12 +125,58 @@ Your role: BUILDER. Implement exactly your assigned task, consistent with the pl
 ${output}`;
 }
 
+/** How the crew talks while it builds together (added to builders' and partners' instructions). */
+export const TEAM_CHAT = `You build TOGETHER with your teammates, at the same time, in the same project folder.
+Their latest messages and what each is working on right now are below: respect what they agreed
+and don't redo or undo their work. To tell the team something they need (an interface or name you
+defined, a change to a shared file, a problem you found in their part), write it on its own line as
+<team>one or two short sentences</team>. Only what helps them; no greetings.`;
+
+/** A teammate edits the code the driver just wrote: pair programming, both hands on the code. */
+export function pairSystem(editsFiles: boolean, specialty?: string): string {
+  return `${builderSystem(editsFiles, specialty)}
+
+You are PAIR PROGRAMMING: your teammate just wrote the change below for this task. Work on the same
+code with your own hands: fix bugs, finish anything missing or half-done, tighten weak spots, and
+make it fit the rest of the project. Keep what is already good: improve it, don't rewrite it for
+taste. If the work is right as it is, change no files and say so in <team>…</team>.
+${TEAM_CHAT}`;
+}
+
+export function pairPrompt(opts: {
+  request: string;
+  task: PlanTask;
+  /** Who wrote the change you now work on. */
+  from: string;
+  /** "partner": you continue the driver's work. "reply": the partner changed your work. */
+  turn: "partner" | "reply";
+  diff: string;
+  tree: string;
+  files: string;
+  team: string;
+}): string {
+  return [
+    `User request:\n${opts.request}`,
+    `TASK: ${opts.task.title}\nFiles: ${opts.task.files.join(", ") || "(see the change)"}\n${opts.task.description}`,
+    opts.turn === "partner"
+      ? `${opts.from} just wrote this for the task (your turn at the keyboard):\n${opts.diff || "(no file changes)"}`
+      : `Your pair partner ${opts.from} edited your work like this:\n${opts.diff}\n\nKeep what improves it and fix anything it broke. If it's all good, change nothing and reply in <team>…</team>.`,
+    opts.team ? `Team chat and who is working on what:\n${opts.team}` : "",
+    `Project files:\n${opts.tree}`,
+    opts.files ? `Current contents:\n${opts.files}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export function builderPrompt(opts: {
   request: string;
   plan: Plan;
   task: PlanTask;
   tree: string;
   files: string;
+  /** The team chat and who is working on what right now (together mode). */
+  team?: string;
 }): string {
   const others = opts.plan.tasks
     .filter((t) => t.id !== opts.task.id)
@@ -141,6 +187,7 @@ export function builderPrompt(opts: {
     `Plan summary:\n${opts.plan.summary}`,
     others ? `Other tasks (handled by teammates, in parallel):\n${others}` : "",
     `YOUR TASK: ${opts.task.title}\nFiles you own: ${opts.task.files.join(", ") || "(decide)"}\n${opts.task.description}`,
+    opts.team ? `Team chat and who is working on what right now:\n${opts.team}` : "",
     `Project files:\n${opts.tree}`,
     opts.files ? `Current contents:\n${opts.files}` : "",
   ]

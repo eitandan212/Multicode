@@ -45,6 +45,8 @@ export interface RunView {
   compactions: { memberId: string; from: number; to: number }[];
   /** Questions the architect asked before building. */
   questions?: { question: string; options?: string[] }[];
+  /** The crew's team chat while it builds together. */
+  team?: { memberId: string; text: string; at: number }[];
   /** The last call's size: how full its model's context was (for the context ring). */
   lastCall?: { memberId: string; tokens: number };
   changed: string[];
@@ -115,6 +117,8 @@ export function reduceRun(s: RunView, e: RunEvent): RunView {
   switch (e.type) {
     case "run.started":
       return { ...s, prompt: e.prompt, startedAt: e.at };
+    case "team":
+      return { ...s, team: [...(s.team ?? []), { memberId: e.memberId, text: e.text, at: e.at }].slice(-200) };
     case "approval.request":
       return { ...s, asks: [...s.asks, e] };
     case "approval.resolved": {

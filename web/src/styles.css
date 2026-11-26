@@ -6098,3 +6098,12 @@ html.pet-window[data-bg] body::before, html.pet-window[data-bg] body::after{ dis
 /* Long chat names truncate; the list never scrolls sideways. */
 .sb-list{ overflow-x: hidden; }
 .sb-row, .sb-row-main{ min-width: 0; }
+
+/* Team chat: what the crew tells each other while building together */
+.team-chat{ display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--card) 70%, transparent); }
+.team-chat-head{ display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.team-msg{ display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.45; animation: todo-in 260ms var(--spring) both; }
+.team-who{ display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--agent, var(--text)); white-space: nowrap; }
+.team-who svg, .team-who img{ width: 14px; height: 14px; }
+.team-text{ overflow-wrap: anywhere; }
+.collab-label{ margin-left: 10px; }

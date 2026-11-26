@@ -329,6 +329,20 @@ export function Thread({
         </div>
       )}
 
+      {run.team && run.team.length > 0 && (
+        <section className="team-chat enter" aria-label="Team chat">
+          <span className="team-chat-head">
+            <Icon name="users" size={13} /> Team chat
+          </span>
+          {run.team.slice(running ? -8 : -30).map((m, i) => (
+            <div key={`${m.at}-${i}`} className="team-msg" style={{ ["--agent" as string]: colorFor(crew, m.memberId) }}>
+              <span className="team-who">{logo(m.memberId)}{name(m.memberId)}</span>
+              <span className="team-text">{m.text}</span>
+            </div>
+          ))}
+        </section>
+      )}
+
       {run.streams.length > 0 &&
         (running ? (
         <div className="tool-lines">

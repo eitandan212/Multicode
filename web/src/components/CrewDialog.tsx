@@ -41,6 +41,7 @@ export function CrewDialog({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [dispatch, setDispatch] = useState(state.settings.dispatch);
+  const [collab, setCollab] = useState(state.settings.collaboration ?? "together");
   const [adding, setAdding] = useState(false);
   const [gallery, setGallery] = useState(false);
   const opencode = state.clis.find((c) => c.kind === "opencode-cli");
@@ -82,10 +83,11 @@ export function CrewDialog({
       await api.saveCrew(crew);
       if (
         dispatch !== state.settings.dispatch ||
+        collab !== (state.settings.collaboration ?? "together") ||
         managerKey(manager) !==
           managerKey(state.settings.manager ?? { mode: "auto" })
       )
-        await api.saveSettings({ dispatch, manager });
+        await api.saveSettings({ dispatch, manager, collaboration: collab });
       await onChanged();
       ref.current?.close();
     } catch (e) {
@@ -199,6 +201,27 @@ export function CrewDialog({
                     onClick={() => setDispatch("balanced")}
                   >
                     Balanced
+                  </button>
+                </div>
+                <span className="small muted collab-label">Building</span>
+                <div className="seg mini" role="radiogroup" aria-label="How the crew builds">
+                  <button
+                    role="radio"
+                    aria-checked={collab === "together"}
+                    className={collab === "together" ? "is-active" : ""}
+                    onClick={() => setCollab("together")}
+                    title="Each task in a pair: one model writes, a second edits the same code, the first answers. They talk in a team chat."
+                  >
+                    Together
+                  </button>
+                  <button
+                    role="radio"
+                    aria-checked={collab === "split"}
+                    className={collab === "split" ? "is-active" : ""}
+                    onClick={() => setCollab("split")}
+                    title="Each task by one model alone (fewer tokens)."
+                  >
+                    Split
                   </button>
                 </div>
                 {manager.mode === "auto" && !live?.free && (

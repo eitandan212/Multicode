@@ -999,6 +999,94 @@ describe("manager model", () => {
   });
 });
 
+describe("building together", () => {
+  let dir: string;
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "mc-together-"));
+  });
+  afterAll(() => rm(dir, { recursive: true, force: true }));
+
+  /** Two builders who really work on the same code: A writes, B edits A's file, A answers. */
+  const pairCrew = () => {
+    const log: { who: string; kind: string; prompt: string }[] = [];
+    const builder = (who: string): Provider => ({
+      editsFiles: false,
+      async generate(req) {
+        const kind = req.system.includes("ARCHITECT")
+          ? "plan"
+          : req.system.includes("REVIEWER")
+            ? "review"
+            : req.system.includes("PAIR PROGRAMMING")
+              ? req.prompt.includes("edited your work")
+                ? "reply"
+                : "pair"
+              : "build";
+        log.push({ who, kind, prompt: req.prompt });
+        if (kind === "plan")
+          return JSON.stringify({
+            summary: "Two parts.",
+            tasks: [
+              { title: "Page", description: "html", files: ["index.html"] },
+              { title: "Logic", description: "js", files: ["app.js"] },
+            ],
+          });
+        if (kind === "review") return '{"approved":true,"summary":"ok","issues":[]}';
+        if (kind === "build" && req.prompt.includes("YOUR TASK: Page"))
+          return '<team>The button has id="go"; call start() from app.js.</team>\n<file path="index.html">\n<button id="go">Go</button>\n</file>';
+        if (kind === "build") return '<file path="app.js">\nfunction start() {}\n</file>';
+        if (kind === "pair" && req.prompt.includes("TASK: Page"))
+          return '<team>Added a label to the button.</team>\n<file path="index.html">\n<button id="go" aria-label="Start">Go</button>\n</file>';
+        if (kind === "pair") return "<team>Looks right, no changes.</team>";
+        return "<team>Agreed, keeping the label.</team>";
+      },
+    });
+    return { log, roles: assignRoles([member("a", "architect", builder("a")), member("b1", "builder", builder("b1")), member("b2", "builder", builder("b2"))]) };
+  };
+
+  it("pairs on every task: a second model edits the code and the first answers, with a team chat", async () => {
+    const { log, roles } = pairCrew();
+    const events: RunEvent[] = [];
+    const ws = await Workspace.open(dir, "pair");
+    const r = await runCrew({
+      prompt: "a start page",
+      history: [],
+      workspace: ws,
+      roles,
+      settings: { maxReviewRounds: 1, dispatch: "balanced" },
+      emit: (e) => events.push(e),
+      signal: new AbortController().signal,
+    });
+    expect(await ws.tryRead("index.html")).toContain('aria-label="Start"');
+    const page = log.filter((l) => l.prompt.includes("TASK: Page") || l.prompt.includes("YOUR TASK: Page"));
+    const builderOfPage = page.find((l) => l.kind === "build")!.who;
+    const partner = page.find((l) => l.kind === "pair")!;
+    expect(partner.who).not.toBe(builderOfPage);
+    expect(partner.prompt).toContain('id="go"'); // the partner sees the driver's change
+    // The partner changed the page, so its driver answered; the untouched task needed no answer.
+    expect(page.find((l) => l.kind === "reply")?.who).toBe(builderOfPage);
+    expect(log.filter((l) => l.kind === "reply")).toHaveLength(1);
+    const chat = events.flatMap((e) => (e.type === "team" ? [e.text] : []));
+    expect(chat).toEqual(expect.arrayContaining(['The button has id="go"; call start() from app.js.', "Added a label to the button."]));
+    // What one builder told the team reaches the others' prompts.
+    expect(log.some((l) => l.kind !== "build" && l.prompt.includes("call start() from app.js"))).toBe(true);
+    expect(r.changedFiles.sort()).toEqual(["app.js", "index.html"]);
+  });
+
+  it("split: each task by one model, no pairing", async () => {
+    const { log, roles } = pairCrew();
+    await runCrew({
+      prompt: "a start page",
+      history: [],
+      workspace: await Workspace.open(dir, "split"),
+      roles,
+      settings: { maxReviewRounds: 1, dispatch: "balanced", collaboration: "split" },
+      emit: () => {},
+      signal: new AbortController().signal,
+    });
+    expect(log.filter((l) => l.kind === "pair" || l.kind === "reply")).toEqual([]);
+  });
+});
+
 describe("specialist agents", () => {
   let dir: string;
   beforeAll(async () => {

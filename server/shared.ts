@@ -278,6 +278,11 @@ export interface Settings {
   /** smart: the dispatcher assigns each task to the best-fitting agent. balanced: first free agent. */
   dispatch: DispatchMode;
   /**
+   * together: models build each task in pairs (one writes, a second edits the same code, the
+   * first answers) and talk in a team chat. split: each task by one model alone.
+   */
+  collaboration?: "together" | "split";
+  /**
    * A free or cheap model that runs the crew: it picks the team in Auto and assigns every task,
    * so the strong models spend their effort on thinking and building. auto: use a free
    * connection, else the free OpenCode model. pick: this connection. off: the planner dispatches.
@@ -498,6 +503,8 @@ export type RunEvent =
   | { type: "hook"; event: HookEvent; command: string; ok: boolean; output: string }
   /** The architect needs answers before building. */
   | { type: "questions"; questions: { question: string; options?: string[] }[] }
+  /** A message from one crew member to the others (the team chat). */
+  | { type: "team"; memberId: string; text: string; at: number }
   /** A request was too long for the model: it was compacted (characters before/after) and sent again. */
   | { type: "compacted"; streamId: string; memberId: string; from: number; to: number }
   | { type: "run.diff"; files: FileDiff[] }

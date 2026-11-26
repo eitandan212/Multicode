@@ -555,11 +555,39 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
   );
   const buildContext = economy ? 30_000 : 80_000;
 
-  const buildTask = async (
+  // ---- Building together: a team chat, and who is working on what right now ----
+  const together = (o.settings.collaboration ?? "together") === "together";
+  const memberName = (id: string) =>
+    [roles.architect, roles.reviewer, ...roles.builders, ...(o.roles.reviewers ?? [])].find((m) => m.id === id)?.name ?? "A teammate";
+  const chat: { from: string; text: string }[] = [];
+  /** Who is at the keyboard on which task right now. */
+  const working = new Map<string, { member: string; task: PlanTask }>();
+  const postNotes = (member: ResolvedMember, reply: string) => {
+    for (const m of reply.matchAll(/<team>([\s\S]*?)<\/team>/gi)) {
+      const text = m[1]!.replace(/\s+/g, " ").trim().slice(0, 400);
+      if (!text || chat.length > 200) continue;
+      chat.push({ from: member.name, text });
+      emit({ type: "team", memberId: member.id, text, at: Date.now() });
+    }
+  };
+  const teamBrief = (self: string) => {
+    if (!together) return "";
+    const now = [...working.values()]
+      .filter((w) => w.member !== self)
+      .map((w) => `- ${memberName(w.member)} is working on "${w.task.title}" (${w.task.files.join(", ") || "files not fixed"})`);
+    const said = chat.slice(-12).map((c) => `${c.from}: ${c.text}`);
+    return [now.length ? `Working right now:\n${now.join("\n")}` : "", said.length ? `Messages:\n${said.join("\n")}` : ""]
+      .filter(Boolean)
+      .join("\n\n");
+  };
+
+  /** One turn at the keyboard: the member edits (agents) or answers with files (APIs) for a task. */
+  const editTurn = async (
     member: ResolvedMember,
     task: PlanTask,
-    basePlan: Plan,
-    attempt: number,
+    title: string,
+    system: string,
+    prompt: (ctx: { tree: string; files: string }) => string,
   ) => {
     const cli = isCli(member);
     const ctx = cli
@@ -573,28 +601,23 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
       ? { text: await captureBaseline(ws), snap: await ws.snapshot() }
       : undefined;
     inFlight.set(task.id, new Set(task.files));
+    working.set(task.id, { member: member.id, task });
     try {
     const reply = await call(
       member,
       ws,
-      attempt ? `${task.title} (retry)` : task.title,
-      P.builderSystem(cli, member.instructions) +
-        (cli || !o.skillText ? "" : `\n\nSkills to apply:${o.skillText}`),
-      P.builderPrompt({
-        request: o.prompt,
-        plan: basePlan,
-        task,
-        tree: ctx.tree,
-        files: ctx.files,
-      }),
+      title,
+      system + (cli || !o.skillText ? "" : `\n\nSkills to apply:${o.skillText}`),
+      prompt(ctx),
       "edit",
       track,
     );
+    postNotes(member, reply);
     if (track.declined)
       throw new DeclinedError(`You declined ${member.name}'s change.`);
     if (!cli) {
       const ops = parseFileOps(reply).filter((op) => !isProtected(op.path));
-      if (!ops.length) throw new Error("Builder returned no file changes.");
+      if (!ops.length) return { reply, wrote: false };
       if (o.approvals && !o.approvals.free("edit")) {
         const ok = await o.approvals.ask(member.id, {
           kind: "edit",
@@ -609,10 +632,98 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         else await ws.remove(op.path);
       }
       // A file returned unchanged is an answer ("already right"), not a failure to write it.
-      answered.set(task.id, new Set(ops.map((op) => op.path)));
+      answered.set(task.id, new Set([...(answered.get(task.id) ?? []), ...ops.map((op) => op.path)]));
+      return { reply, wrote: true };
     } else if (before) await checkChanges(member, task, before, track.approved);
+    return { reply, wrote: true };
     } finally {
       inFlight.delete(task.id);
+      working.delete(task.id);
+    }
+  };
+
+  const buildTask = async (
+    member: ResolvedMember,
+    task: PlanTask,
+    basePlan: Plan,
+    attempt: number,
+  ) => {
+    const cli = isCli(member);
+    const { wrote } = await editTurn(
+      member,
+      task,
+      attempt ? `${task.title} (retry)` : task.title,
+      P.builderSystem(cli, member.instructions) + (together ? `\n\n${P.TEAM_CHAT}` : ""),
+      (ctx) =>
+        P.builderPrompt({
+          request: o.prompt,
+          plan: basePlan,
+          task,
+          tree: ctx.tree,
+          files: ctx.files,
+          team: teamBrief(member.id),
+        }),
+    );
+    if (!wrote) throw new Error("Builder returned no file changes.");
+  };
+
+  /** Who pairs with a driver: another builder first, else the reviewer or the architect. */
+  let pairTurn = 0;
+  const partnerFor = (driver: ResolvedMember): ResolvedMember | undefined => {
+    const others = roles.builders.filter((b) => b.id !== driver.id);
+    if (others.length) return others[pairTurn++ % others.length];
+    return [roles.reviewer, roles.architect].find((m) => m.id !== driver.id);
+  };
+  const diffSince = async (files: string[], before: Map<string, string | undefined>) => {
+    let out = "";
+    for (const f of files) {
+      if (out.length > 24_000) break;
+      const prev = before.get(f);
+      const cur = await ws.tryRead(f);
+      if (prev === cur) continue;
+      out += patchOf(f, f, prev ?? "", cur ?? "", prev === undefined ? "(new)" : "", cur === undefined ? "(deleted)" : "", { context: 2 });
+    }
+    return out;
+  };
+  const readAll = async (files: string[]) => {
+    const m = new Map<string, string | undefined>();
+    for (const f of files) m.set(f, await ws.tryRead(f));
+    return m;
+  };
+
+  /**
+   * Pair programming on a finished task: the partner edits the driver's code directly, then the
+   * driver answers the partner's edits (one exchange; Economy: the partner's pass only). It never
+   * fails the task: the driver's work stands if pairing can't happen.
+   */
+  const pairOn = async (driver: ResolvedMember, task: PlanTask, start: Map<string, string | undefined>) => {
+    const partner = partnerFor(driver);
+    if (!partner) return;
+    const files = () => [...new Set([...task.files, ...start.keys()])].filter((f) => !isProtected(f));
+    const afterDriver = await readAll(files());
+    const driverDiff = await diffSince(files(), start);
+    if (!driverDiff) return;
+    try {
+      emit({ type: "task.status", taskId: task.id, status: "running", memberId: partner.id });
+      await withFallback(partner, (m) =>
+        editTurn(m, task, `Pairing · ${task.title}`, P.pairSystem(isCli(m), m.instructions), (ctx) =>
+          P.pairPrompt({ request: o.prompt, task, from: driver.name, turn: "partner", diff: driverDiff, tree: ctx.tree, files: ctx.files, team: teamBrief(m.id) }),
+        ),
+      );
+      await syncChanges(partner.id);
+      const partnerDiff = await diffSince(files(), afterDriver);
+      if (!partnerDiff || economy || signal.aborted) return;
+      emit({ type: "task.status", taskId: task.id, status: "running", memberId: driver.id });
+      await withFallback(driver, (m) =>
+        editTurn(m, task, `Answering ${partner.name} · ${task.title}`, P.pairSystem(isCli(m), m.instructions), (ctx) =>
+          P.pairPrompt({ request: o.prompt, task, from: partner.name, turn: "reply", diff: partnerDiff, tree: ctx.tree, files: ctx.files, team: teamBrief(m.id) }),
+        ),
+      );
+      await syncChanges(driver.id);
+    } catch (err) {
+      if (err instanceof DeclinedError || signal.aborted) throw err;
+      await syncChanges(partner.id);
+      emit({ type: "team", memberId: partner.id, text: `Couldn't pair on "${task.title}": ${(err as Error).message.slice(0, 160)}`, at: Date.now() });
     }
   };
 
@@ -720,6 +831,9 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
         const before = new Map<string, string | null>();
         for (const f of task.files)
           before.set(f, hashText(await ws.tryRead(f)));
+        // What the task's files held before (the pair partner sees the change as a diff).
+        const startText = together ? await readAll(task.files) : new Map<string, string | undefined>();
+        const changedBefore = new Set(changed);
         try {
           await withFallback(member, (m) =>
             buildTask(m, task, basePlan, attempt),
@@ -737,6 +851,21 @@ export async function runCrew(o: RunOptions): Promise<RunResult> {
               );
           }
           task.files.forEach((f) => owner.set(f, member.id));
+          if (together && attempt === 0) {
+            // Files the driver touched beyond its own list count too (agents edit freely).
+            // Files the driver touched beyond its own list: the ones it returned (APIs), or that no
+            // other task owns (agents edit freely, and other pairs work at the same time).
+            const othersOwn = new Set(tasks.filter((t) => t.id !== task.id).flatMap((t) => t.files));
+            for (const f of changed)
+              if (
+                !changedBefore.has(f) &&
+                !startText.has(f) &&
+                baseline.get(f) !== null &&
+                (isCli(member) ? !othersOwn.has(f) : answered.get(task.id)?.has(f))
+              )
+                startText.set(f, baseline.get(f) ?? undefined);
+            await pairOn(member, task, startText);
+          }
           emit({
             type: "task.status",
             taskId: task.id,

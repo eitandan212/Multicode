@@ -450,6 +450,11 @@ export class ConfigStore {
         };
       } else next.manager = { mode: m.mode as "auto" | "off" };
     }
+    if (input.collaboration !== undefined) {
+      if (input.collaboration !== "together" && input.collaboration !== "split")
+        throw new HttpError(400, "collaboration must be together or split");
+      next.collaboration = input.collaboration;
+    }
     if (input.dispatch !== undefined) {
       if (input.dispatch !== "smart" && input.dispatch !== "balanced")
         throw new HttpError(400, "dispatch must be smart or balanced");
