@@ -549,6 +549,10 @@ export interface RunSummary {
   reply?: string;
   /** Files the run changed (at most 30). */
   changedFiles?: string[];
+  /** Chat settings, kept on the chat's first run: your title, pinned, archived (hidden from the list). */
+  title?: string;
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 /** Default model strength when a connection names no model (the harness picks its own). */

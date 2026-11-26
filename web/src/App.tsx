@@ -1024,6 +1024,11 @@ export function App() {
               onSelectProject={selectProject}
               onSelectRun={selectRun}
               onNewThread={newThread}
+              onNewThreadIn={(name) => {
+                if (name !== project) selectProject(name);
+                newThread();
+              }}
+              onChatsChanged={() => void reload()}
               onNewProject={newProject}
               onOpenSettings={setDialog}
               onCollapse={() => toggleSidebar(false)}

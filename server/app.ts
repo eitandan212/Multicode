@@ -618,6 +618,15 @@ export function createApp(opts: AppOptions) {
     }),
   );
   api.get("/runs", (_req, res) => res.json(runs.list()));
+  // Chats: rename, pin, archive (hide) or delete one, with all its turns.
+  api.patch("/chats/:id", wrap(async (req, res) => res.json(await runs.updateChat(param(req, "id"), req.body ?? {}))));
+  api.delete(
+    "/chats/:id",
+    wrap(async (req, res) => {
+      await runs.deleteChat(param(req, "id"));
+      res.status(204).end();
+    }),
+  );
   api.get("/projects/:name/runs", (req, res) =>
     res.json(runs.list(validateProjectName(param(req, "name")))),
   );

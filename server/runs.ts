@@ -90,6 +90,9 @@ const summaryOf = ({
   parentId,
   reply,
   changedFiles,
+  title,
+  pinned,
+  archived,
 }: Run): RunSummary => ({
   id,
   project,
@@ -107,6 +110,9 @@ const summaryOf = ({
   ...(threadId ? { threadId, parentId } : {}),
   ...(reply ? { reply } : {}),
   ...(changedFiles?.length ? { changedFiles } : {}),
+  ...(title ? { title } : {}),
+  ...(pinned ? { pinned } : {}),
+  ...(archived ? { archived } : {}),
 });
 
 /** "@path" names in a request, read so the architect sees them (at most 6 files, ~16k characters). */
@@ -404,6 +410,42 @@ export class RunManager {
     return [...this.runs.values()].some(
       (r) => r.project === project && r.status === "running",
     );
+  }
+
+  /** The runs of one chat (its first run and every follow-up), oldest first. */
+  private chat(id: string): Run[] {
+    const first = this.get(id);
+    const key = first.threadId ?? first.id;
+    return [...this.runs.values()].filter((r) => (r.threadId ?? r.id) === key).sort((a, b) => a.startedAt - b.startedAt);
+  }
+
+  /** Rename, pin or archive a chat (stored on its first run). */
+  async updateChat(id: string, patch: { title?: unknown; pinned?: unknown; archived?: unknown }): Promise<RunSummary> {
+    const root = this.chat(id)[0]!;
+    if (patch.title !== undefined) {
+      if (patch.title !== null && typeof patch.title !== "string") throw new HttpError(400, "title must be text");
+      const t = (patch.title ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+      root.title = t || undefined;
+    }
+    if (patch.pinned !== undefined) root.pinned = patch.pinned === true || undefined;
+    if (patch.archived !== undefined) root.archived = patch.archived === true || undefined;
+    await this.saveSummary(root);
+    return summaryOf(root);
+  }
+
+  /** Deletes a chat and everything stored for it (logs, checkpoints, sandboxes). Not while it runs. */
+  async deleteChat(id: string): Promise<void> {
+    const runs = this.chat(id);
+    if (runs.some((r) => r.status === "running")) throw new HttpError(409, "Stop the chat before deleting it.");
+    for (const r of runs) {
+      this.runs.delete(r.id);
+      this.pendingData.delete(r.id);
+      this.checkpoints.delete(r.id);
+      if (this.runsDir)
+        for (const ext of [".json", ".jsonl", ".checkpoint.json", ".pending.json"])
+          await rm(path.join(this.runsDir, `${r.id}${ext}`), { force: true });
+      if (this.sync) await rm(path.join(this.sync.dataDir, "sandboxes", r.id), { recursive: true, force: true });
+    }
   }
 
   list(project?: string): RunSummary[] {

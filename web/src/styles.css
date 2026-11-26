@@ -5523,3 +5523,131 @@ button.git-branch:hover{ background: color-mix(in srgb, var(--brand) 22%, transp
 @media (max-width: 600px) {
   .ctx-pop{ position: fixed; left: 16px; right: 16px; bottom: 150px; width: auto; }
 }
+
+/* ---- Sidebar: projects, each with its chats ---- */
+.sb-project{ margin-bottom: 10px; }
+.sb-project-head{ display: flex; align-items: center; gap: 2px; padding: 0 4px 0 2px; }
+.sb-project-name{
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-project-name:hover{ color: var(--text); background: var(--hover); }
+.sb-project.is-current .sb-project-name{ color: var(--text); }
+.sb-caret{ flex: none; opacity: 0.6; }
+.sb-new-chat{ width: 26px; height: 26px; opacity: 0; transition: opacity 120ms var(--ease-soft); }
+.sb-project-head:hover .sb-new-chat, .sb-new-chat:focus-visible, .sb-project.is-current .sb-new-chat{ opacity: 1; }
+.sb-chats{ display: grid; gap: 1px; padding-left: 6px; }
+.sb-row{ position: relative; display: flex; align-items: center; border-radius: 8px; }
+.sb-row:hover, .sb-row.has-menu{ background: var(--hover); }
+.sb-row.is-active{ background: var(--accent-soft); }
+.sb-row-main{
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-row-main .truncate{ flex: 1; min-width: 0; }
+.sb-row-end{ flex: none; display: inline-flex; align-items: center; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.sb-row:hover .sb-row-end, .sb-row.has-menu .sb-row-end{ display: none; }
+.sb-pin{ flex: none; color: var(--muted); }
+.sb-dot{ width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.sb-dot.is-attention{ background: var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 22%, transparent); }
+.sb-dot.is-bad{ background: var(--bad); }
+.sb-more{
+  flex: none;
+  display: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 3px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sb-row:hover .sb-more, .sb-row.has-menu .sb-more, .sb-more:focus-visible{ display: grid; }
+.sb-more:hover{ color: var(--text); background: var(--line); }
+@media (hover: none) { .sb-more{ display: grid; } .sb-row-end{ display: none; } }
+.sb-menu{
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.2);
+}
+.sb-menu button{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-menu button:hover:not(:disabled){ background: var(--hover); }
+.sb-menu button:disabled{ opacity: 0.45; cursor: default; }
+.sb-menu .is-danger{ color: var(--bad); }
+.sb-rename{ flex: 1; padding: 2px 4px 2px 6px; }
+.sb-rename input{
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--brand);
+  border-radius: 7px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+}
+.sb-empty-row, .sb-show-more{
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.sb-empty-row:hover, .sb-show-more:hover{ color: var(--text); background: var(--hover); }
+.sb-group svg:first-child{ color: var(--muted); }
+.sb-menu.menu-pop{ bottom: auto; left: auto; transform-origin: 100% 0; }

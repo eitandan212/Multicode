@@ -2834,3 +2834,43 @@ describe("context ring", () => {
     expect(contextWindow("openai-compatible", "some-local-model")).toBe(128_000);
   });
 });
+
+describe("chats", () => {
+  it("renames, pins, archives and deletes a whole chat with its files", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-chats-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const runsDir = path.join(dir, "runs");
+      const runs = new RunManager(config, path.join(dir, "projects"), () => fakeProvider({ review: [] }), runsDir);
+      const done = (id: string) =>
+        new Promise<void>((resolve) => {
+          const off = runs.subscribe(id, (e) => {
+            if (e.type === "run.done" || e.type === "run.error") {
+              off();
+              resolve();
+            }
+          });
+        });
+      const a = await runs.start("site", "First");
+      await done(a.id);
+      const b = await runs.start("site", "Follow-up", "build", { kind: "crew" }, false, a.id);
+      await done(b.id);
+      const s = await runs.updateChat(b.id, { title: "  My   chat ", pinned: true, archived: true });
+      expect(s).toMatchObject({ id: a.id, title: "My chat", pinned: true, archived: true });
+      await runs.updateChat(a.id, { title: null, pinned: false });
+      expect(runs.list().find((r) => r.id === a.id)?.title).toBeUndefined();
+      const reloaded = new RunManager(config, path.join(dir, "projects"), () => fakeProvider({ review: [] }), runsDir);
+      await reloaded.load();
+      expect(reloaded.list().find((r) => r.id === a.id)?.archived).toBe(true);
+      await runs.deleteChat(b.id);
+      expect(runs.list()).toEqual([]);
+      const { readdir } = await import("node:fs/promises");
+      expect((await readdir(runsDir)).filter((f) => f.startsWith(a.id) || f.startsWith(b.id))).toEqual([]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
