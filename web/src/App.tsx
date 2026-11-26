@@ -158,7 +158,7 @@ export function App() {
   const setAppearance = (a: Appearance) => {
     setAppearanceState(a);
     applyAppearance(a);
-    saveAppearance(a);
+    return saveAppearance(a);
   };
   const [sidebarOpen, setSidebarOpen] = useState(
     () => !narrow() && store.get("sidebar") !== "0",

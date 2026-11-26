@@ -2,6 +2,7 @@
 /* Brand: Graphite #0B0C0F · Off-White #F5F4EF · Cobalt #2563FF · Amber #F59E0B · Inter */
 :root{
   --bg: #fcfcfc;
+  --bg-solid: #fcfcfc;
   --sidebar: #fafafa;
   --card: #ffffff;
   --hover: #f4f4f5;
@@ -60,6 +61,8 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]){
     --bg: #000000;
+  --bg-solid: #000000;
+    --bg-solid: #000000;
     --sidebar: #111111;
     --card: #111111;
     --hover: rgb(255 255 255 / 0.04);
@@ -5876,3 +5879,45 @@ html.pet-window, html.pet-window body, html.pet-window #root{ background: transp
 .todo-clear{ justify-self: start; border: 0; background: none; color: var(--muted); font-size: 11.5px; padding: 2px 6px; cursor: pointer; }
 .todo-clear:hover{ color: var(--text); }
 @media (hover: none) { .todo-actions{ opacity: 1; } }
+
+/* ---- Personal background (Appearance) ---- */
+:root[data-bg] body{ background: var(--bg-solid); }
+:root[data-bg] body::before,
+:root[data-bg] body::after{ content: ""; position: fixed; z-index: -1; pointer-events: none; }
+:root[data-bg] body::before{ inset: calc(var(--bg-blur, 0px) * -2); background: var(--bg-layer); filter: blur(var(--bg-blur, 0px)); }
+:root[data-bg] body::after{ inset: 0; background: color-mix(in srgb, var(--bg-solid) var(--bg-dim, 55%), transparent); }
+:root[data-bg] #root{ position: relative; z-index: 0; }
+:root[data-bg] .sidebar{ background: color-mix(in srgb, var(--sidebar) 72%, transparent); backdrop-filter: blur(18px) saturate(1.2); }
+:root[data-bg] .composer{ background: color-mix(in srgb, var(--card) 86%, transparent); backdrop-filter: blur(14px); }
+:root[data-bg] .topbar{ background: color-mix(in srgb, var(--bg-solid) 35%, transparent); }
+html.pet-window[data-bg] body::before, html.pet-window[data-bg] body::after{ display: none; }
+
+/* ---- Corners ---- */
+:root[data-radius="sharp"]{ --radius: 3px; }
+:root[data-radius="sharp"] .composer, :root[data-radius="sharp"] .dialog, :root[data-radius="sharp"] .pet-bubble{ border-radius: 6px; }
+:root[data-radius="round"]{ --radius: 12px; }
+:root[data-radius="round"] .composer{ border-radius: 24px; }
+:root[data-radius="round"] .dialog{ border-radius: 22px; }
+
+/* ---- Status symbols ---- */
+:root[data-status] .sb-dot{ width: auto; height: auto; background: none; box-shadow: none; font-size: 11px; line-height: 1; }
+:root[data-status="emoji"] .sb-dot.is-attention::before{ content: "✋"; }
+:root[data-status="emoji"] .sb-dot.is-bad::before{ content: "💥"; }
+:root[data-status="symbols"] .sb-dot{ font-weight: 800; font-size: 12px; }
+:root[data-status="symbols"] .sb-dot.is-attention{ color: var(--amber); }
+:root[data-status="symbols"] .sb-dot.is-attention::before{ content: "!"; }
+:root[data-status="symbols"] .sb-dot.is-bad{ color: var(--bad); }
+:root[data-status="symbols"] .sb-dot.is-bad::before{ content: "✕"; }
+
+/* Appearance controls */
+.bg-picker{ display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; width: 100%; }
+.bg-choice{ position: relative; height: 52px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; overflow: hidden; padding: 0; background-clip: padding-box; transition: transform 160ms var(--spring); }
+.bg-choice:hover{ transform: translateY(-2px); }
+.bg-choice.is-on{ outline: 2px solid var(--brand); outline-offset: 2px; }
+.bg-choice span{ position: absolute; left: 6px; bottom: 4px; font-size: 10.5px; font-weight: 600; color: #fff; text-shadow: 0 1px 3px rgb(0 0 0 / 0.6); }
+.bg-choice.is-none{ background: var(--bg-solid); display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+.bg-choice.is-none span{ position: static; color: var(--muted); text-shadow: none; }
+.bg-choice input[type="color"], .bg-choice input[type="file"]{ position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ap-range{ display: flex; align-items: center; gap: 10px; width: 100%; font-size: 12.5px; color: var(--muted); }
+.ap-range input{ flex: 1; accent-color: var(--brand); }
+.status-preview{ display: inline-flex; align-items: center; gap: 10px; margin-left: 10px; color: var(--muted); font-size: 12px; }
