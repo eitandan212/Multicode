@@ -5711,16 +5711,27 @@ html.pet-window, html.pet-window body, html.pet-window #root{ background: transp
 .pet-btn.ghost{ border-color: transparent; background: none; color: var(--muted); }
 .pet-btn:disabled{ opacity: 0.5; }
 .pet-more{ font-size: 11.5px; color: var(--muted); }
-.pet-body{ position: relative; width: 56px; height: 56px; filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.25)); }
-.pet-body svg{ display: block; overflow: visible; }
-.pet-blob{ transform-box: fill-box; transform-origin: 50% 100%; }
-.pet-body.is-idle .pet-blob{ animation: pet-breathe 3.2s var(--ease-soft) infinite; }
-.pet-body.is-busy svg{ animation: pet-bounce 0.9s var(--ease-soft) infinite; }
-.pet-body.is-alert svg{ animation: pet-wiggle 1.2s var(--ease-soft) infinite; }
-.pet-body.is-happy svg{ animation: pet-jump 0.7s var(--spring) 2; }
-.pet-eyes ellipse{ transition: ry 200ms var(--ease-soft); }
-.pet-body:not(.is-idle) .pet-eyes{ animation: pet-blink 4.5s infinite; transform-box: fill-box; transform-origin: center; }
-.pet-z{ color: var(--muted); animation: pet-z 2.4s var(--ease-soft) infinite; }
+.pet-body{ position: relative; width: 64px; height: 64px; filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.28)); }
+.pet-img{ display: block; width: 64px; height: 64px; object-fit: contain; transform-origin: 50% 100%; user-select: none; -webkit-user-drag: none; }
+.pet-body.is-idle .pet-img{ animation: pet-breathe 3.2s var(--ease-soft) infinite; }
+.pet-body.is-busy .pet-img{ animation: pet-bounce 0.9s var(--ease-soft) infinite; }
+.pet-body.is-alert .pet-img{ animation: pet-wiggle 1.2s var(--ease-soft) infinite; }
+.pet-body.is-happy .pet-img{ animation: pet-jump 0.7s var(--spring) 2; }
+.pet-body.is-sad .pet-img{ filter: saturate(0.7); transform: rotate(-4deg); }
+.pet-body:hover .pet-img{ transform: scale(1.06); transition: transform 200ms var(--spring); }
+.pet-sign{
+  position: absolute; top: -2px; left: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700; line-height: 1;
+  background: var(--panel); color: var(--muted); border: 1px solid var(--line); box-shadow: 0 2px 6px rgb(0 0 0 / 0.18);
+}
+.pet-sign.is-idle{ font-style: italic; animation: pet-z 2.4s var(--ease-soft) infinite; }
+.pet-sign.is-alert{ background: #f59e0b; color: #fff; border-color: transparent; }
+.pet-sign.is-happy{ background: #10b981; color: #fff; border-color: transparent; }
+.pet-sign.is-sad{ background: #ef4444; color: #fff; border-color: transparent; }
+.pet-dots{ position: absolute; top: -4px; left: -2px; display: flex; gap: 3px; padding: 4px 6px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.pet-dots i{ width: 4px; height: 4px; border-radius: 50%; background: var(--brand); animation: pet-dot 1s var(--ease-soft) infinite; }
+.pet-dots i:nth-child(2){ animation-delay: 0.15s; } .pet-dots i:nth-child(3){ animation-delay: 0.3s; }
+@keyframes pet-dot { 50% { transform: translateY(-3px); opacity: 0.5; } }
 .pet-badge{
   position: absolute;
   top: -4px;
@@ -5744,7 +5755,7 @@ html.pet-window, html.pet-window body, html.pet-window #root{ background: transp
 @keyframes pet-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
 @keyframes pet-z { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -8px); } }
 @media (prefers-reduced-motion: reduce) {
-  .pet-body svg, .pet-blob, .pet-eyes, .pet-z, .pet-bubble{ animation: none !important; }
+  .pet-img, .pet-sign, .pet-dots i, .pet-bubble{ animation: none !important; }
 }
 @media (max-width: 600px) { .pet:not(.is-standalone){ bottom: 150px; right: 12px; } }
 
@@ -5830,3 +5841,38 @@ html.pet-window, html.pet-window body, html.pet-window #root{ background: transp
 .question-option:active{ transform: scale(0.96); }
 .question-option.is-picked{ background: var(--accent-soft); border-color: var(--brand); color: var(--brand); }
 .question-own{ height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: inherit; font: inherit; font-size: 13.5px; }
+
+/* Pet picker (Preferences) */
+.pet-picker{ display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; width: 100%; margin-top: 8px; }
+.pet-choice{ display: grid; justify-items: center; gap: 2px; padding: 8px 4px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 11.5px; cursor: pointer; transition: transform 160ms var(--spring), border-color 160ms; }
+.pet-choice img{ width: 40px; height: 40px; }
+.pet-choice:hover{ transform: translateY(-2px); }
+.pet-choice.is-on{ border-color: var(--brand); color: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+
+/* ---- To-dos (sidebar) ---- */
+.todo-body{ padding: 2px 6px 8px; display: grid; gap: 4px; }
+.todo-list{ list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; max-height: 220px; overflow-y: auto; }
+.todo-item{ display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; border-radius: 8px; animation: todo-in 260ms var(--spring) both; }
+.todo-item:hover{ background: var(--hover, color-mix(in srgb, var(--text) 6%, transparent)); }
+@keyframes todo-in { from { opacity: 0; transform: translateY(-4px); } }
+.todo-check{
+  flex: none; width: 16px; height: 16px; margin-top: 1px; border-radius: 5px; border: 1.5px solid var(--muted);
+  display: grid; place-items: center; background: none; color: #fff; cursor: pointer; padding: 0;
+  transition: background 160ms, border-color 160ms, transform 160ms var(--spring);
+}
+.todo-check:active{ transform: scale(0.85); }
+.todo-check.is-on{ background: var(--brand); border-color: var(--brand); animation: todo-pop 300ms var(--spring); }
+@keyframes todo-pop { 50% { transform: scale(1.25); } }
+.todo-text{ flex: 1; min-width: 0; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; cursor: default; }
+.todo-item.is-done .todo-text{ color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.todo-tag{ margin-left: 6px; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); white-space: nowrap; }
+.todo-actions{ display: flex; gap: 2px; opacity: 0; transition: opacity 120ms; }
+.todo-item:hover .todo-actions, .todo-item:focus-within .todo-actions{ opacity: 1; }
+.icon-btn.tiny{ width: 22px; height: 22px; padding: 0; }
+.todo-edit{ flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--brand); background: var(--panel); color: var(--text); }
+.todo-add{ display: flex; align-items: center; gap: 8px; padding: 4px 6px; color: var(--muted); border-radius: 8px; }
+.todo-add:focus-within{ background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
+.todo-add input{ flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 13px; color: var(--text); outline: none; padding: 2px 0; }
+.todo-clear{ justify-self: start; border: 0; background: none; color: var(--muted); font-size: 11.5px; padding: 2px 6px; cursor: pointer; }
+.todo-clear:hover{ color: var(--text); }
+@media (hover: none) { .todo-actions{ opacity: 1; } }

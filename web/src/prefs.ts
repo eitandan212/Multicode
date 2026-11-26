@@ -10,14 +10,31 @@ export interface Prefs {
   sound: boolean;
   /** The pet: approvals, finished work and news, on your screen. */
   pet: boolean;
+  /** Which pet. */
+  petKind: PetKind;
 }
 
-export const DEFAULT_PREFS: Prefs = { sendKey: "enter", notifyDone: true, notifyApproval: true, sound: false, pet: true };
-const KEY = "multicode:prefs";
+export type PetKind = "cat" | "fox" | "panda" | "dog" | "owl" | "penguin" | "frog" | "robot";
+export const PET_KINDS: { id: PetKind; label: string }[] = [
+  { id: "cat", label: "Cat" },
+  { id: "fox", label: "Fox" },
+  { id: "panda", label: "Panda" },
+  { id: "dog", label: "Dog" },
+  { id: "owl", label: "Owl" },
+  { id: "penguin", label: "Penguin" },
+  { id: "frog", label: "Frog" },
+  { id: "robot", label: "Robot" },
+];
+
+export const DEFAULT_PREFS: Prefs = { sendKey: "enter", notifyDone: true, notifyApproval: true, sound: false, pet: true, petKind: "cat" };
+export const PREFS_KEY = "multicode:prefs";
+const KEY = PREFS_KEY;
 
 export function loadPrefs(): Prefs {
   try {
-    return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Prefs>) };
+    const p = { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Prefs>) };
+    if (!PET_KINDS.some((k) => k.id === p.petKind)) p.petKind = "cat";
+    return p;
   } catch {
     return DEFAULT_PREFS;
   }

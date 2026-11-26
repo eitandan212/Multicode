@@ -41,6 +41,8 @@ import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { usePresence } from "./motion";
 import { EXAMPLE_PROMPTS, ProjectForm, Tutorial } from "./components/Tutorial";
 import { SidePanel, type PanelTab } from "./components/SidePanel";
+import type { Todo } from "../../server/todos";
+import { todosChanged } from "./components/TodoList";
 import { ago, ProjectBadge, ProjectEmojis, Sidebar } from "./components/Sidebar";
 import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
@@ -415,6 +417,25 @@ export function App() {
     setRuns((rs) => [summary, ...rs]);
     if (tutorial) endTutorial();
     dispatch({ kind: "reset", run: emptyRun(summary.id, summary.prompt) });
+    return summary;
+  };
+  // A to-do goes to the crew as a new chat in its project (beside other work, when the
+  // project is busy); it ticks itself once that chat is done.
+  const sendTodo = async (todo: Todo) => {
+    const proj = todo.project ?? project;
+    if (!proj) {
+      setReviewError("Open a project first, then send the to-do.");
+      return;
+    }
+    if (proj !== project) selectProject(proj);
+    const busy = runs.some((r) => r.project === proj && r.status === "running");
+    try {
+      const summary = await launch(proj, todo.text, "build", sleep, undefined, false, busy);
+      await api.updateTodo(todo.id, { runId: summary.id, ...(todo.project ? {} : { project: proj }) });
+      todosChanged();
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : String(e));
+    }
   };
   const startRun = async (prompt: string, mode: RunMode = "build", review = false, parallelNow = false) => {
     if (!project) return;
@@ -1133,6 +1154,7 @@ export function App() {
               onNewProject={newProject}
               onOpenSettings={setDialog}
               onCollapse={() => toggleSidebar(false)}
+              onSendTodo={(t) => void sendTodo(t)}
             />
           </div>
           <div

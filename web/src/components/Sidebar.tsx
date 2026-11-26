@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { Todo } from "../../../server/todos";
+import { TodoList } from "./TodoList";
 import { UpdateButton } from "./UpdateButton";
 import { UsageMeter } from "./UsageMeter";
 import type {
@@ -29,6 +31,8 @@ interface Props {
     section: "connections" | "safety" | "extensions" | "crew" | "usage",
   ) => void;
   onCollapse: () => void;
+  /** Send a to-do to the crew as a new chat. */
+  onSendTodo: (todo: Todo) => void;
 }
 
 export function elapsed(ms: number): string {
@@ -368,6 +372,7 @@ export function Sidebar(p: Props) {
         </div>
       )}
 
+      <TodoList project={p.project} onSend={p.onSendTodo} />
       <UsageMeter onOpen={() => p.onOpenSettings("usage")} />
       <UpdateButton />
       <div className="sb-foot">

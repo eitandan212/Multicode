@@ -57,6 +57,7 @@ async function request<T>(
   return data as T;
 }
 
+import type { Todo } from "../../server/todos";
 import type { AccountUsage, AgentAccess, ConnectionHealth, GitStatus, SignInFlow } from "../../server/shared";
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
@@ -167,6 +168,14 @@ export const api = {
     request<unknown>("PUT", `/api/skills/custom/${encodeURIComponent(s.name.trim().toLowerCase().replace(/[\s_]+/g, "-"))}`, s),
   deleteCustomSkill: (name: string) => request<void>("DELETE", `/api/skills/custom/${encodeURIComponent(name)}`),
   installCustomSkill: (url: string) => request<unknown>("POST", "/api/skills/custom/install", { url }),
+  /** project: undefined = every to-do, null = general ones, a name = that project's. */
+  todos: (project?: string | null) =>
+    request<Todo[]>("GET", project === undefined ? "/api/todos" : `/api/todos?project=${encodeURIComponent(project ?? "")}`),
+  addTodo: (text: string, project: string | null) => request<Todo>("POST", "/api/todos", { text, project }),
+  updateTodo: (id: string, patch: Partial<Pick<Todo, "text" | "done" | "runId" | "project">>) =>
+    request<Todo>("PATCH", `/api/todos/${encodeURIComponent(id)}`, patch),
+  deleteTodo: (id: string) => request<void>("DELETE", `/api/todos/${encodeURIComponent(id)}`),
+  clearDoneTodos: (project?: string | null) => request<{ removed: number }>("POST", "/api/todos/clear-done", project === undefined ? {} : { project: project ?? "" }),
   discoverMcp: () => request<FoundMcpServer[]>("GET", "/api/mcp/discover"),
   importMcp: (servers: { source: string; name: string }[]) =>
     request<SyncConfigView>("POST", "/api/mcp/import", { servers }),

@@ -4,7 +4,7 @@ import type { Hook, HookEvent, ProjectInfo, Settings } from "../../../server/sha
 import { api, type AccountUser } from "../api";
 import { CurrentUser } from "./AuthGate";
 import { signInWithGoogle } from "./SignIn";
-import { chime, DEFAULT_PREFS, loadPrefs, notify, savePrefs, type Prefs } from "../prefs";
+import { chime, DEFAULT_PREFS, loadPrefs, notify, PET_KINDS, savePrefs, type Prefs } from "../prefs";
 import { Row, Seg, Toggle } from "./AppearanceDialog";
 import { useOpenDialog } from "./embed";
 import { Icon, Spinner } from "./Icon";
@@ -86,8 +86,18 @@ export function GeneralDialog({ onClose }: { onClose: () => void }) {
         <Toggle
           checked={p.pet}
           onChange={(v) => set({ pet: v })}
-          text={window.multicodeDesktop?.setPet ? "A little helper on your screen: approvals, finished work, news" : "A little helper in the corner: approvals, finished work, news"}
+          text={window.multicodeDesktop?.setPet ? "A little helper on your screen: approvals, finished work, to-dos, news" : "A little helper in the corner: approvals, finished work, to-dos, news"}
         />
+        {p.pet && (
+          <div className="pet-picker" role="radiogroup" aria-label="Choose your pet">
+            {PET_KINDS.map((k) => (
+              <button key={k.id} role="radio" aria-checked={p.petKind === k.id} className={`pet-choice ${p.petKind === k.id ? "is-on" : ""}`} onClick={() => set({ petKind: k.id })}>
+                <img src={k.id === "cat" ? "/pets/cat-idle.png" : `/pets/${k.id}.png`} alt="" />
+                {k.label}
+              </button>
+            ))}
+          </div>
+        )}
       </Row>
       <Row label="Sound">
         <Toggle checked={p.sound} onChange={(v) => { set({ sound: v }); if (v) chime(); }} text="A soft chime when a thread finishes" />

@@ -2,9 +2,33 @@ import { useEffect, useRef, useState } from "react";
 import type { RunSummary } from "../../../server/shared";
 import { api } from "../api";
 import { plainPrompt } from "./PromptText";
+import { todosChanged, useTodos } from "./TodoList";
+import { loadPrefs, PREFS_KEY, type PetKind, type Prefs } from "../prefs";
 
 type Approval = Awaited<ReturnType<typeof api.approvals>>[number];
 type Mood = "idle" | "busy" | "alert" | "happy" | "sad";
+
+/** The pet's picture for a mood. The cat has a face per mood; the others show a small sign beside them. */
+function petImage(kind: PetKind, mood: Mood): string {
+  return kind === "cat" ? `/pets/cat-${mood}.png` : `/pets/${kind}.png`;
+}
+const MOOD_SIGN: Record<Mood, string> = { idle: "z", busy: "", alert: "!", happy: "✓", sad: "×" };
+
+/** The chosen pet, kept in step with Preferences (in this window and in the pet's own window). */
+function usePetKind(): PetKind {
+  const [kind, setKind] = useState<PetKind>(() => loadPrefs().petKind);
+  useEffect(() => {
+    const onPrefs = (e: Event) => setKind((e as CustomEvent<Prefs>).detail.petKind);
+    const onStorage = (e: StorageEvent) => e.key === PREFS_KEY && setKind(loadPrefs().petKind);
+    window.addEventListener("multicode:prefs", onPrefs);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("multicode:prefs", onPrefs);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+  return kind;
+}
 
 /**
  * MultiCode's pet: a little character that sits on your screen (its own window in the desktop
@@ -20,6 +44,17 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
   const [hover, setHover] = useState(false);
   const [now, setNow] = useState(Date.now());
   const startedAt = useRef(Date.now());
+  const kind = usePetKind();
+  const [todos] = useTodos();
+  const nextTodo = todos.find((t) => !t.done);
+  const openTodos = todos.filter((t) => !t.done).length;
+  const [cheer, setCheer] = useState(false);
+  const tick = async (id: string) => {
+    await api.updateTodo(id, { done: true }).catch(() => {});
+    todosChanged();
+    setCheer(true);
+    window.setTimeout(() => setCheer(false), 1600);
+  };
 
   useEffect(() => {
     let live = true;
@@ -124,6 +159,21 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
           <span className="pet-text">{working[0]!.title || plainPrompt(working[0]!.prompt)}</span>
         </>
       );
+  } else if (cheer) {
+    mood = "happy";
+    bubble = <span className="pet-text">Nice, one less thing{openTodos ? ` · ${openTodos} to go` : ". All done!"}</span>;
+  } else if (hover && nextTodo) {
+    bubble = (
+      <>
+        <span className="pet-kicker">Next to-do{openTodos > 1 ? ` · ${openTodos} open` : ""}{nextTodo.project ? ` · ${nextTodo.project}` : ""}</span>
+        <span className="pet-text">{nextTodo.text}</span>
+        <span className="pet-actions">
+          <button className="pet-btn primary" onClick={() => void tick(nextTodo.id)}>
+            Done
+          </button>
+        </span>
+      </>
+    );
   } else if (hover) {
     bubble = <span className="pet-text">All quiet. Ctrl+K finds anything; / opens commands.</span>;
   }
@@ -136,29 +186,9 @@ export function Pet({ onOpen, standalone = false }: { onOpen: (runId: string) =>
         </div>
       )}
       <div className={`pet-body is-${mood}`} title="MultiCode" aria-hidden>
-        <svg viewBox="0 0 64 64" width="56" height="56">
-          <defs>
-            <linearGradient id="pet-g" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#4f7cff" />
-              <stop offset="1" stopColor="#f59e0b" />
-            </linearGradient>
-          </defs>
-          <path className="pet-blob" d="M32 6c14 0 26 10 26 25S47 58 32 58 6 46 6 31 18 6 32 6z" fill="url(#pet-g)" />
-          <g className="pet-eyes">
-            <ellipse cx="24" cy="30" rx="4" ry={mood === "idle" ? 1.2 : 5} fill="#fff" />
-            <ellipse cx="40" cy="30" rx="4" ry={mood === "idle" ? 1.2 : 5} fill="#fff" />
-            {mood !== "idle" && (
-              <>
-                <circle cx={mood === "alert" ? 25.5 : 24} cy="31" r="2" fill="#111" />
-                <circle cx={mood === "alert" ? 41.5 : 40} cy="31" r="2" fill="#111" />
-              </>
-            )}
-          </g>
-          {mood === "happy" && <path d="M25 41c4 4 10 4 14 0" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" />}
-          {mood === "sad" && <path d="M25 44c4-3 10-3 14 0" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" />}
-          {mood === "alert" && <circle cx="32" cy="43" r="3" fill="#fff" />}
-          {mood === "idle" && <text x="46" y="16" className="pet-z" fontSize="10" fill="currentColor">z</text>}
-        </svg>
+        <img className="pet-img" src={petImage(kind, mood)} alt="" draggable={false} width={64} height={64} />
+        {kind !== "cat" && MOOD_SIGN[mood] && <span className={`pet-sign is-${mood}`}>{MOOD_SIGN[mood]}</span>}
+        {mood === "busy" && <span className="pet-dots"><i /><i /><i /></span>}
         {approvals.length > 0 && <span className="pet-badge">{approvals.length}</span>}
       </div>
     </div>

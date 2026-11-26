@@ -26,6 +26,7 @@ import { SESSION_COOKIE, viewOf as userView, type Auth, type User } from "./auth
 import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
 import { CustomSkills } from "./customSkills.js";
+import { Todos } from "./todos.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { cloneUrl, gitBranches, gitCheckout, gitClone, gitCommit, gitInit, gitPull, gitPush, gitStatus, repoName } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
@@ -112,6 +113,14 @@ export function createApp(opts: AppOptions) {
   // Your own skills live in the data folder (custom-skills/<name>/SKILL.md).
   const customSkills = new CustomSkills(path.join(opts.stateDir ?? path.join(projectsDir, ".."), "custom-skills"));
   runs.customSkills = customSkills;
+  const todos = new Todos(path.join(opts.stateDir ?? path.join(projectsDir, ".."), "todos.json"));
+  const runDone = (id: string) => {
+    try {
+      return runs.get(id).status === "done";
+    } catch {
+      return false;
+    }
+  };
   const app = express();
   app.disable("x-powered-by");
 
@@ -499,6 +508,19 @@ export function createApp(opts: AppOptions) {
     }),
   );
   api.post("/skills/custom/install", wrap(async (req, res) => res.status(201).json(await customSkills.install(req.body?.url))));
+  // Your to-do list (per project, or general with project=""). The pet shows it too.
+  const todoProject = (raw: unknown) => (typeof raw === "string" ? (raw === "" ? null : raw) : undefined);
+  api.get("/todos", wrap(async (req, res) => res.json(await todos.list(todoProject(req.query.project), runDone))));
+  api.post("/todos", wrap(async (req, res) => res.status(201).json(await todos.add(req.body ?? {}))));
+  api.patch("/todos/:id", wrap(async (req, res) => res.json(await todos.update(param(req, "id"), req.body ?? {}))));
+  api.delete(
+    "/todos/:id",
+    wrap(async (req, res) => {
+      await todos.remove(param(req, "id"));
+      res.status(204).end();
+    }),
+  );
+  api.post("/todos/clear-done", wrap(async (req, res) => res.json({ removed: await todos.clearDone(todoProject(req.body?.project)) })));
   // MCP servers already set up in Claude Code, Codex, Cursor, Gemini CLI, Claude Desktop, Windsurf.
   api.get(
     "/mcp/discover",
