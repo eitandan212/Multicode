@@ -29,6 +29,8 @@ build your project together as a crew.
   `.claude/skills`, `.agents/skills`, `.gemini/skills`, `.qwen/skills`, and are inlined for API agents.
 
 
+Prompt caching can be checked against the real Anthropic API: **Check caching (real API)** on an Anthropic connection, or `npm run build && ANTHROPIC_API_KEY=... npm run verify:cache` (it refuses to run without a key; two short calls, a few cents).
+
 How it compares with Claude Code and Codex, feature by feature: [docs/PARITY.md](docs/PARITY.md).
 
 ## Connect your AI

@@ -267,6 +267,23 @@ function ConnectionRow({
           )}
         </span>
         {showDetail && health?.detail && <pre className="conn-detail small">{health.detail}</pre>}
+        {conn.kind === "anthropic" && conn.hasKey && (
+          <button
+            type="button"
+            className="link small conn-cache"
+            disabled={Boolean(busy)}
+            title="Two short calls to the real Anthropic API (costs a few cents): the second should read the system prompt from the cache"
+            onClick={() =>
+              void act("Checking caching…", async () => {
+                const r = await api.cacheCheck(conn.id);
+                setNote({ ok: r.ok, text: `${r.message} (call 1: ${r.first.cached} cached · call 2: ${r.second.cached} cached)` });
+                return r;
+              })
+            }
+          >
+            Check caching (real API)
+          </button>
+        )}
         {EFFORT_KINDS.includes(conn.kind) && (
           <label className="conn-effort small">
             <span className="muted">Thinking</span>

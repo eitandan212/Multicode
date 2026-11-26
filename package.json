@@ -14,6 +14,7 @@
     "dev": "concurrently -k -n server,web -c cyan,magenta \"tsx watch server/index.ts\" \"vite\"",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
+    "verify:cache": "node scripts/verify-cache.mjs",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",
     "desktop": "npm run build && electron .",

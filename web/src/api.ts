@@ -127,6 +127,11 @@ export const api = {
   sync: () => request<SyncConfigView>("GET", "/api/sync"),
   commands: (project: string) =>
     request<{ name: string; description: string; body: string; source: string }[]>("GET", `/api/projects/${project}/commands`),
+  cacheCheck: (id: string) =>
+    request<{ ok: boolean; model: string; first: { input: number; cached: number }; second: { input: number; cached: number }; message: string }>(
+      "POST",
+      `/api/connections/${id}/cache-check`,
+    ),
   discoverMcp: () => request<FoundMcpServer[]>("GET", "/api/mcp/discover"),
   importMcp: (servers: { source: string; name: string }[]) =>
     request<SyncConfigView>("POST", "/api/mcp/import", { servers }),

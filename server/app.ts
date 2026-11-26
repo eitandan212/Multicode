@@ -22,6 +22,7 @@ import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
+import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { gitCommit, gitInit, gitPush, gitStatus } from "./git.js";
@@ -415,6 +416,15 @@ export function createApp(opts: AppOptions) {
     wrap(async (req, res) => {
       const { conn, provider } = providerFor(param(req, "id"));
       res.json(await checkConnection(conn, provider, signIn));
+    }),
+  );
+  // Real-API check that prompt caching saves tokens (two short calls; costs a few cents).
+  api.post(
+    "/connections/:id/cache-check",
+    wrap(async (req, res) => {
+      const conn = config.connection(param(req, "id"));
+      if (!conn) throw new HttpError(404, "connection not found");
+      res.json(await checkCaching(conn));
     }),
   );
   api.get(
