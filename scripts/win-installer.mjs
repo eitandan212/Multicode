@@ -2,7 +2,7 @@
 // Works on Windows, macOS and Linux, and needs no Wine: run `npm run dist:win`.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -10,6 +10,10 @@ const { version } = JSON.parse(readFileSync(path.join(root, "package.json"), "ut
 const src = path.join(root, "release", "win-unpacked");
 const out = path.join(root, "release", `MultiCode-Setup-${version}.exe`);
 if (!existsSync(path.join(src, "MultiCode.exe"))) throw new Error("release/win-unpacked is missing; run electron-builder --win dir first");
+
+// Electron ships DirectX's shader compiler (26 MB) for WebGPU only. MultiCode doesn't use WebGPU,
+// and leaving it out keeps the installer under GitHub's 100 MB file limit.
+for (const f of ["dxcompiler.dll", "dxil.dll"]) rmSync(path.join(src, f), { force: true });
 
 const makensis = process.env.MAKENSIS ?? "makensis";
 try {

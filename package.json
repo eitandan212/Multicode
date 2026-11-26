@@ -83,7 +83,10 @@
       "!node_modules/@anthropic-ai/sdk/src/**",
       "!node_modules/**/*.d.ts",
       "!node_modules/**/*.d.mts",
-      "!node_modules/**/*.d.cts"
+      "!node_modules/**/*.d.cts",
+      "!node_modules/effect/dist/http-api/internal/httpApiScalar.js",
+      "!node_modules/effect/dist/http-api/internal/httpApiSwagger.js",
+      "!node_modules/**/*.md"
     ],
     "asar": true,
     "afterPack": "desktop/afterPack.cjs",

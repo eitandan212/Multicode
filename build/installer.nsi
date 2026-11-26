@@ -7,7 +7,7 @@ Unicode true
 ManifestDPIAware true
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-SetCompressorDictSize 64
+SetCompressorDictSize 192
 
 !ifndef VERSION
   !define VERSION "0.0.0"
