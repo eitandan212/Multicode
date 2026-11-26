@@ -148,6 +148,22 @@ export function createApp(opts: AppOptions) {
   app.use("/api", (req, res, next) => (OPEN.test(req.path) ? next() : guard(req, res, next)));
   app.use(["/preview", "/preview-sandbox"], guard);
   const userOf = (req: Request) => (req as Request & { user?: User }).user;
+  // What changes how this computer runs commands or keeps keys is the owner's to change:
+  // connections, settings and hooks, the crew, MCP servers, installs, opened folders, checks, skills.
+  const OWNER_ONLY: [string, RegExp][] = [
+    ["POST|PATCH|DELETE", /^\/connections(\/[^/]+)?$/],
+    ["PUT", /^\/(settings|crew|sync|extensions)$/],
+    ["POST", /^\/(mcp\/import|projects\/open|acp\/agents\/[^/]+\/install|agents\/[^/]+\/install|skills\/custom\/install)$/],
+    ["PUT", /^\/projects\/[^/]+\/check$/],
+    ["PUT|DELETE", /^\/skills\/custom\/[^/]+$/],
+  ];
+  app.use("/api", (req, res, next) => {
+    if (!auth?.required) return next();
+    const rule = OWNER_ONLY.some(([methods, re]) => methods.split("|").includes(req.method) && re.test(req.path));
+    if (rule && userOf(req)?.role !== "owner")
+      return void res.status(403).json({ error: "Only the owner can change this" });
+    next();
+  });
 
   const api = express.Router();
 

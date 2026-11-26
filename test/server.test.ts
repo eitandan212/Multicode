@@ -3057,3 +3057,38 @@ describe("accounts and secrets", () => {
     }
   });
 });
+
+describe("owner-only settings", () => {
+  it("lets members work but not change connections, hooks or MCP servers", async () => {
+    const { Auth } = await import("../server/auth.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-roles-"));
+    const config = new ConfigStore(dir);
+    await config.load();
+    const auth = new Auth(dir);
+    await auth.load();
+    const owner = await auth.addUser({ name: "O", email: "o@x.com", password: "owner password" });
+    await auth.addUser({ name: "M", email: "m@x.com", password: "member password" }, owner);
+    const { app } = createApp({ config, projectsDir: path.join(dir, "projects"), providerFactory: () => fakeProvider({ review: [] }), auth });
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise((r) => server.once("listening", r));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const h = { "content-type": "application/json", "x-multicode": "1" };
+    const login = async (email: string, password: string) =>
+      (await fetch(`${base}/api/auth/login`, { method: "POST", headers: h, body: JSON.stringify({ email, password }) })).headers.get("set-cookie")!.split(";")[0]!;
+    try {
+      const m = await login("m@x.com", "member password");
+      const o = await login("o@x.com", "owner password");
+      const hooks = JSON.stringify({ hooks: [{ event: "Stop", command: "echo hi" }] });
+      expect((await fetch(`${base}/api/settings`, { method: "PUT", headers: { ...h, cookie: m }, body: hooks })).status).toBe(403);
+      expect((await fetch(`${base}/api/connections`, { method: "POST", headers: { ...h, cookie: m }, body: '{"kind":"openai-compatible","baseUrl":"http://x"}' })).status).toBe(403);
+      expect((await fetch(`${base}/api/sync`, { method: "PUT", headers: { ...h, cookie: m }, body: "{}" })).status).toBe(403);
+      // Members still work: projects and state.
+      expect((await fetch(`${base}/api/projects`, { method: "POST", headers: { ...h, cookie: m }, body: '{"name":"shared"}' })).status).toBe(201);
+      expect((await fetch(`${base}/api/state`, { headers: { cookie: m } })).status).toBe(200);
+      expect((await fetch(`${base}/api/settings`, { method: "PUT", headers: { ...h, cookie: o }, body: hooks })).status).toBe(200);
+    } finally {
+      server.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
