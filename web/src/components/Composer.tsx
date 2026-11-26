@@ -271,42 +271,7 @@ export function Composer(p: Props) {
           >
             <Icon name="paperclip" size={15} />
           </button>
-          <div
-            className="seg mini mode-switch"
-            role="radiogroup"
-            aria-label="What the crew should do"
-          >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === "build"}
-              className={mode === "build" ? "is-active" : ""}
-              onClick={() => setMode("build")}
-              title="The crew plans, builds and reviews it together"
-            >
-              <Icon name="hammer" size={13} /> MultiBuild
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === "design"}
-              className={mode === "design" ? "is-active" : ""}
-              onClick={() => setMode("design")}
-              title="Several models each design their own version; you pick one"
-            >
-              <Icon name="palette" size={13} /> MultiDesign
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === "compare"}
-              className={mode === "compare" ? "is-active" : ""}
-              onClick={() => setMode("compare")}
-              title="Several models do the same task at the same time, each in its own copy; the reviewer recommends one and you pick"
-            >
-              <Icon name="users" size={13} /> Compare
-            </button>
-          </div>
+          <ModePicker mode={mode} onMode={setMode} />
           <TeamPicker
             team={p.team}
             crew={p.crew}
@@ -549,6 +514,65 @@ function MoreControls(p: {
           {SAFETY.find((m) => m.id === s.safety)?.label}
         </span>
         {s.economy && <span className="free-tag">Eco</span>}
+      </button>
+    </div>
+  );
+}
+
+
+const MODES: { id: RunMode; label: string; icon: "hammer" | "palette" | "users"; hint: string }[] = [
+  { id: "build", label: "MultiBuild", icon: "hammer", hint: "The crew splits the work: one plans, others build in parallel, one reviews" },
+  { id: "compare", label: "Compare", icon: "users", hint: "Every model does the same task at once; you keep the best version" },
+  { id: "design", label: "MultiDesign", icon: "palette", hint: "Several designs side by side; you pick the one you like" },
+];
+
+/** How the crew works on this message: one quiet button with a menu that explains each way. */
+function ModePicker({ mode, onMode }: { mode: RunMode; onMode: (m: RunMode) => void }) {
+  const [open, setOpen] = useState(false);
+  const presence = usePresence(open, 160);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  const current = MODES.find((m) => m.id === mode) ?? MODES[0]!;
+  return (
+    <div className="mode-picker" ref={ref}>
+      {presence.mounted && (
+        <div className={`menu-pop mode-pop ${presence.closing ? "is-closing" : ""}`} role="menu" inert={!open}>
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={m.id === mode}
+              className={`menu-item more-item ${m.id === mode ? "is-active" : ""}`}
+              onClick={() => {
+                onMode(m.id);
+                setOpen(false);
+              }}
+            >
+              <Icon name={m.icon} size={14} />
+              <span className="more-text">
+                <span>{m.label}</span>
+                <span className="muted small">{m.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      <button type="button" className={`chip mode-chip ${open ? "is-open" : ""}`} onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`How the crew works: ${current.label}`} title={current.hint}>
+        <Icon name={current.icon} size={14} />
+        <span className="mode-label">{current.label}</span>
+        <Icon name="chevronDown" size={12} />
       </button>
     </div>
   );

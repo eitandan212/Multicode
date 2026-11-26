@@ -5795,3 +5795,14 @@ html.pet-window, html.pet-window body, html.pet-window #root{ background: transp
 .acct-people{ list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; width: 100%; }
 .acct-people li{ display: flex; align-items: center; gap: 8px; min-height: 34px; }
 .acct-people .truncate{ flex: 1; min-width: 0; }
+
+/* One quiet mode button instead of three. */
+.mode-picker{ position: relative; margin-right: auto; }
+.mode-pop{ left: 0; right: auto; width: 320px; }
+.mode-chip{ gap: 6px; }
+@container composer (max-width: 460px) { .mode-label{ display: none; } }
+.start-hello{ font-size: 14px; margin-bottom: 4px; animation: row-in 420ms var(--spring) both; }
+.start-tip{ display: flex; align-items: center; gap: 6px; margin: -10px 0 22px; }
+.start-tip svg{ color: var(--amber); }
+/* Menus and dialogs open above the pet. */
+.pet:not(.is-standalone){ z-index: 15; }

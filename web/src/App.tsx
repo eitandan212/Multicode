@@ -1,5 +1,6 @@
 import {
   lazy,
+  useContext,
   Suspense,
   useCallback,
   useEffect,
@@ -48,6 +49,7 @@ import { plainPrompt } from "./components/PromptText";
 import { AboutDialog, AccountDialog, GeneralDialog, HooksDialog, KeybindingsDialog, ProjectsDialog } from "./components/PreferencesDialogs";
 import { chime, loadPrefs, notify, type Prefs } from "./prefs";
 import { Pet } from "./components/Pet";
+import { CurrentUser } from "./components/AuthGate";
 import { emptyRun, reduceRun, type RunView } from "./runState";
 
 /** The IDE (Monaco) loads only when you open it, so Chat view stays light. */
@@ -81,12 +83,34 @@ const store = {
 
 const narrow = () => window.matchMedia("(max-width: 900px)").matches;
 
+/** "Good morning, Eitan" by the clock. */
+function greeting(name?: string): string {
+  const h = new Date().getHours();
+  const part = h < 5 ? "Working late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  const first = name?.split(" ")[0];
+  return first ? `${part}, ${first}` : part;
+}
+
+const TIPS = [
+  "Type / for commands, @ to mention a file.",
+  "Paste a screenshot straight into the message box.",
+  "Compare gives one task to every model and keeps the best version.",
+  "Alt+↑ and Alt+↓ move between chats.",
+  "Ask \"install the skill from <link>\" to teach the crew something new.",
+  "/review checks your uncommitted changes for bugs.",
+  "Sleep mode keeps working while you're away.",
+  "The ring next to Send shows how full the model's context is.",
+  "Ctrl+Shift+L switches between light and dark.",
+];
+
 export function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [loadError, setLoadError] = useState("");
   const [project, setProject] = useState<string | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [projectsDir, setProjectsDir] = useState<string | null>(null);
+  const account = useContext(CurrentUser).user;
+  const [tipIndex] = useState(() => Math.floor(Math.random() * TIPS.length));
   // The pet: its own window in the desktop app, a corner of the page in the browser.
   const [petOn, setPetOn] = useState(() => loadPrefs().pet);
   useEffect(() => {
@@ -481,7 +505,59 @@ export function App() {
     } else if (key === "/" && !mod && !typing && !dialog) {
       e.preventDefault();
       focusComposer();
+    } else if (mod && (key === "," || e.code === "Comma")) {
+      e.preventDefault();
+      setDialog("general");
+    } else if (mod && !e.shiftKey && key === "l") {
+      e.preventDefault();
+      focusComposer();
+    } else if (mod && e.shiftKey && key === "l") {
+      // Quick light/dark switch.
+      e.preventDefault();
+      const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+      setAppearance({ ...appearance, theme: dark ? "light" : "dark" });
+    } else if (mod && e.shiftKey && key === "n") {
+      e.preventDefault();
+      newProject();
+    } else if (e.altKey && !mod && (e.key === "ArrowUp" || e.key === "ArrowDown") && !typing) {
+      // Previous / next chat in this project.
+      e.preventDefault();
+      const chats = chatsOfProject();
+      if (!chats.length) return;
+      const i = chats.findIndex((c) => c.id === run?.id || c.threadId === (openSummary?.threadId ?? openSummary?.id));
+      const next = chats[Math.min(chats.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))] ?? chats[0]!;
+      selectRun(next);
+    } else if (mod && !e.shiftKey && /^[1-9]$/.test(key) && state) {
+      // Ctrl+1..9: the projects, most recent first.
+      e.preventDefault();
+      const target = projectsByRecent()[Number(key) - 1];
+      if (target) selectProject(target);
+    } else if (mod && key === "." && running) {
+      e.preventDefault();
+      if (run) void api.cancelRun(run.id);
+    } else if (mod && e.shiftKey && key === "a" && openSummary && !typing) {
+      e.preventDefault();
+      void api.updateChat(openSummary.id, { archived: !runs.find((r) => r.id === (openSummary.threadId ?? openSummary.id))?.archived }).then(() => reload());
+    } else if (key === "?" && !typing && !dialog) {
+      e.preventDefault();
+      setDialog("general");
     }
+  };
+  // The open project's chats, newest first (one entry per chat: its latest turn).
+  const chatsOfProject = () => {
+    const seen = new Set<string>();
+    return runs
+      .filter((r) => r.project === project)
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .filter((r) => {
+        const k = r.threadId ?? r.id;
+        return seen.has(k) ? false : (seen.add(k), true);
+      });
+  };
+  const projectsByRecent = () => {
+    const last = new Map<string, number>();
+    for (const r of runs) last.set(r.project, Math.max(last.get(r.project) ?? 0, r.startedAt));
+    return (state?.projects ?? []).map((p) => p.name).sort((a, b) => (last.get(b) ?? 0) - (last.get(a) ?? 0));
   };
 
   // window.prompt doesn't exist in the desktop app, so projects get a real dialog.
@@ -992,6 +1068,7 @@ export function App() {
           ) : (
             <div className="empty-start">
               <ProjectBadge name={project} size={40} />
+              <span className="start-hello muted">{greeting(account?.name)}</span>
               <h1 className="start-title">What should the crew do in {project}?</h1>
               <p className="start-sub muted">
                 Describe it in plain words. One model plans it, others build it side by side, and another reviews it.
@@ -1008,6 +1085,9 @@ export function App() {
                   ))}
                 </section>
               )}
+              <p className="start-tip muted small">
+                <Icon name="spark" size={12} /> {TIPS[tipIndex % TIPS.length]}
+              </p>
               <section className="start-list" aria-label="Ideas to start with">
                 <h2>Or start from an idea</h2>
                 {EXAMPLE_PROMPTS.map((ex) => (

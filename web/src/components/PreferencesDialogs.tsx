@@ -106,13 +106,22 @@ export function GeneralDialog({ onClose }: { onClose: () => void }) {
 
 const SHORTCUTS: [string, string[]][] = [
   ["Command palette", [MOD, "K"]],
-  ["New thread", [MOD, "Shift", "O"]],
+  ["New chat", [MOD, "Shift", "O"]],
+  ["New project", [MOD, "Shift", "N"]],
+  ["Previous / next chat", ["Alt", "↑ ↓"]],
+  ["Switch project (most recent first)", [MOD, "1…9"]],
+  ["Focus the message box", [MOD, "L"]],
+  ["Commands in the message box", ["/"]],
+  ["Send", ["Enter"]],
+  ["New line", ["Shift", "Enter"]],
+  ["Stop the crew", [MOD, "."]],
+  ["Archive this chat", [MOD, "Shift", "A"]],
   ["Show or hide the sidebar", [MOD, "B"]],
   ["Show or hide the side panel", [MOD, "J"]],
   ["Switch Chat / IDE view", [MOD, "E"]],
-  ["Focus the message box", ["/"]],
-  ["Send", ["Enter"]],
-  ["New line", ["Shift", "Enter"]],
+  ["Light / dark", [MOD, "Shift", "L"]],
+  ["Settings", [MOD, ","]],
+  ["These shortcuts", ["?"]],
   ["Close a dialog or menu", ["Esc"]],
 ];
 
