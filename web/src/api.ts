@@ -48,6 +48,8 @@ async function request<T>(
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
+  // The session ended (signed out elsewhere, expired): show the sign-in screen.
+  if (res.status === 401 && (data as { signIn?: boolean }).signIn) window.dispatchEvent(new Event("multicode:signin"));
   if (!res.ok)
     throw new Error(
       (data as { error?: string }).error ?? `Request failed (${res.status})`,
@@ -70,7 +72,29 @@ export interface FoundMcpServer {
   added: boolean;
 }
 
+export interface AccountUser {
+  id: string;
+  name: string;
+  email: string;
+  role: "owner" | "member";
+  hasPassword: boolean;
+  google: boolean;
+  createdAt: number;
+}
+
 export const api = {
+  authStatus: () => request<{ required: boolean; setup: boolean; google: boolean; user: AccountUser | null }>("GET", "/api/auth/status"),
+  authSetup: (b: { name: string; email: string; password: string }) => request<AccountUser>("POST", "/api/auth/setup", b),
+  authLogin: (email: string, password: string) => request<AccountUser>("POST", "/api/auth/login", { email, password }),
+  authLogout: () => request<void>("POST", "/api/auth/logout"),
+  authPassword: (current: string, next: string) => request<void>("POST", "/api/auth/password", { current, next }),
+  authUsers: () => request<AccountUser[]>("GET", "/api/auth/users"),
+  authAddUser: (b: { name: string; email: string; password?: string }) => request<AccountUser>("POST", "/api/auth/users", b),
+  authRemoveUser: (id: string) => request<void>("DELETE", `/api/auth/users/${id}`),
+  authGoogle: (clientId: string, clientSecret?: string) => request<void>("PUT", "/api/auth/google", { clientId, clientSecret }),
+  googleStart: () => request<{ url: string; state: string }>("POST", "/api/auth/google/start"),
+  googlePoll: (state: string) =>
+    request<{ done: false } | { done: true; user?: AccountUser; error?: string }>("POST", "/api/auth/google/poll", { state }),
   /** Saves a pasted or dropped picture in the project; mention the returned path with @. */
   attach: async (project: string, file: Blob): Promise<{ path: string }> => {
     const res = await fetch(`/api/projects/${project}/attachments`, {

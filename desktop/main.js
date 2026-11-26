@@ -1,6 +1,9 @@
 // MultiCode desktop: starts the local MultiCode server inside Electron and shows it in a
 // window. Everything stays on this computer; the window only ever loads the local app.
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, powerSaveBlocker, safeStorage, screen, shell } from "electron";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkForUpdate, installUpdate } from "./updater.js";
@@ -43,9 +46,31 @@ if (!app.requestSingleInstanceLock()) {
 
 app.setAppUserModelId("com.multicode.desktop");
 
+/**
+ * The key that encrypts saved API keys lives in the OS keychain (Windows DPAPI, macOS Keychain,
+ * Linux secret service), not in a readable file. The server gets it through the environment.
+ */
+function secretKeyFromKeychain() {
+  if (!safeStorage.isEncryptionAvailable()) return;
+  const dir = process.env.MULTICODE_HOME ?? path.join(os.homedir(), ".multicode");
+  const sealed = path.join(dir, "secret.key.sealed");
+  const plain = path.join(dir, "secret.key");
+  let key;
+  if (existsSync(sealed)) key = safeStorage.decryptString(readFileSync(sealed));
+  else {
+    // A key made before (by the server alone) moves into the keychain; otherwise a new one.
+    key = existsSync(plain) ? readFileSync(plain, "utf8").trim() : randomBytes(32).toString("base64");
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(sealed, safeStorage.encryptString(key), { mode: 0o600 });
+  }
+  if (existsSync(plain)) rmSync(plain, { force: true });
+  process.env.MULTICODE_SECRET_KEY = key;
+}
+
 async function launch() {
   Menu.setApplicationMenu(process.platform === "darwin" ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]) : null);
   try {
+    secretKeyFromKeychain();
     const { startServer } = await import("../dist/server/start.js");
     started = await startServer({ port: 4317 });
   } catch (err) {

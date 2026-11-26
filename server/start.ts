@@ -1,3 +1,5 @@
+import { loadSecretKey } from "./secrets.js";
+import { Auth } from "./auth.js";
 import type { Server } from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -39,13 +41,17 @@ export async function startServer(
 ): Promise<Started> {
   const preferred = opts.port ?? 4317;
   const port = opts.strictPort ? preferred : await freePort(preferred);
+  await loadSecretKey(dataDir());
   const config = new ConfigStore();
   await config.load();
+  const auth = new Auth(dataDir());
+  await auth.load();
   const { app, runs } = createApp({
     config,
     projectsDir: path.join(dataDir(), "projects"),
     runsDir: path.join(dataDir(), "runs"),
     stateDir: dataDir(),
+    auth,
     publicOrigin: `http://localhost:${port}`,
     providerFactory: createProvider,
     webDir: path.resolve(here, "../web"),

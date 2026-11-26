@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile, chmod } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { parseHooks } from "./hooks.js";
+import { decrypt, encrypt, isEncrypted, mapValues } from "./secrets.js";
 import {
   API_KINDS,
   EFFORT_KINDS,
@@ -188,13 +189,24 @@ export class ConfigStore {
       const raw = JSON.parse(
         await readFile(this.file, "utf8"),
       ) as Partial<ConfigData>;
+      // Secrets are stored encrypted; in memory they are plain.
+      const connections = (Array.isArray(raw.connections) ? raw.connections : []).map((c) => ({
+        ...c,
+        ...(c.apiKey ? { apiKey: decrypt(c.apiKey) } : {}),
+        ...(c.headers ? { headers: mapValues(c.headers, decrypt) } : {}),
+      }));
+      const rawSync = { ...emptyConfig().sync, ...(raw.sync ?? {}) };
       this.data = {
-        connections: Array.isArray(raw.connections) ? raw.connections : [],
+        connections,
         crew: Array.isArray(raw.crew) ? raw.crew : [],
         settings: migrateSettings({ ...emptyConfig().settings, ...(raw.settings ?? {}) }, raw.settings),
-        sync: { ...emptyConfig().sync, ...(raw.sync ?? {}) },
+        sync: { ...rawSync, env: mapValues(rawSync.env, decrypt) ?? {} },
         extensions: { ...emptyConfig().extensions, ...(raw.extensions ?? {}) },
       };
+      // Older configs kept keys in plain text: store them encrypted now.
+      const plain = (raw.connections ?? []).some((c) => c.apiKey && !isEncrypted(c.apiKey)) ||
+        Object.values(raw.sync?.env ?? {}).some((v) => v && !isEncrypted(v));
+      if (plain) await this.save();
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
       this.data = emptyConfig();
@@ -202,7 +214,16 @@ export class ConfigStore {
   }
 
   private save(): Promise<void> {
-    const snapshot = JSON.stringify(this.data, null, 2);
+    const stored: ConfigData = {
+      ...this.data,
+      connections: this.data.connections.map((c) => ({
+        ...c,
+        ...(c.apiKey ? { apiKey: encrypt(c.apiKey) } : {}),
+        ...(c.headers ? { headers: mapValues(c.headers, encrypt) } : {}),
+      })),
+      sync: { ...this.data.sync, env: mapValues(this.data.sync.env, encrypt) ?? {} },
+    };
+    const snapshot = JSON.stringify(stored, null, 2);
     this.writing = this.writing.then(async () => {
       await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
       const tmp = `${this.file}.${process.pid}.tmp`;

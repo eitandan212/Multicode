@@ -4,6 +4,7 @@ import { Icon, type IconName } from "./Icon";
 
 export type SettingsSection =
   | "general"
+  | "account"
   | "keybindings"
   | "hooks"
   | "projects"
@@ -24,6 +25,7 @@ const NAV: {
     group: "Preferences",
     items: [
       { id: "general", label: "General", icon: "bell" },
+      { id: "account", label: "Account", icon: "users" },
       { id: "appearance", label: "Appearance", icon: "palette" },
     ],
   },

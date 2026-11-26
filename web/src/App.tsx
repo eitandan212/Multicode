@@ -45,7 +45,7 @@ import { ExtensionsDialog } from "./components/ExtensionsDialog";
 import { SyncDialog } from "./components/SyncDialog";
 import { Thread } from "./components/Thread";
 import { plainPrompt } from "./components/PromptText";
-import { AboutDialog, GeneralDialog, HooksDialog, KeybindingsDialog, ProjectsDialog } from "./components/PreferencesDialogs";
+import { AboutDialog, AccountDialog, GeneralDialog, HooksDialog, KeybindingsDialog, ProjectsDialog } from "./components/PreferencesDialogs";
 import { chime, loadPrefs, notify, type Prefs } from "./prefs";
 import { Pet } from "./components/Pet";
 import { emptyRun, reduceRun, type RunView } from "./runState";
@@ -1250,6 +1250,8 @@ export function App() {
                 return <GeneralDialog onClose={done} />;
               case "keybindings":
                 return <KeybindingsDialog onClose={done} />;
+              case "account":
+                return <AccountDialog onClose={done} />;
               case "hooks":
                 return <HooksDialog settings={state.settings} onClose={done} onSaved={() => void reload()} />;
               case "about":

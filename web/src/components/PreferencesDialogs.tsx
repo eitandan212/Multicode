@@ -1,7 +1,9 @@
 // Settings sections T3 Code has and MultiCode was missing: General, Keyboard shortcuts, Projects, About.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Hook, HookEvent, ProjectInfo, Settings } from "../../../server/shared";
-import { api } from "../api";
+import { api, type AccountUser } from "../api";
+import { CurrentUser } from "./AuthGate";
+import { signInWithGoogle } from "./SignIn";
 import { chime, DEFAULT_PREFS, loadPrefs, notify, savePrefs, type Prefs } from "../prefs";
 import { Row, Seg, Toggle } from "./AppearanceDialog";
 import { useOpenDialog } from "./embed";
@@ -386,6 +388,135 @@ export function HooksDialog({ settings, onClose, onSaved }: { settings: Settings
       </div>
       {note && <p className={`small ${note.ok ? "muted pop-in" : "err-text"}`}>{note.text}</p>}
       <p className="muted small">Hooks run on this computer with your permissions, in the project folder. Only add commands you trust.</p>
+    </Shell>
+  );
+}
+
+/** Account: you, your password, signing out; for the owner, people and Google sign-in. */
+export function AccountDialog({ onClose }: { onClose: () => void }) {
+  const { user, refresh } = useContext(CurrentUser);
+  const [people, setPeople] = useState<AccountUser[]>([]);
+  const [pw, setPw] = useState({ current: "", next: "" });
+  const [add, setAdd] = useState({ name: "", email: "", password: "" });
+  const [google, setGoogle] = useState({ clientId: "", clientSecret: "" });
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState("");
+  const owner = user?.role === "owner";
+  const load = () => void api.authUsers().then(setPeople).catch(() => {});
+  useEffect(load, []);
+  const act = async (label: string, fn: () => Promise<unknown>, ok: string) => {
+    setBusy(label);
+    setNote(null);
+    try {
+      await fn();
+      setNote({ ok: true, text: ok });
+      load();
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (!user)
+    return (
+      <Shell title="Account" sub="Protect MultiCode with an account." onClose={onClose}>
+        <p className="muted">There's no account yet. Create one and MultiCode asks for it from then on.</p>
+        <div className="form-actions">
+          <button className="btn primary" onClick={() => window.dispatchEvent(new Event("multicode:signin"))}>
+            Create account
+          </button>
+        </div>
+      </Shell>
+    );
+
+  return (
+    <Shell title="Account" sub="Who you are, and who else may use MultiCode." onClose={onClose}>
+      <Row label="You">
+        <span>
+          <strong>{user.name}</strong> <span className="muted small">{user.email} · {owner ? "owner" : "member"}</span>
+        </span>
+        <button className="btn small" onClick={() => void api.authLogout().then(refresh)}>
+          Sign out
+        </button>
+      </Row>
+      <Row label="Password">
+        <form
+          className="acct-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act("pw", () => api.authPassword(pw.current, pw.next), "Password changed. Other devices sign in again.").then(() => setPw({ current: "", next: "" }));
+          }}
+        >
+          {user.hasPassword && (
+            <input type="password" placeholder="Current password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} autoComplete="current-password" />
+          )}
+          <input type="password" placeholder="New password (8+ characters)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} autoComplete="new-password" minLength={8} />
+          <button className="btn small" disabled={!pw.next || busy !== ""}>
+            {busy === "pw" ? <Spinner /> : null} {user.hasPassword ? "Change" : "Set"} password
+          </button>
+        </form>
+      </Row>
+      {owner && (
+        <Row label="People">
+          <ul className="acct-people">
+            {people.map((p) => (
+              <li key={p.id}>
+                <span className="truncate">
+                  <strong>{p.name}</strong> <span className="muted small">{p.email}{p.google ? " · Google" : ""} · {p.role}</span>
+                </span>
+                {p.id !== user.id && (
+                  <button className="icon-btn" aria-label={`Remove ${p.name}`} title="Remove" onClick={() => void act("rm", () => api.authRemoveUser(p.id), `Removed ${p.name}.`)}>
+                    <Icon name="trash" size={14} />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          <form
+            className="acct-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act("add", () => api.authAddUser({ name: add.name, email: add.email, ...(add.password ? { password: add.password } : {}) }), `Added ${add.email}.`).then(() => setAdd({ name: "", email: "", password: "" }));
+            }}
+          >
+            <input placeholder="Name" value={add.name} onChange={(e) => setAdd({ ...add, name: e.target.value })} />
+            <input type="email" placeholder="Email" value={add.email} onChange={(e) => setAdd({ ...add, email: e.target.value })} required />
+            <input type="password" placeholder="Password (empty: Google only)" value={add.password} onChange={(e) => setAdd({ ...add, password: e.target.value })} autoComplete="new-password" />
+            <button className="btn small" disabled={!add.email || busy !== ""}>
+              <Icon name="plus" size={13} /> Add person
+            </button>
+          </form>
+        </Row>
+      )}
+      {owner && (
+        <Row label="Google sign-in">
+          <p className="muted small">
+            Create an OAuth client of type "Desktop app" in Google Cloud Console (APIs & Services, Credentials), then paste
+            its ID and secret here. People you add can then sign in with their Google account.
+          </p>
+          <form
+            className="acct-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act("google", () => api.authGoogle(google.clientId, google.clientSecret || undefined), google.clientId ? "Google sign-in is on." : "Google sign-in is off.");
+            }}
+          >
+            <input placeholder="Client ID (…apps.googleusercontent.com)" value={google.clientId} onChange={(e) => setGoogle({ ...google, clientId: e.target.value })} spellCheck={false} />
+            <input type="password" placeholder="Client secret" value={google.clientSecret} onChange={(e) => setGoogle({ ...google, clientSecret: e.target.value })} autoComplete="off" />
+            <button className="btn small" disabled={busy !== ""}>
+              Save
+            </button>
+          </form>
+          {!user.google && (
+            <button className="btn small" onClick={() => void act("link", () => signInWithGoogle(), "Your Google account is linked.")}>
+              Link my Google account
+            </button>
+          )}
+        </Row>
+      )}
+      {note && <p className={`small ${note.ok ? "muted pop-in" : "err-text"}`}>{note.text}</p>}
+      <p className="muted small">Your API keys and secrets are stored encrypted on this computer.</p>
     </Shell>
   );
 }

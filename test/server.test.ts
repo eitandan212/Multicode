@@ -2933,3 +2933,127 @@ describe("custom skills", () => {
     }
   });
 });
+
+describe("accounts and secrets", () => {
+  it("asks for an account, then requires sign-in for the API and previews", async () => {
+    const { Auth } = await import("../server/auth.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-auth-"));
+    const config = new ConfigStore(dir);
+    await config.load();
+    const auth = new Auth(dir);
+    await auth.load();
+    const { app } = createApp({ config, projectsDir: path.join(dir, "projects"), providerFactory: () => fakeProvider({ review: [] }), auth });
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise((r) => server.once("listening", r));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const h = { "content-type": "application/json", "x-multicode": "1" };
+    try {
+      expect(await (await fetch(`${base}/api/auth/status`)).json()).toMatchObject({ required: false, setup: true, user: null });
+      const weak = await fetch(`${base}/api/auth/setup`, { method: "POST", headers: h, body: JSON.stringify({ name: "Eitan", email: "e@x.com", password: "short" }) });
+      expect(weak.status).toBe(400);
+      const setup = await fetch(`${base}/api/auth/setup`, { method: "POST", headers: h, body: JSON.stringify({ name: "Eitan", email: "E@X.com", password: "correct horse" }) });
+      expect(setup.status).toBe(201);
+      const cookie = setup.headers.get("set-cookie")!.split(";")[0]!;
+      expect(setup.headers.get("set-cookie")).toMatch(/HttpOnly; SameSite=Strict/);
+      // Locked without a session, open with it.
+      expect((await fetch(`${base}/api/state`)).status).toBe(401);
+      expect((await fetch(`${base}/preview/x/`)).status).toBe(401);
+      expect((await fetch(`${base}/api/state`, { headers: { cookie } })).status).toBe(200);
+      // A second "setup" is refused.
+      expect((await fetch(`${base}/api/auth/setup`, { method: "POST", headers: h, body: JSON.stringify({ email: "z@x.com", password: "whatever12" }) })).status).toBe(409);
+      // Wrong password, then right one.
+      expect((await fetch(`${base}/api/auth/login`, { method: "POST", headers: h, body: JSON.stringify({ email: "e@x.com", password: "nope nope" }) })).status).toBe(401);
+      const login = await fetch(`${base}/api/auth/login`, { method: "POST", headers: h, body: JSON.stringify({ email: "e@x.com", password: "correct horse" }) });
+      expect(login.status).toBe(200);
+      const c2 = login.headers.get("set-cookie")!.split(";")[0]!;
+      // The owner adds a member; a member can't add people.
+      const add = await fetch(`${base}/api/auth/users`, { method: "POST", headers: { ...h, cookie: c2 }, body: JSON.stringify({ name: "Dana", email: "dana@x.com", password: "danas password" }) });
+      expect(add.status).toBe(201);
+      const dana = await fetch(`${base}/api/auth/login`, { method: "POST", headers: h, body: JSON.stringify({ email: "dana@x.com", password: "danas password" }) });
+      const c3 = dana.headers.get("set-cookie")!.split(";")[0]!;
+      expect((await fetch(`${base}/api/auth/users`, { method: "POST", headers: { ...h, cookie: c3 }, body: JSON.stringify({ email: "q@x.com", password: "qqqqqqqqq" }) })).status).toBe(403);
+      // Signing out ends that session only.
+      await fetch(`${base}/api/auth/logout`, { method: "POST", headers: { ...h, cookie: c2 } });
+      expect((await fetch(`${base}/api/state`, { headers: { cookie: c2 } })).status).toBe(401);
+      expect((await fetch(`${base}/api/state`, { headers: { cookie } })).status).toBe(200);
+      // Passwords are never stored in plain text.
+      const stored = await readFile(path.join(dir, "users.json"), "utf8");
+      expect(stored).not.toContain("correct horse");
+      expect(stored).toContain("scrypt$");
+      // Many wrong tries are slowed down.
+      for (let i = 0; i < 8; i++) await fetch(`${base}/api/auth/login`, { method: "POST", headers: h, body: JSON.stringify({ email: "dana@x.com", password: "guess" + i }) });
+      expect((await fetch(`${base}/api/auth/login`, { method: "POST", headers: h, body: JSON.stringify({ email: "dana@x.com", password: "danas password" }) })).status).toBe(429);
+    } finally {
+      server.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("signs in with Google (PKCE), only for this app's client and verified emails", async () => {
+    const { Auth } = await import("../server/auth.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-google-"));
+    const { useSecretKey } = await import("../server/secrets.js");
+    useSecretKey((await import("node:crypto")).randomBytes(32));
+    try {
+      const auth = new Auth(dir);
+      await auth.load();
+      await auth.setGoogle({ clientId: "123-abc.apps.googleusercontent.com", clientSecret: "s3cret" }, undefined);
+      const { url, state } = auth.googleStart("http://localhost:4317");
+      expect(url).toContain("code_challenge_method=S256");
+      expect(url).toContain("redirect_uri=http%3A%2F%2Flocalhost%3A4317%2Fapi%2Fauth%2Fgoogle%2Fcallback");
+      let tokenBody = "";
+      const google = (aud: string, verified = true) =>
+        (async (input: string | URL | Request, init?: RequestInit) => {
+          const u = String(input);
+          if (u.endsWith("/token")) {
+            tokenBody = String(init?.body);
+            return new Response(JSON.stringify({ id_token: "idtok" }), { status: 200 });
+          }
+          return new Response(JSON.stringify({ aud, sub: "g-1", email: "Owner@Gmail.com", email_verified: verified, name: "Owner" }), { status: 200 });
+        }) as typeof fetch;
+      await auth.googleCallback(state, "the-code", google("123-abc.apps.googleusercontent.com"));
+      expect(tokenBody).toContain("code_verifier=");
+      const done = await auth.googlePoll(state);
+      expect(done).toMatchObject({ done: true, user: { email: "owner@gmail.com", role: "owner" } });
+      // A token made for another app is refused.
+      const s2 = auth.googleStart("http://localhost:4317").state;
+      await auth.googleCallback(s2, "c", google("evil.apps.googleusercontent.com"));
+      expect(await auth.googlePoll(s2)).toMatchObject({ done: true, error: expect.stringContaining("wasn't for this app") });
+      // Someone without an account can't get in once there is an owner.
+      const s3 = auth.googleStart("http://localhost:4317").state;
+      const stranger = (async (input: string | URL | Request) =>
+        String(input).endsWith("/token")
+          ? new Response(JSON.stringify({ id_token: "x" }))
+          : new Response(JSON.stringify({ aud: "123-abc.apps.googleusercontent.com", sub: "g-2", email: "who@x.com", email_verified: true }))) as typeof fetch;
+      await auth.googleCallback(s3, "c", stranger);
+      expect(await auth.googlePoll(s3)).toMatchObject({ done: true, error: expect.stringContaining("No MultiCode account") });
+      expect(await readFile(path.join(dir, "users.json"), "utf8")).not.toContain("s3cret");
+    } finally {
+      useSecretKey(undefined);
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("stores API keys encrypted and reads them back", async () => {
+    const { useSecretKey } = await import("../server/secrets.js");
+    const { randomBytes } = await import("node:crypto");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-secret-"));
+    useSecretKey(randomBytes(32));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      const c = await config.upsertConnection({ kind: "anthropic", apiKey: "sk-ant-very-secret" });
+      await config.setSync({ env: { GITHUB_TOKEN: "ghp_secret" } });
+      const file = await readFile(path.join(dir, "config.json"), "utf8");
+      expect(file).not.toContain("sk-ant-very-secret");
+      expect(file).not.toContain("ghp_secret");
+      expect(file).toContain("enc:v1:");
+      const again = new ConfigStore(dir);
+      await again.load();
+      expect(again.connection(c.id)?.apiKey).toBe("sk-ant-very-secret");
+    } finally {
+      useSecretKey(undefined);
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

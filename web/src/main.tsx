@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { Pet } from "./components/Pet";
+import { AuthGate } from "./components/AuthGate";
 import { applyAppearance, loadAppearance } from "./appearance";
 import { installDialogExit, installSegPills } from "./motion";
 import { installWindowChrome } from "./windowChrome";
@@ -19,6 +20,14 @@ if (petWindow) document.documentElement.classList.add("pet-window");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {petWindow ? <Pet standalone onOpen={(id) => window.multicodeDesktop?.openRun?.(id)} /> : <App />}
+    {petWindow ? (
+      <AuthGate quiet>
+        <Pet standalone onOpen={(id) => window.multicodeDesktop?.openRun?.(id)} />
+      </AuthGate>
+    ) : (
+      <AuthGate>
+        <App />
+      </AuthGate>
+    )}
   </StrictMode>,
 );

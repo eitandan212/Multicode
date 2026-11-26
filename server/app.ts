@@ -22,6 +22,7 @@ import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
+import { SESSION_COOKIE, viewOf as userView, type Auth, type User } from "./auth.js";
 import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
 import { CustomSkills } from "./customSkills.js";
@@ -71,6 +72,8 @@ export interface AppOptions {
   runsDir?: string;
   /** Where project memory and sync state live. Omit to disable harness sync. */
   stateDir?: string;
+  /** Accounts: once one exists, every request needs a signed-in session. */
+  auth?: Auth;
   /** Origin the UI and previews are served from (for the browser plugin). */
   publicOrigin?: string;
   providerFactory: ProviderFactory;
@@ -127,7 +130,131 @@ export function createApp(opts: AppOptions) {
     next();
   });
 
+  // ---- Accounts ----
+  const auth = opts.auth;
+  const cookieToken = (req: Request): string | undefined =>
+    /(?:^|;\s*)mc_session=([\w-]{20,200})/.exec(req.headers.cookie ?? "")?.[1];
+  const setSession = (res: Response, token: string) =>
+    res.setHeader("Set-Cookie", `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${30 * 86400}`);
+  const OPEN = /^\/auth\/(status|login|setup|google\/(start|callback|poll))$/;
+  // Every API call and every project preview needs a session once there is an account.
+  const guard = (req: Request, res: Response, next: () => void) => {
+    if (!auth?.required) return next();
+    const user = auth.userFor(cookieToken(req));
+    if (!user) return void res.status(401).json({ error: "Sign in to MultiCode", signIn: true });
+    (req as Request & { user?: User }).user = user;
+    next();
+  };
+  app.use("/api", (req, res, next) => (OPEN.test(req.path) ? next() : guard(req, res, next)));
+  app.use(["/preview", "/preview-sandbox"], guard);
+  const userOf = (req: Request) => (req as Request & { user?: User }).user;
+
   const api = express.Router();
+
+  api.get("/auth/status", (req, res) => {
+    const user = auth?.userFor(cookieToken(req));
+    res.json({
+      required: Boolean(auth?.required),
+      setup: Boolean(auth) && !auth!.required,
+      google: Boolean(auth?.googleReady),
+      user: user ? userView(user) : null,
+    });
+  });
+  api.post(
+    "/auth/setup",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      if (auth.required) throw new HttpError(409, "MultiCode already has an owner: sign in instead");
+      const user = await auth.addUser(req.body ?? {});
+      const { token } = await auth.signIn(user.email, req.body?.password);
+      setSession(res, token);
+      res.status(201).json(userView(user));
+    }),
+  );
+  api.post(
+    "/auth/login",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      const { token, user } = await auth.signIn(req.body?.email, req.body?.password);
+      setSession(res, token);
+      res.json(userView(user));
+    }),
+  );
+  api.post(
+    "/auth/logout",
+    wrap(async (req, res) => {
+      await auth?.signOut(cookieToken(req));
+      res.setHeader("Set-Cookie", `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+      res.status(204).end();
+    }),
+  );
+  api.post(
+    "/auth/password",
+    wrap(async (req, res) => {
+      const user = userOf(req);
+      if (!auth || !user) throw new HttpError(401, "Sign in first");
+      await auth.changePassword(user, req.body?.current, req.body?.next);
+      const { token } = await auth.signIn(user.email, req.body?.next);
+      setSession(res, token);
+      res.status(204).end();
+    }),
+  );
+  api.get("/auth/users", (req, res) => res.json(auth?.users() ?? []));
+  api.post(
+    "/auth/users",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      res.status(201).json(userView(await auth.addUser(req.body ?? {}, userOf(req))));
+    }),
+  );
+  api.delete(
+    "/auth/users/:id",
+    wrap(async (req, res) => {
+      const user = userOf(req);
+      if (!auth || !user) throw new HttpError(401, "Sign in first");
+      await auth.removeUser(param(req, "id"), user);
+      res.status(204).end();
+    }),
+  );
+  api.put(
+    "/auth/google",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      await auth.setGoogle(req.body ?? {}, userOf(req));
+      res.status(204).end();
+    }),
+  );
+  api.post(
+    "/auth/google/start",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      res.json(auth.googleStart(`http://${req.headers.host}`));
+    }),
+  );
+  api.get(
+    "/auth/google/callback",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      await auth.googleCallback(req.query.state, req.query.code);
+      res
+        .type("html")
+        .send(
+          '<!doctype html><meta charset="utf-8"><title>MultiCode</title><body style="font:16px system-ui;display:grid;place-items:center;height:90vh;margin:0"><p>Done. You can close this tab and go back to MultiCode.</p></body>',
+        );
+    }),
+  );
+  api.post(
+    "/auth/google/poll",
+    wrap(async (req, res) => {
+      if (!auth) throw new HttpError(404, "Accounts aren't available here");
+      const r = await auth.googlePoll(req.body?.state);
+      if (r.done && "token" in r) {
+        setSession(res, r.token);
+        return void res.json({ done: true, user: userView(r.user) });
+      }
+      res.json(r);
+    }),
+  );
 
   api.get(
     "/state",
