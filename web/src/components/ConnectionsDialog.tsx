@@ -49,7 +49,7 @@ const ENDPOINT_PRESETS: {
   { name: "Groq", url: "https://api.groq.com/openai/v1", model: "", hint: "Very fast open models" },
   { name: "DeepSeek", url: "https://api.deepseek.com/v1", model: "deepseek-chat", hint: "DeepSeek's own API" },
   { name: "Mistral", url: "https://api.mistral.ai/v1", model: "", hint: "Mistral and Codestral" },
-  { name: "xAI", url: "https://api.x.ai/v1", model: "", hint: "Grok models" },
+  { name: "Grok (xAI)", url: "https://api.x.ai/v1", model: "grok-code-fast-1", hint: "Grok models · key from console.x.ai" },
   { name: "Together", url: "https://api.together.xyz/v1", model: "", hint: "Open models in the cloud" },
   { name: "Fireworks", url: "https://api.fireworks.ai/inference/v1", model: "", hint: "Open models in the cloud" },
   { name: "Cerebras", url: "https://api.cerebras.ai/v1", model: "", hint: "Very fast open models" },
@@ -100,6 +100,7 @@ const KEY_HELP: Partial<Record<ProviderKind, string>> = {
 const MODEL_HINT: Partial<Record<ProviderKind, string>> = {
   "opencode-cli": "provider/model, e.g. opencode/big-pickle (free)",
   "qwen-cli": "Leave empty for Qwen's default",
+  "cursor-cli": "Leave empty for Cursor's default (Auto), or e.g. gpt-5, sonnet-4.5",
 };
 
 export function ConnectionsDialog({ state, onClose, onChanged }: Props) {
@@ -494,7 +495,9 @@ export function AddConnection(props: {
                   <strong>{cli.binary} is installed.</strong>{" "}
                   {OPEN_SOURCE_KINDS.includes(kind)
                     ? `MultiCode runs this open-source agent on this computer. ${cli.hint.split("→")[1]?.trim() ?? ""}`
-                    : "MultiCode runs it on this computer with your signed-in subscription. If you haven't signed in yet, run it once in a terminal."}
+                    : kind === "cursor-cli"
+                      ? "MultiCode runs it on this computer with your Cursor account. If you haven't signed in yet, run `agent login` once in a terminal."
+                      : "MultiCode runs it on this computer with your signed-in subscription. If you haven't signed in yet, run it once in a terminal."}
                 </>
               ) : (
                 <>

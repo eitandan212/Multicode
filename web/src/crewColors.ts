@@ -37,6 +37,7 @@ export const VENDOR: Record<ProviderKind, string> = {
   "openai-compatible": "Custom",
   "opencode-cli": "OpenCode",
   "qwen-cli": "Qwen",
+  "cursor-cli": "Cursor",
   acp: "ACP",
 };
 

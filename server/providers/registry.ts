@@ -34,6 +34,7 @@ export const createProvider: ProviderFactory = (conn) => {
     case "gemini-cli":
     case "opencode-cli":
     case "qwen-cli":
+    case "cursor-cli":
       return new CliProvider(conn);
     case "acp":
       return new AcpProvider(conn);

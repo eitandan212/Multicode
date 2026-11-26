@@ -10,6 +10,8 @@ export type ProviderKind =
   | "gemini-cli"
   | "opencode-cli"
   | "qwen-cli"
+  /** Cursor's agent CLI (`agent`), with your Cursor account. */
+  | "cursor-cli"
   /** Google Antigravity's agent (`agy acp`), with your Google account. */
   | "antigravity"
   /** Any agent that speaks the Agent Client Protocol (from the ACP registry or a custom command). */
@@ -24,6 +26,7 @@ export const API_KINDS: ProviderKind[] = [
 export const SUBSCRIPTION_KINDS: ProviderKind[] = [
   "claude-cli",
   "codex-cli",
+  "cursor-cli",
   "antigravity",
 ];
 export const OPEN_SOURCE_KINDS: ProviderKind[] = ["opencode-cli", "qwen-cli"];
@@ -32,6 +35,7 @@ export const CLI_KINDS: ProviderKind[] = [
   "claude-cli",
   "codex-cli",
   "gemini-cli",
+  "cursor-cli",
   ...OPEN_SOURCE_KINDS,
 ];
 /** Kinds whose agent works in the project folder and edits files itself. */
@@ -48,6 +52,7 @@ export const KIND_LABELS: Record<ProviderKind, string> = {
   antigravity: "Google subscription (Antigravity)",
   "opencode-cli": "OpenCode (75+ providers, free models)",
   "qwen-cli": "Qwen Code (free Qwen account)",
+  "cursor-cli": "Cursor subscription (Cursor CLI)",
   acp: "Any ACP agent (Agent Client Protocol)",
 };
 
@@ -59,6 +64,7 @@ export const HARNESS_NAMES: Record<ProviderKind, string> = {
   antigravity: "Antigravity",
   "opencode-cli": "OpenCode",
   "qwen-cli": "Qwen Code",
+  "cursor-cli": "Cursor",
   acp: "ACP agent",
   anthropic: "Claude API",
   openai: "OpenAI API",
@@ -85,6 +91,7 @@ const ENDPOINT_BRANDS: [RegExp, string][] = [
   [/groq/i, "Groq"],
   [/deepseek/i, "DeepSeek"],
   [/mistral/i, "Mistral"],
+  [/x\.ai/i, "Grok (xAI)"],
   [/together/i, "Together AI"],
   [/:11434|ollama/i, "Ollama"],
   [/:1234|lmstudio/i, "LM Studio"],
@@ -563,6 +570,7 @@ export interface RunSummary {
 const KIND_STRENGTH: Partial<Record<ProviderKind, number>> = {
   "claude-cli": 3,
   "codex-cli": 3,
+  "cursor-cli": 3,
   anthropic: 3,
   openai: 3,
   "gemini-cli": 2,

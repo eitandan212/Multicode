@@ -52,6 +52,7 @@ const BY_KIND: Record<ProviderKind, string> = {
   antigravity,
   "opencode-cli": opencode,
   "qwen-cli": qwen,
+  "cursor-cli": cursor,
   "openai-compatible": generic,
   acp: generic,
 };
@@ -112,6 +113,7 @@ function endpointBrand(baseUrl = ""): string | undefined {
   if (u.includes("groq")) return groq;
   if (u.includes("deepseek")) return deepseek;
   if (u.includes("mistral")) return mistral;
+  if (u.includes("x.ai")) return grok;
   if (u.includes(":11434") || u.includes("ollama")) return ollama;
   if (u.includes(":1234") || u.includes("lmstudio")) return lmstudio;
   return undefined;

@@ -295,11 +295,38 @@ export function npmPackageOf(kind: keyof typeof CLI_SPECS): string | undefined {
   return /npm i(?:nstall)? -g (\S+)/.exec(CLI_SPECS[kind].install)?.[1];
 }
 
+/**
+ * Installs Cursor's agent with Cursor's own installer (cursor.com/install), for this user only:
+ * it lands in ~/.local/bin (macOS, Linux) or the user's profile (Windows). Runs on your click.
+ */
+function installCursor(): Promise<{ ok: boolean; output: string }> {
+  const win = process.platform === "win32";
+  const [cmd, args] = win
+    ? ["powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm 'https://cursor.com/install?win32=true' | iex"]]
+    : ["bash", ["-c", "set -o pipefail; curl -fsS https://cursor.com/install | bash"]];
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { env: { ...process.env, NO_COLOR: "1" }, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let out = "";
+    child.stdout.on("data", (d) => (out = (out + d).slice(-6000)));
+    child.stderr.on("data", (d) => (out = (out + d).slice(-6000)));
+    const timer = setTimeout(() => child.kill(), 10 * 60_000);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ ok: false, output: e.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ ok: code === 0, output: out.trim().split("\n").slice(-12).join("\n") });
+    });
+  });
+}
+
 /** Installs an agent CLI with npm (global, for this user). */
 export async function installAgent(
   kind: keyof typeof CLI_SPECS | "antigravity",
 ): Promise<{ ok: boolean; output: string }> {
   if (kind === "antigravity") return installAgy();
+  if (kind === "cursor-cli") return installCursor();
   const pkg = npmPackageOf(kind);
   if (!pkg) throw new HttpError(400, "this agent isn't installed with npm");
   const npm = await findBinary("npm");

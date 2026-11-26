@@ -166,7 +166,20 @@ describe("cli adapters", () => {
     );
     expect(buildCliArgs("claude-cli", { ...req, mode: "text" }, "x")).toContain(
       "plan",
+    );    // Cursor: never --force; plans and reviews in ask (read-only) mode, in the project folder.
+    const cur = buildCliArgs("cursor-cli", { ...req, mode: "edit" }, "x");
+    expect(cur).not.toContain("--force");
+    expect(cur).not.toContain("-f");
+    expect(cur).toEqual(expect.arrayContaining(["-p", "--workspace", "/p", "--model", "m"]));
+    expect(cur).not.toContain("--mode");
+    expect(buildCliArgs("cursor-cli", { ...req, mode: "text" }, "x")).toEqual(
+      expect.arrayContaining(["--mode", "ask"]),
     );
+    expect(
+      CLI_SPECS["cursor-cli"].parseModels!(
+        "Available models\n\nauto - Auto (current)\ngpt-5 - GPT-5\nsonnet-4.5 - Claude 4.5 Sonnet\nTip: use --model\n",
+      ),
+    ).toEqual(["auto", "gpt-5", "sonnet-4.5"]);
   });
   it("finds the script inside a Windows npm .cmd shim", () => {
     const shim = [

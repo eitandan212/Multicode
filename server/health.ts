@@ -56,7 +56,7 @@ export async function checkConnection(
           : { status: "sign-in", action: "sign-in", message: `Sign in to use your ${conn.label} subscription.` };
       return { status: "ready", message: a.account ? `Signed in as ${a.account}` : "Signed in and ready" };
     }
-    if (conn.kind === "gemini-cli" || conn.kind === "opencode-cli" || conn.kind === "qwen-cli") {
+    if (conn.kind === "gemini-cli" || conn.kind === "opencode-cli" || conn.kind === "qwen-cli" || conn.kind === "cursor-cli") {
       if (!(await findBinary(CLI_SPECS[conn.kind].binary)))
         return { status: "install", action: "install", message: `${conn.label} isn't installed on this computer yet.` };
       return { status: "ready", message: "Installed and ready" };

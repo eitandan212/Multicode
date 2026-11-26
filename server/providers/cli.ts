@@ -31,6 +31,8 @@ interface CliSpec {
   env?(req: GenerateRequest): Record<string, string>;
   /** argv that prints one model id per line, when the CLI supports listing. */
   listModels?: string[];
+  /** Model ids from that listing's output; by default lines shaped "provider/model". */
+  parseModels?(stdout: string): string[];
 }
 
 const modelArg = (req: GenerateRequest, flag = "--model") =>
@@ -127,6 +129,32 @@ export const CLI_SPECS: Record<CliKind, CliSpec> = {
     }),
     listModels: ["models"],
   },
+  // Cursor's agent. In print mode it edits files inside the workspace and runs only shell
+  // commands you allowlisted in Cursor; it is never given --force. Plans and reviews use ask mode.
+  "cursor-cli": {
+    binary: "agent",
+    install:
+      "curl https://cursor.com/install -fsS | bash  (Windows: irm 'https://cursor.com/install?win32=true' | iex)  →  run `agent login`",
+    output: "text",
+    args: (req, prompt) => [
+      "-p",
+      "--output-format",
+      "text",
+      "--trust",
+      "--workspace",
+      req.cwd,
+      ...(req.mode === "edit" ? [] : ["--mode", "ask"]),
+      ...modelArg(req),
+      prompt,
+    ],
+    listModels: ["models"],
+    // Lines like "gpt-5 - GPT-5" or a bare "auto"; headings and blank lines are skipped.
+    parseModels: (out) =>
+      out
+        .split("\n")
+        .map((l) => /^\s*[-*•]?\s*([a-z0-9][\w.-]*)(?:\s+[-–(].*)?\s*$/i.exec(l)?.[1])
+        .filter((m): m is string => Boolean(m) && /[\d-]/.test(m!) || m === "auto"),
+  },
   "qwen-cli": {
     binary: "qwen",
     install:
@@ -186,6 +214,9 @@ export async function findBinary(name: string): Promise<string | undefined> {
   // Where `npm i -g` puts launchers on Windows, even when PATH doesn't list it yet.
   if (process.platform === "win32" && process.env.APPDATA)
     dirs.push(path.join(process.env.APPDATA, "npm"));
+  // Where per-user installers (Cursor's agent, and others) put programs on macOS and Linux.
+  if (process.platform !== "win32" && process.env.HOME) dirs.push(path.join(process.env.HOME, ".local", "bin"));
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) dirs.push(path.join(process.env.LOCALAPPDATA, "cursor-agent"));
   for (const dir of dirs) {
     if (!dir) continue;
     for (const ext of exts) {
@@ -400,6 +431,7 @@ export class CliProvider implements Provider {
         },
         (err, stdout) => {
           if (err) return reject(new ProviderError(err.message));
+          if (this.spec.parseModels) return resolve([...new Set(this.spec.parseModels(stdout))]);
           resolve(
             stdout
               .split("\n")
