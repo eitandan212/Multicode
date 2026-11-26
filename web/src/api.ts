@@ -58,6 +58,18 @@ async function request<T>(
 import type { AccountUsage, AgentAccess, ConnectionHealth, GitStatus, SignInFlow } from "../../server/shared";
 export type { AgentAccess, ConnectionHealth, SignInFlow };
 
+/** An MCP server found in another tool's config (values stay on the server). */
+export interface FoundMcpServer {
+  source: string;
+  name: string;
+  type: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+  envNames: string[];
+  added: boolean;
+}
+
 export const api = {
   /** Saves a pasted or dropped picture in the project; mention the returned path with @. */
   attach: async (project: string, file: Blob): Promise<{ path: string }> => {
@@ -113,6 +125,9 @@ export const api = {
   saveExtensions: (body: Record<string, unknown>) =>
     request<ExtensionsView>("PUT", "/api/extensions", body),
   sync: () => request<SyncConfigView>("GET", "/api/sync"),
+  discoverMcp: () => request<FoundMcpServer[]>("GET", "/api/mcp/discover"),
+  importMcp: (servers: { source: string; name: string }[]) =>
+    request<SyncConfigView>("POST", "/api/mcp/import", { servers }),
   saveSync: (body: {
     instructions?: string;
     mcpServers?: McpServer[];

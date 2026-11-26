@@ -5249,3 +5249,28 @@ pre,
 .md th, .md td{ padding: 6px 10px; border: 1px solid var(--line); text-align: left; }
 .md th{ background: var(--hover); font-weight: 600; }
 .md hr{ border: 0; border-top: 1px solid var(--line); margin: 1em 0; }
+
+/* Connect tools quickly: catalog chips and servers found in other tools. */
+.mcp-quick{ display: grid; gap: 10px; margin-bottom: 10px; }
+.mcp-catalog{ display: flex; flex-wrap: wrap; gap: 6px; }
+.mcp-chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 140ms var(--ease-soft), transform 220ms var(--spring);
+}
+.mcp-chip:hover{ border-color: var(--brand); transform: translateY(-1px); }
+.mcp-chip:active{ transform: scale(0.96); }
+.mcp-found{ display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.mcp-found ul{ list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mcp-found label{ display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; }
+.mcp-found .truncate{ min-width: 0; flex: 1; }
+.mcp-added{ flex: none; padding: 1px 7px; border-radius: 99px; background: var(--hover); color: var(--muted); font-size: 11px; }

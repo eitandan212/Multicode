@@ -22,6 +22,7 @@ import { HarnessSync, ProjectMemory } from "./sync.js";
 import { readGraph } from "./graph.js";
 import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
+import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { gitCommit, gitInit, gitPush, gitStatus } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
 import { readFileSync } from "node:fs";
@@ -328,6 +329,24 @@ export function createApp(opts: AppOptions) {
   api.put(
     "/sync",
     wrap(async (req, res) => res.json(await config.setSync(req.body ?? {}))),
+  );
+  // MCP servers already set up in Claude Code, Codex, Cursor, Gemini CLI, Claude Desktop, Windsurf.
+  api.get(
+    "/mcp/discover",
+    wrap(async (_req, res) => res.json(viewOf(await discoverMcp(), config.syncView().mcpServers))),
+  );
+  api.post(
+    "/mcp/import",
+    wrap(async (req, res) => {
+      const picks = Array.isArray(req.body?.servers)
+        ? (req.body.servers as unknown[]).slice(0, 30).map((p) => {
+            const o = (p ?? {}) as Record<string, unknown>;
+            return { source: String(o.source ?? ""), name: String(o.name ?? "") };
+          })
+        : [];
+      const plan = importPlan(await discoverMcp(), picks, config.syncView().mcpServers);
+      res.json(await config.setSync(plan));
+    }),
   );
   api.post(
     "/projects/:name/sync",

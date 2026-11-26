@@ -1,3 +1,4 @@
+import { McpQuickAdd } from "./McpQuickAdd";
 import { useEffect, useRef, useState } from "react";
 import type {
   HarnessSyncStatus,
@@ -108,7 +109,7 @@ export function SyncDialog({
     >
       <header className="dialog-head">
         <div>
-          <h2>Sync across harnesses</h2>
+          <h2>Tools (MCP) & sync</h2>
           <p className="muted">
             Claude Code, Codex, Gemini CLI, Qwen Code and OpenCode all get the
             same instructions, tools and project memory.
@@ -142,6 +143,16 @@ export function SyncDialog({
 
         <div className="field">
           <span>MCP servers</span>
+          <McpQuickAdd
+            names={new Set(servers.map((s) => s.name))}
+            onAdd={(s) => setServers([...servers, toDraft(s)])}
+            onImported={(saved, envSetNow) => {
+              // Keep drafts you haven't saved yet next to the imported servers.
+              const savedNames = new Set(saved.map((s) => s.name));
+              setServers([...saved.map(toDraft), ...servers.filter((s) => s.name && !savedNames.has(s.name))]);
+              setEnvSet(envSetNow);
+            }}
+          />
           {servers.length === 0 && (
             <p className="muted small">
               No shared tools yet. Add an MCP server and every agent that

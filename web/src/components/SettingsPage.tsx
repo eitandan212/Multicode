@@ -40,7 +40,7 @@ const NAV: {
     group: "Tools",
     items: [
       { id: "extensions", label: "Plugins & skills", icon: "puzzle" },
-      { id: "sync", label: "Sync across harnesses", icon: "sync" },
+      { id: "sync", label: "Tools (MCP) & sync", icon: "sync" },
     ],
   },
   {

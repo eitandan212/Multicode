@@ -19,6 +19,7 @@ export type SlashId =
   | "crew"
   | "changes"
   | "memory"
+  | "mcp"
   | "ide"
   | "settings"
   | "help";
@@ -39,6 +40,7 @@ export const SLASH: { id: SlashId; hint: string; icon: IconName }[] = [
   { id: "crew", hint: "Choose who plans, builds and reviews", icon: "users" },
   { id: "changes", hint: "Show what changed", icon: "file" },
   { id: "memory", hint: "Open the memory graph", icon: "graph" },
+  { id: "mcp", hint: "Connect tools: MCP servers, import from Claude Code, Codex, Cursor", icon: "plug" },
   { id: "ide", hint: "Switch between Chat and IDE view", icon: "terminal" },
   { id: "settings", hint: "Open settings", icon: "settings" },
   { id: "help", hint: "Keyboard shortcuts and commands", icon: "keyboard" },

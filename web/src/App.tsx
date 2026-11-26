@@ -533,8 +533,8 @@ export function App() {
       },
       {
         id: "sync",
-        label: "Sync across harnesses",
-        hint: "instructions, MCP servers, memory",
+        label: "Connect tools (MCP) & sync",
+        hint: "MCP servers, import from Claude Code / Codex / Cursor, shared instructions",
         icon: "sync",
         group: "Actions",
         run: () => setDialog("sync"),
@@ -751,6 +751,7 @@ export function App() {
         if (id === "new") newThread();
         else if (id === "usage" || id === "connections" || id === "crew") setDialog(id);
         else if (id === "settings") setDialog("general");
+        else if (id === "mcp") setDialog("sync");
         else if (id === "help") setDialog("keybindings");
         else if (id === "ide") setView(view === "ide" ? "chat" : "ide");
         else if (id === "changes" || id === "memory") {

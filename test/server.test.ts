@@ -2212,3 +2212,54 @@ describe("git (commit from the app)", () => {
     }
   });
 });
+
+describe("import MCP servers from other tools", () => {
+  it("finds servers in Claude Code, Codex, Cursor and Gemini, hides values, and imports picks once", async () => {
+    const { discoverMcp, importPlan, viewOf } = await import("../server/mcpImport.js");
+    const home = await mkdtemp(path.join(tmpdir(), "mc-home-"));
+    try {
+      await writeFile(
+        path.join(home, ".claude.json"),
+        JSON.stringify({
+          mcpServers: { context: { command: "npx", args: ["-y", "@upstash/context7-mcp"] } },
+          projects: { "/x": { mcpServers: { linear: { type: "http", url: "https://mcp.linear.app/mcp" } } } },
+        }),
+      );
+      await mkdir(path.join(home, ".codex"));
+      await writeFile(
+        path.join(home, ".codex", "config.toml"),
+        'model = "gpt-5"\n[mcp_servers.supa]\ncommand = "npx"\nargs = ["-y", "@supabase/mcp-server-supabase"]\nenv = { SUPABASE_ACCESS_TOKEN = "sbp_secret" }\n',
+      );
+      await mkdir(path.join(home, ".cursor"));
+      await writeFile(
+        path.join(home, ".cursor", "mcp.json"),
+        JSON.stringify({ mcpServers: { context: { command: "npx", args: ["-y", "@upstash/context7-mcp"] }, "bad name!": { command: "x" } } }),
+      );
+      await mkdir(path.join(home, ".gemini"));
+      await writeFile(path.join(home, ".gemini", "settings.json"), JSON.stringify({ mcpServers: { off: { command: "x", disabled: true } } }));
+
+      const found = await discoverMcp(home, "linux");
+      expect(found.map((f) => `${f.source}:${f.name}`).sort()).toEqual(
+        ["Claude Code:context", "Claude Code:linear", "Codex:supa", "Cursor:bad-name-"].sort(),
+      );
+      const view = viewOf(found, [{ name: "linear", type: "http", url: "https://mcp.linear.app/mcp" }]);
+      expect(JSON.stringify(view)).not.toContain("sbp_secret");
+      expect(view.find((v) => v.name === "supa")?.envNames).toEqual(["SUPABASE_ACCESS_TOKEN"]);
+      expect(view.find((v) => v.name === "linear")?.added).toBe(true);
+
+      const plan = importPlan(
+        found,
+        [
+          { source: "Codex", name: "supa" },
+          { source: "Claude Code", name: "linear" },
+          { source: "Codex", name: "supa" },
+        ],
+        [{ name: "linear", type: "http", url: "https://mcp.linear.app/mcp" }],
+      );
+      expect(plan.mcpServers.map((s) => s.name)).toEqual(["linear", "supa"]);
+      expect(plan.env).toEqual({ SUPABASE_ACCESS_TOKEN: "sbp_secret" });
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+});
