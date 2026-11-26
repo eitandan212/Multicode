@@ -14,6 +14,7 @@ import { rm, stat } from "node:fs/promises";
 import type { ImageInput } from "./providers/types.js";
 import { gitDiff } from "./git.js";
 import { matches, runHook } from "./hooks.js";
+import { installRequest, type CustomSkills } from "./customSkills.js";
 import {
   assignRoles,
   DESIGN_DIRECTIONS,
@@ -237,6 +238,9 @@ export class RunManager {
     },
   ) {}
 
+  /** Your own skills (Settings > Plugins & skills), given to every harness and API agent. */
+  customSkills?: CustomSkills;
+
   /** Plugins and skill packs for a request: what gets synced and handed to the crew. */
   private async extras(project: string, request: string) {
     const ws = await Workspace.open(this.projectsDir, project);
@@ -258,6 +262,12 @@ export class RunManager {
       request,
       await ws.list(),
     );
+    const mine = (await this.customSkills?.list()) ?? [];
+    if (mine.length)
+      packs.push({
+        pack: { id: "custom", name: "Your skills", description: "Skills you added", skills: mine },
+        reason: "on",
+      });
     const extras: SyncExtras = {
       servers: plugins.servers,
       instructions: plugins.instructions,
@@ -879,6 +889,18 @@ export class RunManager {
     };
 
     const work = async () => {
+      // "install the skill from <url>": done right away, without calling a model.
+      const skillUrl = installRequest(run.prompt);
+      if (skillUrl && this.customSkills) {
+        const s = await this.customSkills.install(skillUrl);
+        await finish("done", {
+          type: "run.done",
+          summary: `Installed the skill **${s.name}**${s.description ? `: ${s.description}` : ""}. Every agent uses it from the next request on (Settings > Plugins & skills).`,
+          changedFiles: [],
+          at: Date.now(),
+        });
+        return;
+      }
       if (mode === "compare") {
         // The same task, once per model (each different connection or model), in parallel sandboxes.
         const seen = new Set<string>();

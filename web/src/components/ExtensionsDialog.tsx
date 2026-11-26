@@ -1,3 +1,4 @@
+import { CustomSkillsSection } from "./CustomSkills";
 import { useEffect, useRef, useState } from "react";
 import type {
   ExtensionsView,
@@ -155,6 +156,8 @@ export function ExtensionsDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </ul>
             </section>
+
+            <CustomSkillsSection />
 
             <section className="ext-section">
               <h3>Skill packs</h3>

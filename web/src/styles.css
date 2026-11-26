@@ -5651,3 +5651,12 @@ button.git-branch:hover{ background: color-mix(in srgb, var(--brand) 22%, transp
 .sb-empty-row:hover, .sb-show-more:hover{ color: var(--text); background: var(--hover); }
 .sb-group svg:first-child{ color: var(--muted); }
 .sb-menu.menu-pop{ bottom: auto; left: auto; transform-origin: 100% 0; }
+
+/* Your skills */
+.custom-skill{ display: flex; align-items: center; gap: 6px; }
+.custom-skill-text{ flex: 1; min-width: 0; display: grid; gap: 2px; }
+.custom-skill-form{ display: grid; gap: 8px; }
+.custom-skill-form input{ height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: inherit; font: inherit; }
+.custom-skill-form textarea{ font-family: var(--mono); font-size: 12.5px; }
+.custom-skill-actions{ display: grid; gap: 8px; justify-items: start; }
+.custom-skill-actions .git-commit{ width: 100%; }

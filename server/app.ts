@@ -24,6 +24,7 @@ import { installAgent as installCli, SignIn } from "./signin.js";
 import { checkConnection } from "./health.js";
 import { checkCaching } from "./cacheCheck.js";
 import { listCommands } from "./commands.js";
+import { CustomSkills } from "./customSkills.js";
 import { discoverMcp, importPlan, viewOf } from "./mcpImport.js";
 import { cloneUrl, gitBranches, gitCheckout, gitClone, gitCommit, gitInit, gitPull, gitPush, gitStatus, repoName } from "./git.js";
 import { accountUsage, USAGE_KINDS } from "./usage.js";
@@ -105,6 +106,9 @@ export function createApp(opts: AppOptions) {
     opts.runsDir,
     sync,
   );
+  // Your own skills live in the data folder (custom-skills/<name>/SKILL.md).
+  const customSkills = new CustomSkills(path.join(opts.stateDir ?? path.join(projectsDir, ".."), "custom-skills"));
+  runs.customSkills = customSkills;
   const app = express();
   app.disable("x-powered-by");
 
@@ -341,6 +345,17 @@ export function createApp(opts: AppOptions) {
       res.json(await listCommands(ws.root));
     }),
   );
+  // Your own skills: list, write, delete, install from GitHub.
+  api.get("/skills/custom", wrap(async (_req, res) => res.json(await customSkills.list())));
+  api.put("/skills/custom/:name", wrap(async (req, res) => res.json(await customSkills.save({ ...(req.body ?? {}), name: param(req, "name") }))));
+  api.delete(
+    "/skills/custom/:name",
+    wrap(async (req, res) => {
+      await customSkills.remove(param(req, "name"));
+      res.status(204).end();
+    }),
+  );
+  api.post("/skills/custom/install", wrap(async (req, res) => res.status(201).json(await customSkills.install(req.body?.url))));
   // MCP servers already set up in Claude Code, Codex, Cursor, Gemini CLI, Claude Desktop, Windsurf.
   api.get(
     "/mcp/discover",

@@ -2874,3 +2874,62 @@ describe("chats", () => {
     }
   });
 });
+
+describe("custom skills", () => {
+  it("saves, lists and deletes your skills, and turns GitHub links into the raw SKILL.md", async () => {
+    const { CustomSkills, rawUrl, installRequest } = await import("../server/customSkills.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-skills-"));
+    try {
+      const cs = new CustomSkills(dir);
+      await cs.save({ name: "Our API Style", description: "How we write handlers", body: "Validate input." });
+      expect((await cs.list()).map((s) => s.name)).toEqual(["our-api-style"]);
+      expect((await cs.save({ name: "../x", body: "x" })).name).toBe("x");
+      await cs.remove("x");
+      await expect(cs.save({ name: "!!!", body: "x" })).rejects.toThrow(/name/);
+      expect(rawUrl("https://github.com/acme/skills/tree/main/skills/pdf")).toBe("https://raw.githubusercontent.com/acme/skills/main/skills/pdf/SKILL.md");
+      expect(rawUrl("https://github.com/acme/skills/blob/main/x/SKILL.md")).toBe("https://raw.githubusercontent.com/acme/skills/main/x/SKILL.md");
+      expect(() => rawUrl("file:///etc/passwd")).toThrow(/https/);
+      const fake = (async () => new Response("---\nname: pdf-tools\ndescription: Work with PDFs\n---\n\n# PDFs\nUse pypdf.")) as typeof fetch;
+      const s = await cs.install("https://github.com/acme/skills/tree/main/skills/pdf", fake);
+      expect(s).toMatchObject({ name: "pdf-tools", description: "Work with PDFs" });
+      const html = (async () => new Response("<!doctype html><html></html>")) as typeof fetch;
+      await expect(cs.install("https://example.com/page", html)).rejects.toThrow(/web page/);
+      expect(installRequest("install the skill from https://github.com/a/b/tree/main/s")).toBe("https://github.com/a/b/tree/main/s");
+      expect(installRequest("תתקין את הסקיל מ https://x.com/SKILL.md")).toBe("https://x.com/SKILL.md");
+      expect(installRequest("build a skill tree page")).toBeUndefined();
+      await cs.remove("our-api-style");
+      expect((await cs.list()).map((x) => x.name)).toEqual(["pdf-tools"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("gives your skills to API agents", async () => {
+    const { CustomSkills } = await import("../server/customSkills.js");
+    const dir = await mkdtemp(path.join(tmpdir(), "mc-skills2-"));
+    try {
+      const config = new ConfigStore(dir);
+      await config.load();
+      await config.setSettings({ approvals: "all", maxReviewRounds: 0, freeFallback: { enabled: false } });
+      await config.upsertConnection({ kind: "openai-compatible", baseUrl: "http://x", defaultModel: "m" });
+      const systems: string[] = [];
+      const base = fakeProvider({ review: [] });
+      const provider: Provider = { ...base, async generate(req, onDelta) { systems.push(req.system); return base.generate(req, onDelta); } };
+      const runs = new RunManager(config, path.join(dir, "projects"), () => provider, path.join(dir, "runs"));
+      runs.customSkills = new CustomSkills(path.join(dir, "custom"));
+      await runs.customSkills.save({ name: "tabs-only", description: "Indent with tabs", body: "Always indent with tabs." });
+      const r = await runs.start("site", "Build it");
+      await new Promise<void>((resolve) => {
+        const off = runs.subscribe(r.id, (e) => {
+          if (e.type === "run.done" || e.type === "run.error") {
+            off();
+            resolve();
+          }
+        });
+      });
+      expect(systems.some((s) => s.includes("Always indent with tabs."))).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

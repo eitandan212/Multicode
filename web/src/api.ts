@@ -138,6 +138,11 @@ export const api = {
       "POST",
       `/api/connections/${id}/cache-check`,
     ),
+  customSkills: () => request<{ name: string; description: string; body: string }[]>("GET", "/api/skills/custom"),
+  saveCustomSkill: (s: { name: string; description: string; body: string }) =>
+    request<unknown>("PUT", `/api/skills/custom/${encodeURIComponent(s.name.trim().toLowerCase().replace(/[\s_]+/g, "-"))}`, s),
+  deleteCustomSkill: (name: string) => request<void>("DELETE", `/api/skills/custom/${encodeURIComponent(name)}`),
+  installCustomSkill: (url: string) => request<unknown>("POST", "/api/skills/custom/install", { url }),
   discoverMcp: () => request<FoundMcpServer[]>("GET", "/api/mcp/discover"),
   importMcp: (servers: { source: string; name: string }[]) =>
     request<SyncConfigView>("POST", "/api/mcp/import", { servers }),
